@@ -11,7 +11,21 @@ from pathlib import Path
 from typing import Any
 
 SITE_PREFIX = "/audio-jacobian-lens/"
+PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
+CANONICAL_DETAILED_ROUTES = {
+    "asr": SITE_PREFIX,
+    "speech": f"{SITE_PREFIX}speech/",
+    "tts": f"{SITE_PREFIX}tts/",
+}
+FINDINGS_ROUTES = {
+    "asr": f"{SITE_PREFIX}findings/",
+    "speech": f"{SITE_PREFIX}findings/speech/",
+    "tts": f"{SITE_PREFIX}findings/tts/",
+}
+LEGACY_EXPLORER_ROUTES = {
+    family: f"{SITE_PREFIX}explorer/{family}/" for family in FAMILIES
+}
 FORBIDDEN_KEYS = {
     "analysis_id",
     "parent_analysis_id",
@@ -153,24 +167,192 @@ def _validate_filter_cache(
     _validate_safe(cache)
 
 
+def _require_page(site_root: Path, relative_path: str, *, label: str) -> str:
+    path = site_root / relative_path
+    if not path.is_file():
+        raise ValueError(f"missing {label} page: {relative_path}")
+    html = path.read_text(encoding="utf-8")
+    if 'name="robots" content="noindex,nofollow"' not in html:
+        raise ValueError(f"{label} page is not marked noindex")
+    return html
+
+
+def _require_markers(html: str, markers: tuple[str, ...], *, label: str) -> None:
+    for marker in markers:
+        if marker not in html:
+            raise ValueError(f"{label} page is missing {marker!r}")
+
+
+def _validate_route_contract(site_root: Path) -> None:
+    detailed_pages = {
+        "asr": (
+            "index.html",
+            "./assets/explorer.js",
+            "./explorer/data/asr/manifest.json",
+            ("href=\"./\"", "href=\"./speech/\"", "href=\"./tts/\""),
+        ),
+        "speech": (
+            "speech/index.html",
+            "../assets/explorer.js",
+            "../explorer/data/speech/manifest.json",
+            ("href=\"../\"", "href=\"./\"", "href=\"../tts/\""),
+        ),
+        "tts": (
+            "tts/index.html",
+            "../assets/explorer.js",
+            "../explorer/data/tts/manifest.json",
+            ("href=\"../\"", "href=\"../speech/\"", "href=\"./\""),
+        ),
+    }
+    findings_pages = {
+        "asr": (
+            "findings/index.html",
+            "../assets/app.js",
+            "../data/reports.json",
+        ),
+        "speech": (
+            "findings/speech/index.html",
+            "../../assets/app.js",
+            "../../data/reports.json",
+        ),
+        "tts": (
+            "findings/tts/index.html",
+            "../../assets/app.js",
+            "../../data/reports.json",
+        ),
+    }
+    alias_pages = {
+        family: (
+            f"explorer/{family}/index.html",
+            "../../assets/explorer.js",
+            f"../data/{family}/manifest.json",
+        )
+        for family in FAMILIES
+    }
+
+    for family, (path, script, manifest, nav_links) in detailed_pages.items():
+        label = f"canonical {family} detailed explorer"
+        html = _require_page(site_root, path, label=label)
+        _require_markers(
+            html,
+            (
+                'class="detailed-explorer"',
+                f'data-family="{family}"',
+                f'data-manifest-url="{manifest}"',
+                f'src="{script}"',
+                f'<link rel="canonical" href="{PUBLIC_BASE}{CANONICAL_DETAILED_ROUTES[family].removeprefix(SITE_PREFIX)}">',
+                *nav_links,
+            ),
+            label=label,
+        )
+        if "assets/app.js" in html:
+            raise ValueError(f"{label} uses the findings renderer")
+
+    for family, (path, script, data_url) in findings_pages.items():
+        label = f"{family} findings"
+        html = _require_page(site_root, path, label=label)
+        _require_markers(
+            html,
+            (
+                f'data-family="{family}"',
+                f'data-data-url="{data_url}"',
+                f'src="{script}"',
+            ),
+            label=label,
+        )
+        if 'class="detailed-explorer"' in html or "assets/explorer.js" in html:
+            raise ValueError(f"{label} uses the detailed-explorer renderer")
+
+    canonical_alias_nav = (
+        'href="../../"',
+        'href="../../speech/"',
+        'href="../../tts/"',
+    )
+    for family, (path, script, manifest) in alias_pages.items():
+        label = f"legacy {family} explorer alias"
+        html = _require_page(site_root, path, label=label)
+        canonical_suffix = CANONICAL_DETAILED_ROUTES[family].removeprefix(SITE_PREFIX)
+        _require_markers(
+            html,
+            (
+                'class="detailed-explorer"',
+                f'data-family="{family}"',
+                f'data-manifest-url="{manifest}"',
+                f'src="{script}"',
+                f'<link rel="canonical" href="{PUBLIC_BASE}{canonical_suffix}">',
+                *canonical_alias_nav,
+            ),
+            label=label,
+        )
+        if "assets/app.js" in html:
+            raise ValueError(f"{label} uses the findings renderer")
+
+    site_manifest = _load(site_root / "site-manifest.json")
+    expected_routes = {
+        "detailed_cached_explorers": list(CANONICAL_DETAILED_ROUTES.values()),
+        "findings": list(FINDINGS_ROUTES.values()),
+        "legacy_explorer_aliases": list(LEGACY_EXPLORER_ROUTES.values()),
+    }
+    routes = site_manifest.get("routes")
+    if not isinstance(routes, Mapping):
+        raise ValueError("site manifest has no route map")
+    for name, expected in expected_routes.items():
+        if routes.get(name) != expected:
+            raise ValueError(f"site manifest has an invalid {name} route list")
+
+
 def validate_site(site_root: Path) -> dict[str, int]:
     site_root = site_root.resolve()
     counts: dict[str, int] = {}
-    for asset in ("assets/explorer.js", "assets/explorer.css"):
+    for asset in (
+        "assets/explorer.js",
+        "assets/explorer.css",
+        "assets/app.js",
+        "assets/styles.css",
+    ):
         if not (site_root / asset).is_file():
-            raise ValueError(f"missing detailed-explorer asset: {asset}")
-    script = (site_root / "assets/explorer.js").read_text(encoding="utf-8")
-    if "/api/" in script or "method: \"POST\"" in script or "method: 'POST'" in script:
-        raise ValueError("published explorer JavaScript contains a live API call")
+            raise ValueError(f"missing static-site asset: {asset}")
+    for asset in ("assets/explorer.js", "assets/app.js"):
+        script = (site_root / asset).read_text(encoding="utf-8")
+        if (
+            "/api/" in script
+            or "method: \"POST\"" in script
+            or "method: 'POST'" in script
+        ):
+            raise ValueError(f"published {asset} contains a live API call")
+    explorer_script = (site_root / "assets/explorer.js").read_text(
+        encoding="utf-8"
+    )
+    if 'URLSearchParams(window.location.search).get("sample")' not in explorer_script:
+        raise ValueError("static explorer does not preserve ?sample selection")
+    for marker in (
+        "function renderSpeechRows()",
+        "const windowSize = 8",
+        'class="speech-matrix-window"',
+        'family === "speech" ? renderSpeechRows()',
+    ):
+        if marker not in explorer_script:
+            raise ValueError(
+                "static explorer is missing the readable speech-band contract: "
+                f"{marker}"
+            )
+    explorer_css = (site_root / "assets/explorer.css").read_text(
+        encoding="utf-8"
+    )
+    for marker in (
+        ".position-timeline.speech-readable",
+        ".speech-matrix-window",
+        ".speech-matrix-grid",
+    ):
+        if marker not in explorer_css:
+            raise ValueError(
+                "static explorer CSS is missing the readable speech-band "
+                f"contract: {marker}"
+            )
+
+    _validate_route_contract(site_root)
 
     for family in FAMILIES:
-        page = site_root / "explorer" / family / "index.html"
-        html = page.read_text(encoding="utf-8")
-        if 'name="robots" content="noindex,nofollow"' not in html:
-            raise ValueError(f"{family} detailed page is not marked noindex")
-        if "../../assets/explorer.js" not in html:
-            raise ValueError(f"{family} page does not load the static renderer")
-
         manifest_path = site_root / "explorer" / "data" / family / "manifest.json"
         manifest = _load(manifest_path)
         if (

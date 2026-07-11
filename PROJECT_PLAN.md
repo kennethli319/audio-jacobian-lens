@@ -469,7 +469,10 @@ Status: **in progress**
   semantics without live inference identifiers.
 - [x] Publish an unlinked, `noindex` GitHub Pages review at
   `kennethli319.github.io/audio-jacobian-lens/` without changing the personal
-  homepage; include only the three rights-cleared LibriSpeech input FLACs.
+  homepage; make the complete cached explorers canonical at the root,
+  `/speech/`, and `/tts/`, move the curated interpretations under `/findings/`,
+  retain functional `/explorer/{family}/` aliases, and include only the three
+  rights-cleared LibriSpeech input FLACs.
 - [x] Implement deterministic allowlist-based exporters and schema validation
   for ASR, LFM, Chatterbox generation, all-position trace, and the recorded
   bridge-intervention response.
@@ -477,6 +480,9 @@ Status: **in progress**
   renderer across ASR, speech-to-speech, and TTS. Keep this renderer separate
   from the live pages so upload, generation, and mutation controls cannot leak
   into the public build.
+- [x] Keep every cached speech-to-speech layer × output-position top-token cell
+  while dividing long response timelines into aligned, readable position bands
+  with full token text available locally.
 - [ ] Package the Chatterbox bridge baseline/steered pair after completing the
   conversion/S3/derived-output review.
 - [x] Package the three attributed LibriSpeech inputs with immutable hashes and
@@ -498,6 +504,11 @@ Acceptance criteria:
   complete license/attribution record.
 - Visitors can inspect all layer/position cells and neighboring counterexamples,
   not only a preselected hero coordinate.
+- The detailed explorer is the entry point for each model family; curated
+  findings are clearly linked secondary interpretation pages rather than a
+  substitute for the underlying matrices.
+- Long speech-to-speech responses remain readable without dropping, merging, or
+  silently aggregating any saved top-token cell.
 - The static pages preserve the live site's distinctions among fitted readout,
   raw head, gradient, attention, forced output, and residual steering.
 - At least one failure/null control and pooled frequency context accompany the
@@ -551,9 +562,12 @@ decision log.
   compact, hash-pinned sidecars and load only when the visitor enables the
   character filter.
 - Static speech-to-speech pages distribute the cleared input waveform and
-  generated text but not generated response audio. Static TTS pages distribute
-  speech-code/readout/trace values and the recorded bridge intervention, but no
-  generated waveform, audio URI, or ephemeral server analysis handle.
+  generated text but not generated response audio. Long generated-text
+  timelines wrap into aligned position bands: each band repeats the layer
+  labels and preserves one individually selectable top-token cell per original
+  layer/position coordinate. Static TTS pages distribute speech-code/readout/
+  trace values and the recorded bridge intervention, but no generated waveform,
+  audio URI, or ephemeral server analysis handle.
 - Pilot lens: at least 10 clips for a plumbing/quality gate. A one-clip lens may
   be used only as an explicitly labeled smoke test.
 - The first hosted target is a Hugging Face Docker Space on port 7860. It is
@@ -1017,6 +1031,32 @@ rows use actual teacher-forced probability and log probability. Placement is
 derived from the cell rectangle, clamped to the chart horizontally, and flipped
 or clamped within the viewport vertically. Native `title` tooltips are removed
 to avoid duplicate or delayed information.
+
+### 2026-07-11 — Make the cached explorers the public entry points
+
+The full already-inferred layer × position views are the primary public
+artifact, rather than a detail screen hidden behind a curated story. The site
+root is therefore canonical ASR, with canonical speech-to-speech and TTS pages
+at `/speech/` and `/tts/`. Each page links to its shorter experimental findings
+under `/findings/`. Functional copies remain under `/explorer/{family}/` so
+existing shared URLs and `?sample=...` selections continue to resolve without
+redirect or query-string loss.
+
+The static validator treats this information hierarchy as a release contract:
+all canonical pages and aliases must use the detailed cached renderer, all
+findings pages must use the curated-report renderer, and every route remains
+`noindex` while the review is absent from the personal-site homepage.
+
+### 2026-07-11 — Wrap long speech responses without discarding cells
+
+The LFM output axis can be much longer than the ASR examples. Compressing every
+position into one viewport makes even the visible top-token text unreadable.
+The static speech-to-speech explorer therefore partitions a long output into
+aligned position bands. Within each band the position header and all layer rows
+share the same columns, layer labels repeat, and every original layer × position
+cell remains individually selectable with its saved top candidate, rank, score,
+and alternatives. This is a layout transformation only; it does not pool,
+truncate, or recompute the cached evidence.
 
 ## Work log
 
@@ -1574,3 +1614,14 @@ to avoid duplicate or delayed information.
   audio URIs, waveform outputs, and ephemeral analysis IDs are absent. Local
   route/cache replay and shared-renderer data-shape smokes passed for all three
   families; the personal homepage remains unchanged pending owner review.
+- Promoted the complete cached explorers to the canonical public family routes:
+  ASR at the review root, speech-to-speech at `/speech/`, and TTS at `/tts/`.
+  Moved the shorter experiment narratives under `/findings/`, kept the earlier
+  `/explorer/{family}/` pages as functional renderer aliases that preserve
+  query-selected samples, and left the personal homepage unlinked.
+- Reworked the long LFM response matrix into aligned position bands. Each band
+  shows readable token text above repeated layer rows while preserving every
+  original top-token cell and its click, focus, rank, score, and alternatives.
+  Extended the static validation contract and focused tests to enforce the
+  canonical explorers, secondary findings pages, functional aliases, renderer
+  separation, `noindex` policy, and query-selection support.
