@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "status": "curated_candidates_not_yet_static_exports",
+  "updated": "2026-07-11",
+  "candidates": [
+    {
+      "id": "asr-door-early-readable",
+      "page": "asr",
+      "publish_status": "rights-cleared-source-payload-pending",
+      "source": "LibriSpeech 1272-135031-0003",
+      "teaching_purpose": "Exact emitted token is readable in an early decoder residual.",
+      "focus": {"token": " door", "ranks": {"L0": 4, "L1": 1, "L2": 1, "HEAD": 1}}
+    },
+    {
+      "id": "asr-now-late-emergence",
+      "page": "asr",
+      "publish_status": "bundled-rights-cleared",
+      "source": "LibriSpeech 1272-135031-0012",
+      "teaching_purpose": "A content token becomes sharply readable only in the late decoder.",
+      "focus": {"token": " now", "ranks": {"L0": 6319, "L1": 7237, "L2": 3, "HEAD": 1}}
+    },
+    {
+      "id": "asr-buzzer-subwords",
+      "page": "asr",
+      "publish_status": "rights-cleared-source-payload-pending",
+      "source": "LibriSpeech 1272-141231-0004",
+      "teaching_purpose": "BPE pieces can have very different layer trajectories within one word.",
+      "focus": {
+        "tokens": [
+          {"text": " buzz", "ranks": [3966, 651, 981, 1]},
+          {"text": "er", "ranks": [23, 2, 1, 1]}
+        ]
+      }
+    },
+    {
+      "id": "asr-silence-null",
+      "page": "asr",
+      "publish_status": "procedural-payload-pending",
+      "source": "project-generated 3.0 second digital silence",
+      "teaching_purpose": "Null control exposing hallucination and spurious encoder readability.",
+      "focus": {"generated_text": "you", "decoder_ranks": [92, 17, 6, 1], "encoder_ranks": [69, 134, 14, 16]}
+    },
+    {
+      "id": "tts-bridge-emergence-and-steering",
+      "page": "tts",
+      "publish_status": "derived-output-review-pending",
+      "source": "project-authored Chatterbox prompt",
+      "teaching_purpose": "Fitted acoustic-code emergence, text sensitivity, and a small causal residual edit in one run.",
+      "focus": {
+        "prompt": "A bright red train crossed the narrow bridge.",
+        "speech_code_index_zero_based": 8,
+        "display_position": "S9",
+        "code_id": 4106,
+        "ranks": [3183, 3137, 1892, 946, 396, 11, 1, 1],
+        "layers": [0, 4, 8, 12, 16, 20, 22, "HEAD"],
+        "steering_target_id": 4358,
+        "relative_residual_norm": 0.001708984375
+      }
+    },
+    {
+      "id": "tts-turtles-monotonic",
+      "page": "tts",
+      "publish_status": "derived-output-review-pending",
+      "source": "project-authored Chatterbox prompt",
+      "teaching_purpose": "Clean near-monotonic fitted-rank emergence.",
+      "focus": {"prompt": "Tiny turtles travel together toward the tide.", "ranks": [4149, 3551, 1658, 176, 18, 2, 1]}
+    },
+    {
+      "id": "lfm-hello-midlayer",
+      "page": "speech",
+      "publish_status": "screening-only-refit-and-input-rights-pending",
+      "source": "local screening TTS",
+      "teaching_purpose": "Provisional mid-layer lexical emergence plus instruction-following failure.",
+      "focus": {"input_text": "Say hello in one word.", "output_text": "Hello! How can I help you today?", "token": "Hello", "ranks": [28728, 38641, 13739, 5, 1]}
+    },
+    {
+      "id": "lfm-four-lens-failure",
+      "page": "speech",
+      "publish_status": "screening-only-refit-and-input-rights-pending",
+      "source": "local screening TTS",
+      "teaching_purpose": "Clear base-model answer that the one-clip projected lens still reads poorly.",
+      "focus": {"input_text": "What is two plus two? Answer with one word.", "output_text": "Four", "ranks": [23420, 41719, 31297, 2197, 141, 1]}
+    }
+  ]
+}

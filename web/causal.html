@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Recorded causal intervention experiments for Audio Jacobian Lens." />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>Causal Trace Study · Audio Jacobian Lens</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css?v=0.6.0-consistency" />
+    <script src="./workspace-nav.js?v=0.7.0-showcase" defer></script>
+    <script src="./causal.js?v=0.6.0-consistency" defer></script>
+  </head>
+  <body class="causal-page" data-workspace="causal">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Return to Audio Jacobian Lens home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-copy"><strong>Audio Jacobian Lens</strong><small>Whisper interpretability workspace</small></span>
+      </a>
+      <nav class="site-nav" aria-label="Workspace pages">
+        <a href="./" data-workspace-link="asr">ASR</a>
+        <a href="./" data-workspace-link="speech">Speech</a>
+        <a href="./chatterbox" data-workspace-link="tts">TTS</a>
+        <a href="./showcase.html" data-workspace-link="showcase">Showcase</a>
+      </nav>
+      <div class="header-meta"><span class="model-badge">WHISPER · TINY</span></div>
+    </header>
+
+    <main>
+      <section class="causal-study" aria-labelledby="causal-study-title">
+        <div class="causal-study-heading">
+          <div>
+            <p class="section-label">RECORDED EXPERIMENTS · CAUSAL TRACE</p>
+            <h1 id="causal-study-title">What changes when we steer Whisper?</h1>
+            <p>Explore fixed encoder and decoder interventions on the Laurel/Yanny clip. Every view separates actual token-path likelihood, free generation, and J-lens diagnostics.</p>
+          </div>
+          <a class="button quiet" href="https://hrbosker.github.io/demos/laurel-yanny/" target="_blank" rel="noreferrer">Source demo ↗</a>
+        </div>
+
+        <div class="causal-study-config" aria-label="Strength-sweep configuration">
+          <div><span>Model</span><strong>Whisper Tiny.en</strong></div>
+          <div><span>Sweep audio span</span><strong>0.18–0.38 s</strong></div>
+          <div><span>Target contrast</span><strong id="target-contrast">Yanny − Laurel</strong></div>
+          <div><span>Budget sweep</span><strong>20–120% · matched norm</strong></div>
+        </div>
+
+        <div class="global-target-control">
+          <div><span>Steering target</span><strong>Synchronizes every result below</strong></div>
+          <div class="target-buttons" role="group" aria-label="J-lens steering target">
+            <button id="target-yanny" class="button secondary active" type="button" aria-pressed="true">Favor Yanny</button>
+            <button id="target-laurel" class="button secondary" type="button" aria-pressed="false">Favor Laurel</button>
+          </div>
+        </div>
+
+        <section class="target-steering" aria-labelledby="target-steering-title">
+          <div class="target-steering-heading">
+            <div><p class="overline">Target-directed J-lens schedule</p><h2 id="target-steering-title">How does the selected target respond to a larger edit?</h2><p>The sweep uses the same encoder L1→L2→L3 schedule and 0.18–0.38 s span at every budget.</p></div>
+          </div>
+          <p class="target-steering-status" id="target-steering-status" aria-live="polite"></p>
+          <div class="target-sweep-grid" id="target-sweep-grid" aria-label="Steering strength sweep"></div>
+          <details class="target-sweep-details">
+            <summary>Full candidate table and 20% propagation</summary>
+          <div class="target-layer-grid">
+            <div><p class="overline">Candidate token paths at each budget</p><p class="target-caption">Shares normalize total candidate-token log likelihood over these four strings only. The cards also show the absolute target-path likelihood; neither measure is a free-generation probability.</p><div class="target-candidate-table" id="target-candidate-table" aria-label="Candidate values by steering strength"></div></div>
+            <div><p class="overline">Downstream propagation at 20%</p><p class="target-caption">Mean and peak residual-state L2 change relative to the unedited run.</p><div class="target-propagation-table" id="target-propagation-table" aria-label="Layer change by target direction"></div></div>
+          </div>
+          </details>
+        </section>
+
+        <section class="causal-piecewise" aria-labelledby="piecewise-title">
+          <div class="piece-impact-heading">
+            <div>
+              <p class="overline" id="piece-impact-overline">Tokenizer-faithful piece impact</p>
+              <h2 id="piecewise-title">How do encoder and decoder edits change Yanny's real tokenizer path?</h2>
+              <p id="piece-impact-copy"></p>
+            </div>
+            <div class="piece-stream-control">
+              <span>Steering stream</span>
+              <div class="piece-impact-buttons" role="group" aria-label="Residual stream">
+                <button class="button secondary active" type="button" data-piece-stream="encoder" aria-pressed="true">Encoder · exact BPE</button>
+                <button class="button secondary" type="button" data-piece-stream="encoder_prefix" aria-pressed="false">Encoder · prefix families</button>
+                <button class="button secondary" type="button" data-piece-stream="decoder" aria-pressed="false">Decoder · token positions</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="piece-condition-control">
+            <span>Target-piece allocation</span>
+            <div class="piece-impact-buttons" id="piece-condition-buttons" role="group" aria-label="Target-piece allocation"></div>
+          </div>
+
+          <div class="piece-impact-map" id="piece-impact-map" aria-label="Tokenizer pieces mapped to encoder audio slices and decoder prediction positions"></div>
+
+          <p class="piece-impact-status" id="piece-impact-status" aria-live="polite"></p>
+
+          <div class="piece-impact-layout">
+            <div class="piece-token-path">
+              <div class="piece-panel-heading"><div><p class="overline">Actual target token path</p><h3>Full-vocabulary softmax at each decoder step</h3></div><span id="piece-path-badge">encoder · teacher forced</span></div>
+              <div class="piece-token-metrics" id="piece-token-metrics"></div>
+              <p class="piece-impact-caption">Later values are conditioned on earlier target pieces being supplied. These are raw, uncalibrated model probabilities—not the four-candidate comparison.</p>
+              <div class="piece-propagation" id="piece-propagation" aria-label="Mean downstream state change"></div>
+            </div>
+
+            <div class="piece-final-output">
+              <div class="piece-panel-heading"><div><p class="overline">Final model outcomes</p><h3>Generated transcript and complete candidates</h3></div><div class="piece-generated" id="piece-generated"></div></div>
+              <p class="piece-impact-caption">Bars normalize total candidate-token log likelihood over four fixed strings. “Path p” is the absolute product of teacher-forced token probabilities. Longer token paths are mechanically penalized; EOS is not included, and neither value is a free-generation probability.</p>
+              <div class="piece-candidate-bars" id="piece-candidate-bars" aria-label="Complete candidate comparison"></div>
+              <p class="piece-random-control" id="piece-random-control"></p>
+            </div>
+          </div>
+
+          <details class="piece-impact-details">
+            <summary>Total token-path scores, secondary diagnostics, and intervention policy</summary>
+            <div class="piece-raw-table" id="piece-raw-table"></div>
+            <p class="piece-method-note" id="piece-method-note"></p>
+          </details>
+        </section>
+
+        <details class="causal-archive">
+          <summary><span>Earlier traces and propagation</span><small>Single-layer and coordinated controls</small></summary>
+        <div class="causal-experiment-list" aria-label="Recorded intervention results">
+          <article class="causal-experiment-card">
+            <div class="causal-experiment-heading"><div><p class="overline">RUN A · SINGLE LAYER</p><h2>Encoder L1</h2></div><span>one edit</span></div>
+            <div class="causal-outcome-grid compact">
+              <div class="causal-outcome baseline"><span>Baseline</span><strong>3.403</strong><p>total-path log p contrast</p></div>
+              <div class="causal-outcome steering"><span>J-lens edit</span><strong>4.579</strong><p><em>+1.176</em> versus baseline</p></div>
+              <div class="causal-outcome control"><span>Random control</span><strong>5.343</strong><p><em>+1.939</em> versus baseline</p></div>
+            </div>
+            <p class="causal-result-note"><strong>Important:</strong> the random control moves the total-path contrast more than the J-lens edit. Free generation stayed <strong>Lily!</strong>.</p>
+            <div class="causal-candidate-view">
+              <p class="overline">Complete candidate comparison</p>
+              <p>Restricted softmax over total candidate-token log probabilities; raw total log p is shown in italics. EOS is excluded and unequal token counts create a length penalty.</p>
+              <div class="causal-candidate-table" role="table" aria-label="Single-layer complete candidate comparison">
+                <div class="causal-candidate-row causal-candidate-header" role="row"><span role="columnheader">Condition</span><span role="columnheader">Lily!</span><span role="columnheader">Yay!</span><span role="columnheader">Yanny</span><span role="columnheader">Laurel</span></div>
+                <div class="causal-candidate-row" role="row"><strong role="rowheader">Baseline</strong><span role="cell">98.53% <i>−1.732</i></span><span role="cell">1.29% <i>−6.071</i></span><span role="cell">0.18% <i>−8.024</i></span><span role="cell">0.006% <i>−11.427</i></span></div>
+                <div class="causal-candidate-row steering" role="row"><strong role="rowheader">L1 J-lens</strong><span role="cell">96.12% <i>−1.996</i></span><span role="cell">3.42% <i>−5.331</i></span><span role="cell">0.45% <i>−7.351</i></span><span role="cell">0.0047% <i>−11.930</i></span></div>
+                <div class="causal-candidate-row control" role="row"><strong role="rowheader">L1 random</strong><span role="cell">86.37% <i>−2.667</i></span><span role="cell">11.79% <i>−4.659</i></span><span role="cell">1.83% <i>−6.522</i></span><span role="cell">0.0088% <i>−11.865</i></span></div>
+              </div>
+              <details class="causal-first-token"><summary>Actual first-BPE-token softmax</summary><p>At the first generated decoder position: baseline Lily 36.174%, Yay 12.333%, Yanny 12.333%, Laurel 0.001%; after the L1 J-lens edit: Lily 26.904%, Yay 14.910%, Yanny 14.910%, Laurel 0.001%. Yay and Yanny share their first BPE piece, so their raw first-token values are identical.</p></details>
+            </div>
+          </article>
+
+          <article class="causal-experiment-card featured">
+            <div class="causal-experiment-heading"><div><p class="overline">RUN B · COORDINATED SCHEDULE</p><h2>Encoder L1 + L2 + L3</h2></div><span>three sequential edits · 11.55% each</span></div>
+            <div class="causal-outcome-grid compact">
+              <div class="causal-outcome baseline"><span>Baseline</span><strong>3.403</strong><p>total-path log p contrast</p></div>
+              <div class="causal-outcome steering"><span>J-lens schedule</span><strong>4.865</strong><p><em>+1.462</em> versus baseline</p></div>
+              <div class="causal-outcome control"><span>Random schedule</span><strong>4.674</strong><p><em>+1.271</em> versus baseline</p></div>
+            </div>
+            <p class="causal-result-note"><strong>Important:</strong> the matched random schedule moved in the same direction. This run demonstrates propagation and larger effect size, not direction specificity. Free generation stayed <strong>Lily!</strong>.</p>
+            <div class="causal-candidate-view">
+              <p class="overline">Complete candidate comparison</p>
+              <p>Restricted softmax over total candidate-token log probabilities; raw total log p is shown in italics. This is not a full-output softmax.</p>
+              <div class="causal-candidate-table" role="table" aria-label="Multi-layer complete candidate comparison">
+                <div class="causal-candidate-row causal-candidate-header" role="row"><span role="columnheader">Condition</span><span role="columnheader">Lily!</span><span role="columnheader">Yay!</span><span role="columnheader">Yanny</span><span role="columnheader">Laurel</span></div>
+                <div class="causal-candidate-row" role="row"><strong role="rowheader">Baseline</strong><span role="cell">98.53% <i>−1.732</i></span><span role="cell">1.29% <i>−6.071</i></span><span role="cell">0.18% <i>−8.024</i></span><span role="cell">0.006% <i>−11.427</i></span></div>
+                <div class="causal-candidate-row steering" role="row"><strong role="rowheader">L1+L2+L3 J-lens</strong><span role="cell">95.72% <i>−2.023</i></span><span role="cell">3.90% <i>−5.223</i></span><span role="cell">0.38% <i>−7.560</i></span><span role="cell">0.0029% <i>−12.425</i></span></div>
+                <div class="causal-candidate-row control" role="row"><strong role="rowheader">L1+L2+L3 random</strong><span role="cell">92.67% <i>−2.270</i></span><span role="cell">6.42% <i>−4.939</i></span><span role="cell">0.90% <i>−6.909</i></span><span role="cell">0.0084% <i>−11.583</i></span></div>
+              </div>
+              <details class="causal-first-token"><summary>Actual first-BPE-token softmax</summary><p>After the coordinated J-lens schedule: Lily 26.627%, Yay 14.923%, Yanny 14.923%, Laurel 0.000%. The matched random schedule gives Lily 23.566%, Yay 20.609%, Yanny 20.609%, Laurel 0.001%.</p></details>
+            </div>
+          </article>
+        </div>
+
+        <div class="causal-propagation">
+          <div class="causal-propagation-copy">
+            <p class="overline">Run B · downstream state change</p>
+            <h2>The L1→L2→L3 schedule reaches every later computation.</h2>
+            <p>Each layer receives the already-edited output of previous layers, then its own normalized J-lens contrast edit. Rows are L2 differences from the unedited run, not token probabilities.</p>
+          </div>
+          <div class="causal-propagation-table" role="table" aria-label="Multi-layer causal schedule propagation summary">
+            <div class="causal-propagation-row causal-propagation-header" role="row"><span role="columnheader">State</span><span role="columnheader">Mean ΔL2</span><span role="columnheader">Peak ΔL2</span></div>
+            <div class="causal-propagation-row source" role="row"><span role="cell">Encoder L1 · edited</span><strong role="cell">0.359</strong><strong role="cell">1.652</strong></div>
+            <div class="causal-propagation-row source" role="row"><span role="cell">Encoder L2 · edited</span><strong role="cell">1.393</strong><strong role="cell">3.961</strong></div>
+            <div class="causal-propagation-row source" role="row"><span role="cell">Encoder L3 · edited</span><strong role="cell">4.349</strong><strong role="cell">11.008</strong></div>
+            <div class="causal-propagation-row decoder" role="row"><span role="cell">Decoder L0</span><strong role="cell">0.254</strong><strong role="cell">0.443</strong></div>
+            <div class="causal-propagation-row decoder" role="row"><span role="cell">Decoder L1</span><strong role="cell">0.337</strong><strong role="cell">0.456</strong></div>
+            <div class="causal-propagation-row decoder" role="row"><span role="cell">Decoder L2</span><strong role="cell">0.497</strong><strong role="cell">0.722</strong></div>
+            <div class="causal-propagation-row decoder" role="row"><span role="cell">Decoder L3</span><strong role="cell">1.254</strong><strong role="cell">2.809</strong></div>
+            <div class="causal-propagation-row output" role="row"><span role="cell">Output head · decoder positions</span><strong role="cell">63.920</strong><strong role="cell">105.821</strong></div>
+          </div>
+        </div>
+
+        <section class="causal-next" aria-labelledby="causal-next-title">
+          <p class="overline">Experimental register</p>
+          <h2 id="causal-next-title">What this page records—and what comes next.</h2>
+          <div class="causal-next-grid">
+            <div><strong>Implemented</strong><p>Single- and multi-layer schedules, complete-candidate scoring, free generation, per-layer propagation capture, and matched-norm random controls.</p></div>
+            <div><strong>Required before claims</strong><p>A distribution of random controls, reverse Laurel-target schedules, frequency-filtered source variants, and strength/window scans fixed before evaluation.</p></div>
+          </div>
+        </section>
+        </details>
+
+        <p class="causal-study-caveat"><strong>Interpretation boundary:</strong> the encoder has no vocabulary distribution. These edits are residual-space interventions proposed by the J-lens and evaluated by actual downstream computation. They do not show that Whisper—or people—represent phonemes as “L” versus “Y.”</p>
+      </section>
+    </main>
+
+    <footer><span>Audio Jacobian Lens</span><span>Recorded causal experiments are exploratory, not calibrated model intent.</span></footer>
+  </body>
+</html>

@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Explore speech-model token probabilities and Jacobian Lens lexical readouts across audio and language layers."
+    />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>Audio Jacobian Lens</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css?v=0.7.7-generation-stop" />
+    <script src="./workspace-nav.js?v=0.7.0-showcase" defer></script>
+    <script src="./app.js?v=0.7.7-generation-stop" defer></script>
+  </head>
+  <body data-workspace="asr">
+    <a class="skip-link" href="#main-content">Skip to workspace</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Audio Jacobian Lens home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-copy">
+          <strong>Audio Jacobian Lens</strong>
+          <small id="brand-subtitle">Speech-model interpretability workspace</small>
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="Workspace pages">
+        <a class="active" href="./" data-workspace-link="asr" aria-current="page">ASR</a>
+        <a href="./" data-workspace-link="speech">Speech</a>
+        <a href="./chatterbox" data-workspace-link="tts">TTS</a>
+        <a href="./showcase.html" data-workspace-link="showcase">Showcase</a>
+      </nav>
+      <div class="header-meta">
+        <span class="model-badge" id="model-badge">AUDIO MODEL</span>
+        <button class="status-pill" id="status-button" type="button" aria-label="Backend status: checking. Refresh status." aria-live="polite">
+          <span class="status-dot" id="status-dot" aria-hidden="true"></span>
+          <span id="status-text">Checking backend…</span>
+        </button>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">Mechanistic interpretability for speech</p>
+          <h1 id="hero-title">Trace audio through a model’s vocabulary space.</h1>
+          <p class="hero-copy" id="hero-copy">
+            Compare the model’s emitted-token probability with layer-by-layer Jacobian Lens
+            readouts. Focus one sound or token at a time—without navigating a sprawling matrix.
+          </p>
+        </div>
+        <div class="metric-primer" aria-label="Color encoding guide">
+          <div class="primer-item probability-primer">
+            <span class="primer-gradient" aria-hidden="true"></span>
+            <div><strong id="probability-primer-title">Output-head probability</strong><span id="probability-primer-copy">Whisper LM-head softmax · 0–100%</span></div>
+          </div>
+          <div class="primer-item lens-primer">
+            <span class="primer-gradient" aria-hidden="true"></span>
+            <div><strong id="lens-primer-title">J-lens intensity</strong><span id="lens-primer-copy">Relative rank within the current view · not a percent</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="reading-guide" id="mode-guide" aria-labelledby="mode-guide-title">
+        <div class="reading-guide-heading">
+          <div>
+            <p class="overline" id="mode-guide-label">ASR · J-LENS GUIDE</p>
+            <h2 id="mode-guide-title">How J-lens applies to ASR</h2>
+          </div>
+          <p id="mode-guide-summary">Whisper turns audio into text through a bidirectional audio encoder and a causal text decoder. Its two lens views answer different questions.</p>
+        </div>
+        <div class="reading-guide-grid">
+          <article>
+            <span class="reading-guide-number">01</span>
+            <h3>How it is applied</h3>
+            <div class="reading-guide-methods">
+              <p><strong id="mode-guide-primary-title">Decoder J-lens</strong><span id="mode-guide-primary">A fitted average Jacobian carries each decoder residual toward a later decoder state, which is read through Whisper’s text head.</span></p>
+              <p id="mode-guide-secondary-row"><strong id="mode-guide-secondary-title">Encoder-to-decoder extension</strong><span id="mode-guide-secondary">A separately fitted cross-modal Jacobian maps a pooled 200 ms audio window into the final decoder’s vocabulary space.</span></p>
+            </div>
+          </article>
+          <article>
+            <span class="reading-guide-number">02</span>
+            <h3>What it implies</h3>
+            <p id="mode-guide-implication">A token becoming readable in later layers can show when its lexical direction becomes accessible. An encoder peak can associate an audio location with a downstream lexical direction.</p>
+            <div class="reading-guide-boundary"><strong>It does not establish</strong><p id="mode-guide-boundary">Emission probability, a phoneme probability, a streaming belief, conscious consideration, or causal use. Whisper’s bidirectional encoder can use surrounding and later audio.</p></div>
+          </article>
+          <article class="reading-guide-usage">
+            <span class="reading-guide-number">03</span>
+            <h3>How to use this page</h3>
+            <ol id="mode-guide-steps">
+              <li>Choose a prepared sample, record, or upload audio; select the encoder overlap and analyze.</li>
+              <li>Select an orange output token or a waveform position to synchronize the output head, decoder, and nearest encoder window.</li>
+              <li>Compare early and late timeline rows, then hover, focus, or choose a slice to inspect token IDs, scoped ranks, and exact metric values.</li>
+              <li>Use token-length filters only as vocabulary reranking aids; they do not alter generation.</li>
+              <li>Check run provenance and interpretation warnings before comparing results.</li>
+            </ol>
+          </article>
+        </div>
+        <p class="reading-guide-scale" id="mode-guide-scale"><strong>Read the scales separately.</strong> Orange values are raw teacher-forced output probabilities. Blue J-lens scores are uncalibrated lexical readouts shown by display rank—not percentages or causal effect sizes.</p>
+      </section>
+
+      <section class="source-card" id="input-panel" aria-labelledby="source-title">
+        <div class="section-heading source-heading">
+          <div>
+            <p class="section-label">01 · INPUT</p>
+            <h2 id="source-title">Choose an audio source</h2>
+            <p>Try a prepared example, record your voice, or inspect an audio file.</p>
+          </div>
+          <div class="source-heading-actions">
+            <button class="button quiet" id="demo-button" type="button">Load synthetic UI demo</button>
+          </div>
+        </div>
+
+        <div class="source-tabs" role="tablist" aria-label="Audio source">
+          <button class="source-tab active" id="samples-tab" type="button" role="tab" aria-selected="true" aria-controls="samples-panel" data-source-tab="samples">
+            <span aria-hidden="true">◆</span> Prepared samples
+          </button>
+          <button class="source-tab" id="record-tab" type="button" role="tab" aria-selected="false" aria-controls="record-panel" data-source-tab="record" tabindex="-1">
+            <span class="record-dot" aria-hidden="true"></span> Record
+          </button>
+          <button class="source-tab" id="upload-tab" type="button" role="tab" aria-selected="false" aria-controls="upload-panel" data-source-tab="upload" tabindex="-1">
+            <span aria-hidden="true">↑</span> Upload
+          </button>
+        </div>
+
+        <div class="source-panel" id="samples-panel" role="tabpanel" aria-labelledby="samples-tab">
+          <div class="sample-list" id="sample-list" aria-live="polite">
+            <div class="sample-skeleton"><span></span><span></span><span></span></div>
+            <p id="samples-status">Loading prepared samples…</p>
+          </div>
+        </div>
+
+        <div class="source-panel record-panel" id="record-panel" role="tabpanel" aria-labelledby="record-tab" hidden>
+          <div class="record-stage">
+            <div class="record-visual" id="record-visual" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="record-copy">
+              <p class="record-state" id="record-state">Microphone ready</p>
+              <p id="record-detail">Record a short phrase, then review it before analysis.</p>
+              <p class="record-timer" id="record-timer" aria-live="polite">00:00</p>
+            </div>
+            <div class="record-actions">
+              <button class="button record-button" id="record-start" type="button"><span aria-hidden="true"></span> Start recording</button>
+              <button class="button secondary" id="record-stop" type="button" hidden>Stop recording</button>
+              <button class="button quiet" id="record-discard" type="button" hidden>Discard</button>
+            </div>
+          </div>
+          <div class="record-review" id="record-review" hidden>
+            <audio id="record-player" controls preload="metadata">Your browser does not support audio playback.</audio>
+            <button class="button primary" id="record-analyze" type="button">Analyze this recording</button>
+          </div>
+          <div class="message error-message" id="record-error" role="alert" hidden></div>
+        </div>
+
+        <div class="source-panel" id="upload-panel" role="tabpanel" aria-labelledby="upload-tab" hidden>
+          <input class="visually-hidden" id="audio-file" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg,.webm" tabindex="-1" />
+          <div class="drop-zone" id="drop-zone">
+            <div class="drop-icon" aria-hidden="true">↑</div>
+            <div class="drop-copy">
+              <strong id="file-label">Drop an audio file here</strong>
+              <span id="file-detail">WAV, MP3, M4A, FLAC, OGG, or WebM</span>
+            </div>
+            <button class="button secondary" id="browse-button" type="button">Browse files</button>
+          </div>
+          <div class="upload-actions">
+            <button class="button primary" id="analyze-button" type="button" disabled>
+              <span id="analyze-label">Analyze selected audio</span>
+              <span class="button-loader" id="button-loader" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="analysis-settings" id="encoder-analysis-settings" aria-labelledby="encoder-window-title">
+          <div class="analysis-settings-copy">
+            <p class="overline" id="encoder-window-title">Encoder time windows</p>
+            <strong>200 ms readout window</strong>
+            <span>Overlap changes the residual pooling used during analysis. Long clips may use wider windows to stay within the display limit.</span>
+          </div>
+          <label class="analysis-setting-control" for="encoder-overlap-seconds">
+            <span>Window overlap</span>
+            <select id="encoder-overlap-seconds">
+              <option value="0.02" selected>20 ms</option>
+              <option value="0">None</option>
+            </select>
+          </label>
+          <div class="analysis-setting-summary" id="encoder-hop-summary">180 ms hop</div>
+        </div>
+
+        <div class="selected-source" id="selected-source" hidden>
+          <span class="selected-icon" aria-hidden="true">♪</span>
+          <div><strong id="selected-title">Audio selected</strong><span id="selected-detail"></span></div>
+          <button class="button primary" id="selected-analyze" type="button">Analyze</button>
+        </div>
+
+        <div class="progress-panel" id="progress-panel" hidden>
+          <div class="progress-copy"><span id="progress-label">Analyzing audio…</span><span id="progress-time">00:00</span></div>
+          <div class="progress-track" id="progress-track" role="progressbar" aria-label="Audio analysis is in progress"><span></span></div>
+          <p id="progress-description">The model is generating and computing internal vocabulary readouts.</p>
+        </div>
+        <div class="message error-message" id="error-message" role="alert" hidden></div>
+        <div class="visually-hidden" id="live-region" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="results" id="results" aria-labelledby="results-title" hidden>
+        <div class="results-header">
+          <div>
+            <p class="section-label">02 · ANALYSIS</p>
+            <h2 id="results-title">Interpretability report</h2>
+          </div>
+          <div class="analysis-stamp"><span id="result-mode">Live analysis</span><strong id="analysis-model">—</strong></div>
+          <button class="button quiet" id="reset-button" type="button">Start another analysis</button>
+        </div>
+
+        <section class="metadata-card" aria-labelledby="metadata-title">
+          <details class="metadata-primary">
+            <summary id="metadata-title">Run details and provenance</summary>
+            <dl class="metadata-list" id="metadata-list"></dl>
+          </details>
+          <div class="warnings" id="warnings" hidden>
+            <p class="overline">Interpret with care</p>
+            <ul id="warning-list"></ul>
+          </div>
+        </section>
+
+        <section class="playback-card" aria-labelledby="playback-title">
+          <div class="section-heading compact-heading">
+            <div><p class="section-label">03 · OUTPUT</p><h2 id="playback-title">Audio and transcription</h2></div>
+            <div class="time-readout"><span id="current-time">0:00.0</span><i>/</i><span id="duration-time">0:00.0</span></div>
+          </div>
+          <audio id="audio-player" controls preload="metadata">Your browser does not support audio playback.</audio>
+          <p class="playback-source" id="playback-source"></p>
+          <div class="waveform" id="waveform" role="slider" aria-label="Audio waveform timeline; selecting a position synchronizes output, encoder, and decoder views" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+            <canvas id="waveform-canvas" aria-hidden="true"></canvas>
+            <span class="waveform-selection encoder-range" id="waveform-selection" aria-hidden="true" hidden></span>
+            <span class="waveform-selection token-range" id="waveform-token-selection" aria-hidden="true" hidden></span>
+            <span class="waveform-playhead" id="waveform-playhead" aria-hidden="true"></span>
+            <span class="waveform-hover" id="waveform-hover" aria-hidden="true" hidden></span>
+          </div>
+          <div class="timeline-key" id="timeline-key" aria-label="Timeline selection colors">
+            <span id="timeline-encoder-key"><i class="encoder-key"></i>Encoder slice</span>
+            <span id="timeline-token-key"><i class="token-key"></i>Aligned output token</span>
+          </div>
+          <div class="generated-audio" id="generated-audio" hidden>
+            <div>
+              <p class="overline">Generated speech response</p>
+              <p id="generated-audio-detail">Audio produced by the model’s acoustic-token path.</p>
+              <div class="generation-diagnostics" id="generation-diagnostics" role="status" aria-live="polite" hidden>
+                <strong id="generation-stop-status"></strong>
+                <span id="generation-stop-detail"></span>
+              </div>
+            </div>
+            <audio id="generated-audio-player" controls preload="metadata">Your browser does not support audio playback.</audio>
+          </div>
+          <div class="transcript-row">
+            <div><p class="overline" id="transcript-label">Actual model output</p><p class="transcript-text" id="transcript-text"></p></div>
+            <div class="probability-key" aria-label="Raw probability color scale"><span>0%</span><i></i><span>100%</span></div>
+          </div>
+          <p class="timing-note" id="timing-note"></p>
+          <div class="token-cards" id="token-cards" aria-label="Transcription token probabilities"></div>
+        </section>
+
+        <div class="analysis-workspace" id="lens-layout">
+          <div class="lens-main">
+            <section class="lens-section" id="encoder-section" aria-labelledby="encoder-title">
+              <div class="lens-heading">
+                <div><p class="section-label">04 · ENCODER LENS</p><h2 id="encoder-title">Across the audio representation</h2><p id="encoder-description">Select a pooled audio window to see which downstream text-token directions become readable across encoder layers. This cross-modal view is experimental and baseline-relative.</p></div>
+                <span class="lens-metric" id="encoder-score-label">Blue strip: within-layer percentile of target-mean-relative logit delta · never probability</span>
+              </div>
+              <div class="encoder-filter-note">
+                <label class="encoder-filter-control" for="encoder-token-length-filter">
+                  <input id="encoder-token-length-filter" type="checkbox">
+                  <span><strong>Token-length filter</strong><small>Rerank the complete lexical vocabulary</small></span>
+                </label>
+                <label class="encoder-length-input" for="encoder-max-token-length"><span>Maximum characters</span><input id="encoder-max-token-length" type="number" min="1" step="1" value="2" inputmode="numeric" disabled><small id="encoder-length-summary">Enable to keep tokens with ≤ 2 characters</small></label>
+                <details class="filter-explainer"><summary>Why this filter?</summary><p>This phoneme-oriented view masks tokens longer than the selected limit before encoder ranking; surrounding spaces do not count. It is an Audio J-Lens exploration aid—not a phoneme classifier, model probability, or part of the original J-Lens method.</p></details>
+              </div>
+              <div class="lens-timeline-heading">
+                <div><strong>Encoder layer × overlapping audio window</strong><span id="encoder-focus-label">Select a window</span></div>
+                <p><i class="lens-timeline-swatch encoder" aria-hidden="true"></i>Blue intensity is within-layer display percentile; exact target-mean-relative logit deltas are in the focused detail.</p>
+              </div>
+              <div class="encoder-waveform-navigator legacy-lens-navigator" id="encoder-navigator" role="slider" aria-label="Encoder audio position" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1" aria-orientation="horizontal" tabindex="-1" hidden>
+                  <canvas id="encoder-waveform-canvas" aria-hidden="true"></canvas>
+                  <div class="encoder-waveform-slices" id="encoder-waveform-slices" aria-hidden="true"></div>
+              </div>
+              <div class="layer-comparison lens-timeline-chart" id="encoder-layers" role="group" aria-label="Waveform-aligned encoder J-lens layers by overlapping audio window"></div>
+            </section>
+
+            <section class="lens-section" id="decoder-section" aria-labelledby="decoder-title">
+              <div class="lens-heading">
+                <div><p class="section-label" id="decoder-section-label">05 · DECODER LENS</p><h2 id="decoder-title">As each token resolves</h2><p id="decoder-description">Select an emitted token to compare its vocabulary readout at every displayed decoder layer.</p></div>
+                <span class="lens-metric" id="decoder-score-label">Blue strips: raw readout logits · orange HEAD: actual probability</span>
+              </div>
+              <div class="decoder-filter-note" id="decoder-filter-note">
+                <label class="decoder-filter-control" for="decoder-token-length-filter">
+                  <input id="decoder-token-length-filter" type="checkbox">
+                  <span><strong>Token-length filter</strong><small>Rerank the complete lexical L0–L1 vocabulary</small></span>
+                </label>
+                <label class="decoder-length-input" for="decoder-max-token-length"><span>Maximum characters</span><input id="decoder-max-token-length" type="number" min="1" step="1" value="2" inputmode="numeric" disabled><small id="decoder-length-summary">Enable to keep L0–L1 tokens with ≤ 2 characters</small></label>
+                <details class="filter-explainer"><summary>Why only L0–L1?</summary><p>The mask is applied to the complete lexical vocabulary before ranking decoder L0 and L1. Decoder L2 and the output head stay unfiltered, so the late readout and actual model probabilities remain visible as controls. This is a display adaptation, not a change to Whisper generation or an original J-Lens feature.</p></details>
+              </div>
+              <div class="lens-timeline-heading">
+                <div><strong>Decoder layer × approximate output-token span</strong><span id="decoder-focus-label">Select a token</span></div>
+                <p><i class="lens-timeline-swatch decoder" aria-hidden="true"></i>Blue rows are raw J-lens readout logits. <i class="lens-timeline-swatch head" aria-hidden="true"></i>Orange HEAD is actual output probability.</p>
+              </div>
+              <div class="token-navigator legacy-lens-navigator" id="decoder-navigator" aria-label="Decoder token positions" tabindex="-1" hidden></div>
+              <div class="layer-comparison lens-timeline-chart" id="decoder-layers" role="group" aria-label="Waveform-aligned decoder J-lens layers and LM-head probability by approximate output-token span"></div>
+            </section>
+          </div>
+
+          <aside class="inspector" id="inspector" aria-labelledby="inspector-title">
+            <div class="inspector-empty" id="inspector-empty">
+              <span class="inspector-glyph" aria-hidden="true">⌁</span>
+              <p class="overline">Focused readout</p>
+              <h2 id="inspector-title">Explore a layer</h2>
+              <p id="inspector-empty-copy">Choose any timeline slice to pin its synchronized time or token, then inspect exact candidates and score semantics here.</p>
+            </div>
+            <div class="inspector-content" id="inspector-content" hidden>
+              <div class="inspector-topline"><p class="overline" id="inspector-kind">Encoder readout</p><button class="icon-button" id="close-inspector" type="button" aria-label="Clear focused layer">×</button></div>
+              <h2 id="inspector-cell-title">Layer —</h2>
+              <p class="inspector-context" id="inspector-context"></p>
+              <div class="score-definition">
+                <span id="score-kicker">J-lens readout score</span><strong id="selected-score">—</strong><p id="score-description"></p>
+              </div>
+              <div class="rank-key"><span>Exact rank in the labeled vocabulary scope</span><i></i></div>
+              <ol class="topk-list" id="topk-list"></ol>
+              <p class="inspector-footnote" id="topk-metric-label">Display-filtered token rank and raw score.</p>
+            </div>
+          </aside>
+
+          <div class="lens-timeline-tooltip" id="lens-timeline-tooltip" role="tooltip" data-visible="false" hidden>
+            <p class="lens-tooltip-eyebrow"></p>
+            <div class="lens-tooltip-primary">
+              <strong class="lens-tooltip-token"></strong>
+              <code class="lens-tooltip-token-id"></code>
+            </div>
+            <p class="lens-tooltip-coordinate"></p>
+            <dl class="lens-tooltip-metrics"></dl>
+            <p class="lens-tooltip-candidates-label">Top candidates</p>
+            <ol class="lens-tooltip-candidates"></ol>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer><span>Audio Jacobian Lens</span><span>Diagnostic readouts—not calibrated explanations of model intent.</span></footer>
+  </body>
+</html>

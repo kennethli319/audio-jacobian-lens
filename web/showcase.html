@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A static, evidence-led gallery of Audio Jacobian Lens examples across ASR, text-to-speech, and speech-to-speech models."
+    />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>Evidence Showcase · Audio Jacobian Lens</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css?v=0.7.7-generation-stop" />
+    <link rel="stylesheet" href="./showcase.css?v=0.1.0" />
+    <script src="./workspace-nav.js?v=0.7.0-showcase" defer></script>
+    <script src="./showcase.js?v=0.1.1" defer></script>
+  </head>
+  <body class="showcase-page" data-workspace="showcase">
+    <a class="skip-link" href="#showcase-main">Skip to evidence</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Audio Jacobian Lens home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-copy">
+          <strong>Audio Jacobian Lens</strong>
+          <small>Static evidence showcase</small>
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="Workspace pages">
+        <a href="./" data-workspace-link="asr">ASR</a>
+        <a href="./" data-workspace-link="speech">Speech</a>
+        <a href="./chatterbox" data-workspace-link="tts">TTS</a>
+        <a class="active" href="./showcase.html" data-workspace-link="showcase" aria-current="page">Showcase</a>
+      </nav>
+      <div class="header-meta">
+        <span class="model-badge">STATIC · CURATED</span>
+      </div>
+    </header>
+
+    <main id="showcase-main">
+      <section class="hero showcase-hero" aria-labelledby="showcase-title">
+        <div>
+          <p class="eyebrow">Evidence gallery · frozen runs</p>
+          <h1 id="showcase-title">See what becomes readable—and what still fails.</h1>
+          <p class="hero-copy">
+            Compare exact layer-by-layer ranks from selected ASR, text-to-speech, and
+            speech-to-speech runs. Positive examples stay beside null controls, fitted-lens
+            failures, and publication status.
+          </p>
+        </div>
+        <div class="showcase-key" aria-label="How to read the showcase">
+          <p><i class="key-line fitted" aria-hidden="true"></i><span><strong>Fitted readout</strong>Intermediate residual mapped toward a later output head</span></p>
+          <p><i class="key-line head" aria-hidden="true"></i><span><strong>Actual head</strong>Raw final-model distribution, kept visually separate</span></p>
+          <p><i class="key-line caution" aria-hidden="true"></i><span><strong>Evidence boundary</strong>Rank is readability—not confidence, causation, or alignment</span></p>
+        </div>
+      </section>
+
+      <nav class="showcase-jump-nav" aria-label="Showcase sections">
+        <a href="#asr-showcase"><span>01</span> ASR</a>
+        <a href="#tts-showcase"><span>02</span> Text to speech</a>
+        <a href="#speech-showcase"><span>03</span> Speech to speech</a>
+        <a href="#showcase-rights"><span>04</span> Rights &amp; limits</a>
+      </nav>
+
+      <aside class="showcase-static-note" aria-label="Static preview status">
+        <strong>Static preview</strong>
+        <span>These are frozen curation records; this page makes no backend requests. Audio is intentionally withheld until each redistribution review is complete.</span>
+      </aside>
+
+      <section class="showcase-workspace" id="asr-showcase" aria-labelledby="asr-showcase-title">
+        <header class="showcase-section-heading">
+          <div>
+            <p class="section-label">01 · AUTOMATIC SPEECH RECOGNITION</p>
+            <h2 id="asr-showcase-title">Whisper decoder evidence</h2>
+          </div>
+          <p>Generated text is the target. The lens can reveal early readability, late emergence, subword structure, and confidently wrong paths.</p>
+        </header>
+        <div class="showcase-example-shell">
+          <div class="showcase-example-nav">
+            <p class="overline">Choose an example</p>
+            <div id="asr-example-buttons" class="showcase-example-buttons" role="group" aria-label="ASR examples"></div>
+          </div>
+          <article id="asr-example-detail" class="showcase-example-detail" aria-live="polite"></article>
+        </div>
+      </section>
+
+      <section class="showcase-workspace showcase-workspace-tts" id="tts-showcase" aria-labelledby="tts-showcase-title">
+        <header class="showcase-section-heading">
+          <div>
+            <p class="section-label">02 · TEXT TO SPEECH</p>
+            <h2 id="tts-showcase-title">Chatterbox acoustic-code evidence</h2>
+          </div>
+          <p>Acoustic codes have no published word or phoneme labels. The fitted readout, local text trace, and causal residual edit answer different questions.</p>
+        </header>
+        <div class="showcase-example-shell">
+          <div class="showcase-example-nav">
+            <p class="overline">Choose an example</p>
+            <div id="tts-example-buttons" class="showcase-example-buttons" role="group" aria-label="Text-to-speech examples"></div>
+          </div>
+          <article id="tts-example-detail" class="showcase-example-detail" aria-live="polite"></article>
+        </div>
+      </section>
+
+      <section class="showcase-workspace" id="speech-showcase" aria-labelledby="speech-showcase-title">
+        <header class="showcase-section-heading">
+          <div>
+            <p class="section-label">03 · SPEECH TO SPEECH</p>
+            <h2 id="speech-showcase-title">LFM lexical-readout screening</h2>
+          </div>
+          <p>The current lens is a one-clip integration artifact. Its positive and negative runs are engineering evidence, not a validated public result.</p>
+        </header>
+        <div class="showcase-example-shell">
+          <div class="showcase-example-nav">
+            <p class="overline">Choose an example</p>
+            <div id="speech-example-buttons" class="showcase-example-buttons" role="group" aria-label="Speech-to-speech examples"></div>
+          </div>
+          <article id="speech-example-detail" class="showcase-example-detail" aria-live="polite"></article>
+        </div>
+      </section>
+
+      <section class="showcase-rights" id="showcase-rights" aria-labelledby="showcase-rights-title">
+        <header>
+          <p class="section-label">04 · PUBLICATION GATE</p>
+          <h2 id="showcase-rights-title">Rights and evidence status travel with every example.</h2>
+          <p>No status badge is decorative: it determines whether audio can be packaged, what attribution is required, and how strongly the result may be described.</p>
+        </header>
+        <div class="showcase-rights-grid">
+          <article>
+            <span class="rights-status ready">Source rights cleared</span>
+            <h3>LibriSpeech ASR</h3>
+            <p>OpenSLR SLR12 is CC BY 4.0. A public bundle still needs utterance ID, transcript, attribution, source and license links, file hash, and modification notice.</p>
+          </article>
+          <article>
+            <span class="rights-status review">Derived output review</span>
+            <h3>Chatterbox TTS</h3>
+            <p>The prompts are project-authored. Preserve Chatterbox, conversion, and tokenizer attribution; complete the derived-audio review before embedding baseline or steered WAVs.</p>
+          </article>
+          <article>
+            <span class="rights-status blocked">Screening only</span>
+            <h3>LFM speech to speech</h3>
+            <p>Replace local synthetic inputs with owner or consenting-speaker recordings, complete the LFM output review, then refit on a disjoint multi-clip corpus.</p>
+          </article>
+        </div>
+        <div class="showcase-global-caveats">
+          <p><strong>Fitted probability is not calibrated emission confidence.</strong> It is a readout distribution from an estimated average Jacobian.</p>
+          <p><strong>Attention and gradients are not word alignment.</strong> They show routing association and local sensitivity, not percent causation.</p>
+          <p><strong>A highlighted run is not a population claim.</strong> Preserve neighboring positions, denominators, failures, seeds, fingerprints, and held-out evaluations.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="showcase-footer">
+      <span>Audio Jacobian Lens · static evidence candidate</span>
+      <a href="#showcase-main">Back to top</a>
+    </footer>
+  </body>
+</html>

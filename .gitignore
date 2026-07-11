@@ -12,3 +12,4 @@ dist/
 *.pt
 slice*.html
 slices/
+artifacts/

@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Inspect Chatterbox speech-code generation with a fitted T3 J-lens, local cross-Jacobian sensitivity, and self-attention diagnostics."
+    />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>Chatterbox Trace · Audio Jacobian Lens</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css?v=0.7.2-residual-steering" />
+    <script src="./workspace-nav.js?v=0.7.0-showcase" defer></script>
+    <script src="./chatterbox.js?v=0.7.2-residual-steering" defer></script>
+  </head>
+  <body class="chatterbox-page" data-workspace="tts">
+    <a class="skip-link" href="#chatterbox-main">Skip to Chatterbox workspace</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Audio Jacobian Lens home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-copy">
+          <strong>Audio Jacobian Lens</strong>
+          <small>Chatterbox text-to-speech workspace</small>
+        </span>
+      </a>
+      <nav class="site-nav" aria-label="Workspace pages">
+        <a href="./" data-workspace-link="asr">ASR</a>
+        <a href="./" data-workspace-link="speech">Speech</a>
+        <a class="active" href="./chatterbox" data-workspace-link="tts" aria-current="page">TTS</a>
+        <a href="./showcase.html" data-workspace-link="showcase">Showcase</a>
+      </nav>
+      <div class="header-meta">
+        <span class="model-badge">CHATTERBOX · MLX</span>
+        <button class="status-pill" id="chatterbox-status-button" type="button" aria-label="Chatterbox backend status: checking. Refresh status." aria-live="polite">
+          <span class="status-dot" id="chatterbox-status-dot" aria-hidden="true"></span>
+          <span id="chatterbox-status-text">Checking backend…</span>
+        </button>
+      </div>
+    </header>
+
+    <main id="chatterbox-main">
+      <section class="hero" aria-labelledby="chatterbox-title">
+        <div>
+          <p class="eyebrow">Text-to-speech · fitted lens + context trace</p>
+          <h1 id="chatterbox-title">Inspect how speech-code predictions form through T3 and relate to their text context.</h1>
+          <p class="hero-copy">
+            Generate speech locally, compare a fitted intermediate readout with the real output head,
+            then choose one nominal 40&nbsp;ms code slice to trace its local sensitivity back to text.
+          </p>
+        </div>
+        <div class="metric-primer" aria-label="Color encoding guide">
+          <div class="primer-item probability-primer">
+            <span class="primer-gradient" aria-hidden="true"></span>
+            <div><strong>Base output-head probability</strong><span>Real final T3 speech-head softmax · orange</span></div>
+          </div>
+          <div class="primer-item lens-primer">
+            <span class="primer-gradient" aria-hidden="true"></span>
+            <div><strong>Fitted J-lens probability</strong><span>Corpus-fitted intermediate readout · blue</span></div>
+          </div>
+          <div class="primer-item gradient-primer">
+            <span class="primer-gradient" aria-hidden="true"></span>
+            <div><strong>Gradient sensitivity</strong><span>Context-specific VJP magnitude · not causal contribution</span></div>
+          </div>
+          <div class="primer-item attention-primer">
+            <span class="primer-gradient" aria-hidden="true"></span>
+            <div><strong>Self-attention</strong><span>Text-directed attention mass · not an explanation</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="reading-guide" id="chatterbox-reading-guide" aria-labelledby="chatterbox-guide-title">
+        <div class="reading-guide-heading">
+          <div>
+            <p class="overline">TTS · CROSS-JACOBIAN GUIDE</p>
+            <h2 id="chatterbox-guide-title">How fitted J-lens and cross-Jacobian diagnostics are adapted to text-to-speech</h2>
+          </div>
+          <p>Chatterbox puts voice conditioning, input text, and earlier speech codes in one causal T3 sequence. This explorer examines one generated code at a time.</p>
+        </div>
+        <div class="reading-guide-grid">
+          <article>
+            <span class="reading-guide-number">01</span>
+            <h3>How it is applied</h3>
+            <div class="reading-guide-methods">
+              <p><strong>Fitted speech-code J-lens</strong><span>When a compatible artifact is loaded, it transports each intermediate speech-position residual toward the final T3 speech head and reports the fitted probability assigned to the code that was actually generated.</span></p>
+              <p><strong>Per-run code→text cross-Jacobian</strong><span>For the selected generated code, the explorer differentiates its raw log-probability with respect to every input-text residual position at each sampled T3 layer.</span></p>
+              <p><strong>Keep the methods separate</strong><span>The cross-Jacobian is a local sensitivity diagnostic for the current generation—not the paper’s fitted, corpus-averaged lens.</span></p>
+            </div>
+          </article>
+          <article>
+            <span class="reading-guide-number">02</span>
+            <h3>What it implies</h3>
+            <p>The fitted lens can show how a readout of the realized speech code changes through T3. Separately, the local trace can suggest which text-position residuals that code’s score is most sensitive to.</p>
+            <div class="reading-guide-boundary"><strong>It does not establish</strong><p>An exact word-to-waveform alignment, a phoneme label, effect direction, percent causation, or that a forced output decision is equivalent to fitted-residual steering.</p></div>
+          </article>
+          <article class="reading-guide-usage">
+            <span class="reading-guide-number">03</span>
+            <h3>How to use this page</h3>
+            <ol>
+              <li>Choose a prepared prompt or enter a short phrase, then generate speech. The synthetic demo teaches the controls but contains fabricated values.</li>
+              <li>Play the result and choose a waveform band. It selects a nominal 25 Hz speech code—not an isolated acoustic frame.</li>
+              <li>Scan the fitted blue layer strips and the orange output-head strip on the same time axis as the waveform. Select a slice to compare each layer’s top acoustic code IDs and probabilities with the real output head.</li>
+              <li>To test one counterfactual, select a non-realized candidate and run the separate branch action. The earlier code prefix is retained, that output decision is forced, and the later codes and waveform are regenerated.</li>
+              <li>For an intermediate-state experiment, switch to <strong>Steer residual</strong>, choose one or more T3 layers, a forward speech-position span, and a norm cap. The target is not directly inserted; the result reports whether calibrated residual edits made it both raw top-1 and the processed greedy code.</li>
+              <li>Then scan the blue gradient and violet attention matrices across every sampled T3 layer and tokenizer piece; these are different diagnostics.</li>
+              <li>Select a text token for raw values; compare neighboring codes using Gradient L2 and the text-versus-prefix gradient-norm ratio, not only normalized colors.</li>
+            </ol>
+          </article>
+        </div>
+        <p class="reading-guide-scale"><strong>Read the labels as well as the colors.</strong> Orange is the base model’s actual output-head probability. In the fitted-lens panel, blue is a separately fitted full-vocabulary readout probability. In the text-context panels, blue and violet are normalized diagnostic shares—not output probabilities.</p>
+      </section>
+
+      <section class="source-card chatterbox-input-card" id="chatterbox-input-panel" aria-labelledby="chatterbox-input-title" aria-busy="false">
+        <div class="section-heading chatterbox-section-heading">
+          <div>
+            <p class="section-label">01 · INPUT</p>
+            <h2 id="chatterbox-input-title">Write what Chatterbox should say</h2>
+            <p>Short phrases make the code-to-text sensitivity trace faster and easier to inspect.</p>
+          </div>
+          <button class="button quiet" id="chatterbox-demo-button" type="button">Load synthetic UI demo</button>
+        </div>
+
+        <div class="chatterbox-presets" aria-label="Prepared text prompts">
+          <button type="button" data-chatterbox-preset="The lighthouse glowed softly through the rain.">Lighthouse</button>
+          <button type="button" data-chatterbox-preset="She whispered, then laughed with relief.">Expression</button>
+          <button type="button" data-chatterbox-preset="Blue birds circle above the quiet garden.">Sound contrast</button>
+        </div>
+
+        <label class="chatterbox-text-field" for="chatterbox-text">
+          <span>Text prompt</span>
+          <textarea id="chatterbox-text" rows="4" maxlength="240" spellcheck="true" aria-describedby="chatterbox-character-count">The lighthouse glowed softly through the rain.</textarea>
+        </label>
+        <div class="chatterbox-input-actions">
+          <span id="chatterbox-character-count">0 / 240 characters</span>
+          <button class="button primary" id="chatterbox-generate-button" type="button">
+            <span id="chatterbox-generate-label">Generate and trace speech</span>
+            <span class="button-loader" id="chatterbox-generate-loader" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <div class="chatterbox-progress progress-panel" id="chatterbox-progress" role="progressbar" aria-label="Chatterbox generation and analysis are in progress" hidden>
+          <div><strong id="chatterbox-progress-label">Generating speech locally…</strong><span id="chatterbox-progress-time">00:00</span></div>
+          <i><span></span></i>
+          <p>The first run may include model loading. Speech-code sensitivity traces are computed after generation.</p>
+        </div>
+        <div class="message error-message" id="chatterbox-error" role="alert" hidden></div>
+        <div class="visually-hidden" id="chatterbox-live-region" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="results chatterbox-results" id="chatterbox-results" aria-labelledby="chatterbox-results-title" hidden>
+        <div class="results-header chatterbox-results-heading">
+          <div>
+            <p class="section-label">02 · ANALYSIS</p>
+            <h2 id="chatterbox-results-title">Speech-code lens and sensitivity report</h2>
+          </div>
+          <div class="analysis-stamp"><span id="chatterbox-result-mode">Live analysis</span><strong id="chatterbox-model-stamp">—</strong></div>
+          <button class="button quiet" id="chatterbox-reset-button" type="button">Clear results</button>
+        </div>
+
+        <section class="metadata-card" aria-labelledby="chatterbox-metadata-title">
+          <details class="metadata-primary">
+            <summary id="chatterbox-metadata-title">Run details and provenance</summary>
+            <dl class="metadata-list" id="chatterbox-metadata-list"></dl>
+          </details>
+          <div class="warnings" id="chatterbox-warnings" hidden>
+            <p class="overline">Interpret with care</p>
+            <ul id="chatterbox-warning-list"></ul>
+          </div>
+        </section>
+
+        <section class="chatterbox-output-card" aria-labelledby="chatterbox-output-title">
+          <div class="chatterbox-card-heading">
+            <div>
+              <p class="section-label">03 · OUTPUT</p>
+              <h3 id="chatterbox-output-title">Generated audio and speech codes</h3>
+              <p>Each band is one 25&nbsp;Hz code step (nominally 40&nbsp;ms). The vocoder can spread its acoustic effect beyond this boundary.</p>
+            </div>
+            <div class="chatterbox-time-readout"><strong id="chatterbox-current-time">0:00.00</strong><span>/</span><span id="chatterbox-duration">0:00.00</span></div>
+          </div>
+          <audio id="chatterbox-audio" controls preload="metadata">Your browser does not support audio playback.</audio>
+          <div
+            class="chatterbox-waveform"
+            id="chatterbox-waveform"
+            role="slider"
+            aria-label="Generated speech-code timeline"
+            aria-valuemin="1"
+            aria-valuemax="1"
+            aria-valuenow="1"
+            aria-orientation="horizontal"
+            tabindex="0"
+          >
+            <canvas id="chatterbox-waveform-canvas" aria-hidden="true"></canvas>
+            <div class="chatterbox-code-slices" id="chatterbox-code-slices" aria-hidden="true"></div>
+            <span class="chatterbox-waveform-selection" id="chatterbox-waveform-selection" aria-hidden="true"></span>
+            <span class="chatterbox-waveform-playhead" id="chatterbox-waveform-playhead" aria-hidden="true"></span>
+            <span class="chatterbox-waveform-hover" id="chatterbox-waveform-hover" aria-hidden="true" hidden></span>
+          </div>
+          <div class="chatterbox-output-meta">
+            <span id="chatterbox-code-count">—</span>
+            <span id="chatterbox-content-duration">—</span>
+            <span id="chatterbox-trailing-audio">—</span>
+          </div>
+          <div class="chatterbox-code-focus" aria-live="polite">
+            <div><span>Generated target</span><strong id="chatterbox-selected-code">—</strong></div>
+            <div><span>Position coordinate</span><strong id="chatterbox-selected-range">—</strong></div>
+            <div class="metric-probability"><span>Output-head probability</span><strong id="chatterbox-selected-probability">—</strong></div>
+            <div class="metric-probability"><span>Output-head log probability (ln)</span><strong id="chatterbox-selected-log-probability">—</strong></div>
+          </div>
+          <p class="chatterbox-output-head-note">T3 speech head · before repetition penalty · absolute 0–100% probability color scale</p>
+        </section>
+
+        <section class="chatterbox-trace-card chatterbox-speech-lens-card" id="chatterbox-speech-lens" aria-labelledby="chatterbox-speech-lens-title">
+          <div class="chatterbox-card-heading">
+            <div>
+              <p class="section-label">04 · FITTED SPEECH-CODE J-LENS</p>
+              <h3 id="chatterbox-speech-lens-title">Fitted readout probability through T3 on the speech timeline</h3>
+              <p>Each fitted layer is one compact heat strip aligned to the waveform above. Select any slice to compare the full-vocabulary acoustic-code candidates at every fitted layer and the actual output head.</p>
+            </div>
+          </div>
+          <div class="chatterbox-speech-lens-key" aria-label="Fitted lens probability key">
+            <p class="metric-fitted-probability"><i aria-hidden="true"></i><strong>Fitted J-lens probability</strong><span>Corpus-fitted intermediate readout</span></p>
+            <p class="metric-output-probability"><i aria-hidden="true"></i><strong>Base output-head probability</strong><span>Real final logits · not fitted</span></p>
+          </div>
+          <div class="chatterbox-speech-lens-empty" id="chatterbox-speech-lens-empty" role="status">
+            <strong>No compatible fitted speech-code J-lens was loaded.</strong>
+            <span>The generated waveform and per-run text-context trace remain available. Start the Chatterbox server with a matching fitted artifact to populate these timeline strips.</span>
+          </div>
+          <div class="chatterbox-matrix-focus chatterbox-speech-lens-focus" id="chatterbox-speech-lens-focus" aria-live="polite" hidden></div>
+          <div class="chatterbox-heatmap chatterbox-speech-lens-heatmap" id="chatterbox-speech-lens-heatmap" role="group" aria-label="Waveform-aligned fitted speech-code J-lens probability strips by T3 layer and generated speech position" hidden></div>
+          <section class="chatterbox-speech-candidates chatterbox-speech-candidate-inspector" id="chatterbox-speech-candidate-inspector" aria-labelledby="chatterbox-speech-candidate-title" hidden>
+            <div class="chatterbox-speech-candidate-heading">
+              <div>
+                <p class="overline">Selected-position distribution</p>
+                <h4 id="chatterbox-speech-candidate-title">Candidate acoustic codes at the selected speech position</h4>
+                <p id="chatterbox-speech-candidate-context" aria-live="polite">Select a waveform or J-lens slice to inspect its candidates.</p>
+              </div>
+              <p class="chatterbox-speech-candidate-scale"><span aria-hidden="true"></span>Softmax probability · absolute 0–100%</p>
+            </div>
+            <div class="chatterbox-speech-candidate-rows" id="chatterbox-speech-candidate-rows" role="list" aria-label="Top acoustic-code candidates by fitted layer and actual output head"></div>
+            <fieldset class="chatterbox-intervention-mode" id="chatterbox-intervention-mode">
+              <legend>Intervention mode</legend>
+              <label for="chatterbox-intervention-force">
+                <input id="chatterbox-intervention-force" name="chatterbox-intervention-mode" type="radio" value="force" checked />
+                <span><strong>Force output code</strong><small>Replace one actual T3 output decision, then regenerate the suffix.</small></span>
+              </label>
+              <label for="chatterbox-intervention-residual">
+                <input id="chatterbox-intervention-residual" name="chatterbox-intervention-mode" type="radio" value="residual" />
+                <span><strong>Steer residual</strong><small>Edit selected intermediate layer × speech-position states, then let the output head decide.</small></span>
+              </label>
+            </fieldset>
+            <div class="chatterbox-branch-action" id="chatterbox-branch-action" aria-labelledby="chatterbox-branch-action-title">
+              <div class="chatterbox-branch-action-copy">
+                <p class="overline" id="chatterbox-branch-action-title">Counterfactual output decision</p>
+                <strong id="chatterbox-branch-selection">Choose a non-realized acoustic code above</strong>
+                <p id="chatterbox-branch-source">The selected fitted layer or HEAD row identifies a candidate. The intervention itself forces that ID at the actual T3 output decision; it does not steer a fitted residual layer. This is not residual steering.</p>
+              </div>
+              <button class="button primary chatterbox-branch-button" id="chatterbox-branch-button" type="button" disabled>
+                <span id="chatterbox-branch-label">Choose a candidate to branch</span>
+                <span class="button-loader" id="chatterbox-branch-loader" aria-hidden="true"></span>
+              </button>
+              <p class="chatterbox-branch-status" id="chatterbox-branch-status" aria-live="polite"></p>
+            </div>
+            <section class="chatterbox-residual-controls" id="chatterbox-residual-controls" aria-labelledby="chatterbox-residual-title" hidden>
+              <div class="chatterbox-residual-heading">
+                <div>
+                  <p class="overline">Intermediate-state intervention</p>
+                  <h5 id="chatterbox-residual-title">Steer the selected acoustic code through T3 residuals</h5>
+                  <p id="chatterbox-residual-selection">Choose a non-realized acoustic code above. Its row only nominates a target ID and source layer; the steering direction is a context-specific parent-path gradient of the target raw-head logit margin. The code is not directly forced and may never become top-1.</p>
+                </div>
+                <strong id="chatterbox-residual-target">No target selected</strong>
+              </div>
+              <div class="chatterbox-residual-control-grid">
+                <fieldset class="chatterbox-residual-source-layers" id="chatterbox-residual-source-layers">
+                  <legend>Source T3 layer(s)</legend>
+                  <p>Waiting for fitted layers.</p>
+                </fieldset>
+                <label class="chatterbox-residual-field" for="chatterbox-residual-start-position">
+                  <span>Start speech position</span>
+                  <input id="chatterbox-residual-start-position" type="number" min="1" step="1" value="1" inputmode="numeric" />
+                </label>
+                <label class="chatterbox-residual-field" for="chatterbox-residual-forward-span">
+                  <span>Forward span</span>
+                  <input id="chatterbox-residual-forward-span" type="number" min="1" step="1" value="1" inputmode="numeric" />
+                </label>
+                <label class="chatterbox-residual-field" for="chatterbox-residual-max-relative-norm">
+                  <span>Maximum relative residual norm</span>
+                  <input id="chatterbox-residual-max-relative-norm" type="number" min="0.01" max="2" step="0.01" value="0.5" inputmode="decimal" />
+                </label>
+                <label class="chatterbox-residual-budget" for="chatterbox-residual-auto-budget">
+                  <input id="chatterbox-residual-auto-budget" type="checkbox" checked disabled />
+                  <span><strong>Automatic strength budget</strong><small>Search from a small edit up to the norm cap and retain the first effective budget.</small></span>
+                </label>
+              </div>
+              <p class="chatterbox-residual-time-range" id="chatterbox-residual-time-range">S1 · waiting for a generated speech timeline</p>
+              <div class="chatterbox-residual-run-row">
+                <p>The normalized margin gradient is added after the selected T3 block(s), then replayed through the remaining model. Future-position directions come from the parent teacher-forced path and are applied open-loop on the dynamic branch path. This is a causal residual intervention, not a fitted-probability swap.</p>
+                <button class="button primary chatterbox-residual-button" id="chatterbox-residual-button" type="button" disabled>
+                  <span id="chatterbox-residual-label">Choose a target code to steer</span>
+                  <span class="button-loader" id="chatterbox-residual-loader" aria-hidden="true"></span>
+                </button>
+              </div>
+              <p class="chatterbox-residual-status" id="chatterbox-residual-status" aria-live="polite"></p>
+            </section>
+            <section class="chatterbox-branch-comparison" id="chatterbox-branch-comparison" aria-labelledby="chatterbox-branch-comparison-title" hidden>
+              <div class="chatterbox-branch-comparison-heading">
+                <div>
+                  <p class="overline">Branch result</p>
+                  <h5 id="chatterbox-branch-comparison-title">Original versus forced-code continuation</h5>
+                </div>
+                <strong id="chatterbox-branch-id-change">—</strong>
+              </div>
+              <p id="chatterbox-branch-summary">—</p>
+              <div class="chatterbox-branch-audio-grid">
+                <div>
+                  <strong>Original audio</strong>
+                  <audio id="chatterbox-original-audio" controls preload="metadata"></audio>
+                </div>
+                <div>
+                  <strong>Branch audio</strong>
+                  <span>The main waveform player above now contains the forced-code branch.</span>
+                </div>
+              </div>
+            </section>
+            <section class="chatterbox-residual-result" id="chatterbox-residual-result" aria-labelledby="chatterbox-residual-result-title" hidden>
+              <div class="chatterbox-residual-result-heading">
+                <div>
+                  <p class="overline">Residual-steering result</p>
+                  <h5 id="chatterbox-residual-result-title">Target-code movement through layers and speech positions</h5>
+                </div>
+                <strong id="chatterbox-residual-result-target">—</strong>
+              </div>
+              <p id="chatterbox-residual-summary">—</p>
+              <div class="chatterbox-residual-result-key" aria-label="Residual steering comparison key">
+                <span><i class="before" aria-hidden="true"></i>Before</span>
+                <span><i class="after" aria-hidden="true"></i>After / improvement</span>
+                <span><i class="edited" aria-hidden="true"></i>Edited coordinate</span>
+                <span><i class="changed" aria-hidden="true"></i>Realized code changed</span>
+                <span><i class="rank" aria-hidden="true"></i>Top edge: rank improved / worsened</span>
+              </div>
+              <div class="chatterbox-residual-focus" id="chatterbox-residual-focus" aria-live="polite"></div>
+              <div class="chatterbox-residual-delta-matrix" id="chatterbox-residual-delta-matrix" role="group" aria-label="Target acoustic-code probability and rank before versus after residual steering across fitted layers and speech positions"></div>
+              <div class="chatterbox-branch-audio-grid">
+                <div>
+                  <strong>Original audio</strong>
+                  <audio id="chatterbox-residual-original-audio" controls preload="metadata"></audio>
+                </div>
+                <div>
+                  <strong>Steered audio</strong>
+                  <span>The main waveform player above contains the residual-steered replay and regenerated continuation.</span>
+                </div>
+              </div>
+            </section>
+            <p class="chatterbox-speech-candidate-warning">These IDs are learned acoustic codes, not words or phonemes. A code’s audible effect depends on neighboring codes and voice context.</p>
+          </section>
+          <p class="chatterbox-speech-lens-note" id="chatterbox-speech-lens-note" hidden></p>
+        </section>
+
+        <div class="chatterbox-trace-workspace">
+          <div class="chatterbox-trace-main">
+            <section class="chatterbox-trace-card" aria-labelledby="chatterbox-context-title">
+              <div class="chatterbox-card-heading">
+                <div>
+                  <p class="section-label">05 · TEXT CONTEXT</p>
+                  <h3 id="chatterbox-context-title">Where is this code’s log-probability locally sensitive in the text residuals?</h3>
+                  <p>Blue fill is within-text gradient share. The violet underline is within-text self-attention share from the selected speech position.</p>
+                </div>
+                <label class="chatterbox-layer-select" for="chatterbox-layer-select">
+                  <span>Focused T3 layer</span>
+                  <select id="chatterbox-layer-select" disabled><option>Waiting for trace</option></select>
+                </label>
+              </div>
+              <div class="chatterbox-trace-loading" id="chatterbox-trace-loading" hidden>
+                <span class="button-loader visible" aria-hidden="true"></span>
+                <span id="chatterbox-trace-loading-label">Tracing the selected code through T3…</span>
+              </div>
+              <div class="chatterbox-text-tokens" id="chatterbox-text-tokens" aria-label="Input text tokens colored by selected-layer diagnostics"></div>
+              <div class="chatterbox-scale-notes">
+                <p><i class="gradient"></i><strong>Gradient share</strong><span>Normalized only across displayed text tokens at this layer. It is context-specific sensitivity, not percent causation.</span></p>
+                <p><i class="attention"></i><strong>Within-text attention share</strong><span>Normalized across displayed text tokens; total attention reaching text is reported separately. This is not cross-attention, alignment, or proof of model use.</span></p>
+              </div>
+            </section>
+
+            <section class="chatterbox-trace-card" aria-labelledby="chatterbox-layers-title">
+              <div class="chatterbox-card-heading">
+                <div>
+                  <p class="section-label">06 · LAYER × TOKEN MATRICES</p>
+                  <h3 id="chatterbox-layers-title">All T3 layers across every input token</h3>
+                  <p>Rows are sampled T3 layers and columns are tokenizer pieces. Select any cell to synchronize the layer, text token, and focused diagnostic.</p>
+                </div>
+              </div>
+              <div class="chatterbox-matrix-focus" id="chatterbox-matrix-focus" aria-live="polite" hidden></div>
+              <div class="chatterbox-heatmap-stack" id="chatterbox-layer-matrices">
+                <div class="chatterbox-heatmap metric-gradient" id="chatterbox-gradient-heatmap" role="group" aria-label="Within-text gradient share by T3 layer and input token"></div>
+                <div class="chatterbox-heatmap metric-attention" id="chatterbox-attention-heatmap" role="group" aria-label="Within-text self-attention share by T3 layer and input token"></div>
+              </div>
+            </section>
+
+            <section class="chatterbox-method-note" aria-labelledby="chatterbox-method-title">
+              <p class="overline">Interpretation boundary</p>
+              <h3 id="chatterbox-method-title">The fitted speech-position lens and per-run text cross-Jacobian answer different questions.</h3>
+              <p id="chatterbox-score-kind">The text-context trace differentiates one generated speech code’s raw log-probability with respect to this run’s text-position residuals; unlike the fitted panel above, it is not a corpus-averaged J-lens. Neither view localizes an exact phoneme or waveform sample.</p>
+            </section>
+          </div>
+
+          <aside class="chatterbox-inspector" aria-labelledby="chatterbox-inspector-title">
+            <p class="overline">Focused diagnostic</p>
+            <h3 id="chatterbox-inspector-title">Select a text token</h3>
+            <p class="chatterbox-inspector-context" id="chatterbox-inspector-context">Choose a speech slice, then select a highlighted text token.</p>
+            <dl class="chatterbox-inspector-values">
+              <div><dt>Layer</dt><dd id="chatterbox-inspector-layer">—</dd></div>
+              <div><dt>Text token</dt><dd id="chatterbox-inspector-token">—</dd></div>
+              <div class="metric-gradient"><dt>Raw local sensitivity ‖∇H log p‖₂</dt><dd id="chatterbox-inspector-gradient">—</dd></div>
+              <div class="metric-gradient"><dt>Within-text gradient share</dt><dd id="chatterbox-inspector-gradient-share">—</dd></div>
+              <div class="metric-gradient"><dt>Text share of summed positionwise gradient norms</dt><dd id="chatterbox-inspector-gradient-mass">—</dd></div>
+              <div class="metric-attention"><dt>Within-text attention share</dt><dd id="chatterbox-inspector-attention">—</dd></div>
+              <div class="metric-attention"><dt>Attention mass to text</dt><dd id="chatterbox-inspector-text-mass">—</dd></div>
+            </dl>
+            <p class="chatterbox-inspector-footnote">Gradient magnitude is unsigned and depends on the residual coordinate scale. Attention and gradients answer different questions; neither is a calibrated explanation or a causal intervention.</p>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <footer><span>Audio Jacobian Lens</span><span>TTS · Speech-code sensitivity is not word alignment or calibrated model intent.</span></footer>
+  </body>
+</html>

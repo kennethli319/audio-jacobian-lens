@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jlens"
-version = "0.1.0"
-description = "Companion code for 'Verbalizable Representations Form a Global Workspace in Language Models'"
+version = "0.2.0"
+description = "Jacobian-lens tools and a local speech-model explorer"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -17,11 +17,34 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/anthropics/jacobian-lens"
+Repository = "https://github.com/kennethli319/audio-jacobian-lens"
+Upstream = "https://github.com/anthropics/jacobian-lens"
 Paper = "https://transformer-circuits.pub/2026/workspace/index.html"
+
+[project.scripts]
+audio-jlens = "jlens.webapp:main"
+audio-jlens-causal = "jlens.causal_whisper_cli:main"
+audio-jlens-chatterbox = "jlens.chatterbox_server:main"
+audio-jlens-chatterbox-fit = "jlens.fit_chatterbox_cli:main"
+audio-jlens-eval = "jlens.evaluate_whisper_cli:main"
+audio-jlens-fit = "jlens.fit_whisper_cli:main"
+audio-jlens-mlx-fit = "jlens.fit_mlx_cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "datasets"]
+audio = [
+    "fastapi>=0.115",
+    "python-multipart>=0.0.20",
+    "scipy>=1.10",
+    "soundfile>=0.13",
+    "uvicorn>=0.34",
+]
+mlx = [
+    "mlx==0.32.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "mlx-audio==0.4.5; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "mlx-lm==0.31.3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "transformers==5.12.1; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 
 [tool.ruff]
 line-length = 88
@@ -31,8 +54,39 @@ target-version = "py310"
 select = ["E", "F", "W", "I", "B", "UP"]
 ignore = ["E501", "E741"]
 
-[tool.setuptools]
-packages = ["jlens"]
+[tool.setuptools.packages.find]
+include = ["jlens*"]
+namespaces = false
 
 [tool.setuptools.package-data]
 jlens = ["data/*"]
+
+[tool.setuptools.data-files]
+"share/jlens/web" = [
+    "web/app.js",
+    "web/causal.html",
+    "web/causal.js",
+    "web/chatterbox.html",
+    "web/chatterbox.js",
+    "web/favicon.svg",
+    "web/index.html",
+    "web/showcase.css",
+    "web/showcase.html",
+    "web/showcase.js",
+    "web/styles.css",
+    "web/workspace-nav.js",
+]
+"share/jlens/web/data" = [
+    "web/data/showcase-examples.json",
+]
+"share/jlens/samples" = [
+    "samples/README.md",
+    "samples/samples.json",
+    "samples/*.flac",
+    "samples/*.m4a",
+    "samples/*.mp3",
+    "samples/*.ogg",
+    "samples/*.opus",
+    "samples/*.wav",
+    "samples/*.webm",
+]

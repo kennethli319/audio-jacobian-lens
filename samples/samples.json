@@ -1,0 +1,28 @@
+{
+  "samples": [
+    {
+      "id": "short-question",
+      "file": "question.flac",
+      "title": "A short question",
+      "description": "Clean natural speech · LibriSpeech dev-clean",
+      "transcript": "Where is my brother now?",
+      "duration_seconds": 2.04
+    },
+    {
+      "id": "universe",
+      "file": "universe.flac",
+      "title": "Sir, I exist",
+      "description": "Measured natural speech · LibriSpeech dev-clean",
+      "transcript": "A man said to the universe, sir, I exist.",
+      "duration_seconds": 4.65
+    },
+    {
+      "id": "buzzer-whirr",
+      "file": "buzzer.flac",
+      "title": "The buzzer's whirr",
+      "description": "Consonant-heavy natural speech · LibriSpeech dev-clean",
+      "transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
+      "duration_seconds": 4.93
+    }
+  ]
+}

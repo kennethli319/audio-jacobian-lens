@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "title": "MLX LFM language J-lens showcase evidence",
+  "provenance": {
+    "evaluated_on": "2026-07-11",
+    "model": {
+      "id": "mlx-community/LFM2.5-Audio-1.5B-8bit",
+      "revision": "a569a7805a8e3eae954c244e54ba811d479a12c2",
+      "text_vocabulary_size": 65536
+    },
+    "lens": {
+      "source_path": "artifacts/mlx/lfm2_5_audio_1clip_projected_rank512.pt",
+      "sha256": "2da88652aecfcc8ef634fd3e336983b02afbc505f6b1c86c8069f5b1e9d917cb",
+      "fit_examples": 1,
+      "fit_input": "samples/question.flac",
+      "fitted_target_positions": 6,
+      "source_layers": [0, 4, 8, 12, 14],
+      "target_layer": 15,
+      "projection_method": "subsampled_hadamard_output_probe_vjp",
+      "projection_rank": 512,
+      "target_dimension": 2048,
+      "projection_seed": 29,
+      "fit_generation_max_new_tokens": 18
+    },
+    "evaluation_generation": {
+      "mode": "interleaved",
+      "max_new_tokens": 512,
+      "text_temperature": 0.0,
+      "text_top_k": 1,
+      "audio_temperature": 0.0,
+      "audio_top_k": 1,
+      "mlx_random_seed": 7,
+      "audio_frame_seconds": 0.08
+    },
+    "rank_semantics": {
+      "rank_space": "lexical_display_vocabulary",
+      "rank_denominator": 61690,
+      "tie_policy": "1_plus_count_strictly_greater",
+      "eligible_token_policy": "Decoded token is nonempty, contains no angle-bracket control marker or replacement character, and contains at least one Unicode alphanumeric character.",
+      "tracked_target_policy": "Realized generated text positions excluding LFM text controls 7 (IM_END), 128 (AUDIO_START), and 130 (TEXT_END), plus tokenizer-declared special IDs.",
+      "aggregate_policy": "Median rank, mean reciprocal rank, and threshold counts are computed over every tracked target in the example, not only favorable tokens.",
+      "head_rank_space": "full_model_vocabulary",
+      "head_rank_denominator": 65536
+    },
+    "rights_policy": {
+      "included_audio": "Only the three source-input references are cleared for a future static export under LibriSpeech CC BY 4.0.",
+      "excluded_audio": "Generated LFM speech and local macOS-TTS screening clips are intentionally absent pending model-output and voice-output redistribution review.",
+      "attribution": "LibriSpeech dev-clean, prepared by Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur; derived from public-domain LibriVox recordings; CC BY 4.0."
+    }
+  },
+  "examples": [
+    {
+      "id": "question-in-sample",
+      "teaching_role": "in_sample_integration_success_with_late_emergence",
+      "teaching_purpose": "Show a strong late-layer trajectory and one mid-layer lexical emergence, while explicitly demonstrating why an input used to fit a one-example lens is not held-out evidence.",
+      "input": {
+        "source_path": "samples/question.flac",
+        "sha256": "2da8a3d5a915be58a29cae9520c94e96395619f1dd3a0968486c9d5154b77b12",
+        "utterance_id": "1272-135031-0012",
+        "transcript": "Where is my brother now?",
+        "duration_seconds": 2.04,
+        "license": "CC BY 4.0",
+        "rights_status": "cleared_with_attribution"
+      },
+      "fit_relationship": {
+        "kind": "in_sample_input",
+        "detail": "The lens was fitted on this input using only the first six generated target positions under an 18-step generation budget; later positions in this longer replay were not fit targets."
+      },
+      "generated": {
+        "text": "I'm sorry, but I can't help with that. Is there something else you need assistance with?",
+        "audio_included": false,
+        "decoded_audio_duration_seconds": 10.56,
+        "termination": {
+          "termination_reason": "audio_eos",
+          "budget_exhausted": false,
+          "max_new_tokens": 512,
+          "generated_steps": 155,
+          "text_tokens_including_controls": 22,
+          "audio_frames_excluding_eos": 132,
+          "audio_eos_seen": true
+        }
+      },
+      "analysis_target_count": 21,
+      "aggregate_rank_metrics": [
+        {"layer": 0, "median_rank": 24057, "mean_reciprocal_rank": 0.00009009353512653795, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 0},
+        {"layer": 4, "median_rank": 16649, "mean_reciprocal_rank": 0.00015623508272088378, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 0},
+        {"layer": 8, "median_rank": 6207, "mean_reciprocal_rank": 0.0017348620973852398, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 1},
+        {"layer": 12, "median_rank": 2, "mean_reciprocal_rank": 0.5199257276353778, "top_1_count": 8, "top_5_count": 16, "top_10_count": 16, "top_100_count": 18},
+        {"layer": 14, "median_rank": 1, "mean_reciprocal_rank": 0.864980774918663, "top_1_count": 17, "top_5_count": 19, "top_10_count": 20, "top_100_count": 21}
+      ],
+      "tracked_tokens": [
+        {"target_index": 1, "token_id": 6217, "text": "'m", "ranks": [24057, 2128, 136, 3, 1], "head_rank": 1, "head_probability": 0.49635618925094604, "note": "Large, mostly monotonic rise into the late layers."},
+        {"target_index": 8, "token_id": 1801, "text": " help", "ranks": [1977, 1202, 1726, 5, 1], "head_rank": 1, "head_probability": 0.6947411894798279, "note": "Readable only at L12 despite a comparatively less poor early rank."},
+        {"target_index": 14, "token_id": 3503, "text": " something", "ranks": [6399, 16649, 45, 1, 1], "head_rank": 1, "head_probability": 0.9581422209739685, "note": "Only ordinary target in this example to enter the top 100 by L8."},
+        {"target_index": 17, "token_id": 1595, "text": " need", "ranks": [27648, 5442, 437, 2, 2], "head_rank": 1, "head_probability": 0.49946853518486023, "note": "Clear late emergence without reaching lens rank one."},
+        {"target_index": 0, "token_id": 550, "text": "I", "ranks": [11876, 35290, 51261, 701, 46], "head_rank": 1, "head_probability": 0.4795185923576355, "note": "Honest failure: the fitted readout remains rank 46 at L14 while the actual head emits it greedily."}
+      ],
+      "caveats": [
+        "This is the lens's fitting input and must never be presented as held-out validation.",
+        "The lens is a one-example rank-512/2048 projection; fine ordering may change with projection rank, seed, or a multi-example fit.",
+        "Generated speech is omitted and the language lens does not explain acoustic codes or waveform samples."
+      ]
+    },
+    {
+      "id": "universe-held-out",
+      "teaching_role": "held_out_partial_success_with_nonmonotonic_failures",
+      "teaching_purpose": "Show held-out late-layer improvement together with tokens that remain poorly ranked or become worse, preventing a cherry-picked monotonic story.",
+      "input": {
+        "source_path": "samples/universe.flac",
+        "sha256": "adb240047a1e0732c96b029b7dbd7c81a17c853cbd30aec0ee0d9c4e59fe720a",
+        "utterance_id": "1272-141231-0000",
+        "transcript": "A man said to the universe, sir, I exist.",
+        "duration_seconds": 4.65,
+        "license": "CC BY 4.0",
+        "rights_status": "cleared_with_attribution"
+      },
+      "fit_relationship": {
+        "kind": "held_out_input",
+        "detail": "This input was not used to fit the one-example projected lens."
+      },
+      "generated": {
+        "text": "That's a profound question. It suggests that the universe is vast and complex, and that there's a lot to explore and understand about it. It's a reminder of the mysteries that still lie beyond our current knowledge.",
+        "audio_included": false,
+        "decoded_audio_duration_seconds": 26.32,
+        "termination": {
+          "termination_reason": "audio_eos",
+          "budget_exhausted": false,
+          "max_new_tokens": 512,
+          "generated_steps": 375,
+          "text_tokens_including_controls": 45,
+          "audio_frames_excluding_eos": 329,
+          "audio_eos_seen": true
+        }
+      },
+      "analysis_target_count": 44,
+      "aggregate_rank_metrics": [
+        {"layer": 0, "median_rank": 34201.0, "mean_reciprocal_rank": 0.00019938372670662795, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 0},
+        {"layer": 4, "median_rank": 27130.0, "mean_reciprocal_rank": 0.000524558094888427, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 1},
+        {"layer": 8, "median_rank": 11612.0, "mean_reciprocal_rank": 0.0005280123866770533, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 0},
+        {"layer": 12, "median_rank": 99.5, "mean_reciprocal_rank": 0.07757393655796153, "top_1_count": 1, "top_5_count": 5, "top_10_count": 7, "top_100_count": 23},
+        {"layer": 14, "median_rank": 2.0, "mean_reciprocal_rank": 0.4988604781136512, "top_1_count": 15, "top_5_count": 30, "top_10_count": 34, "top_100_count": 41}
+      ],
+      "tracked_tokens": [
+        {"target_index": 3, "token_id": 21215, "text": " profound", "ranks": [59219, 51535, 10089, 4, 1], "head_rank": 1, "head_probability": 0.2368253618478775, "note": "Strong late-layer success from nearly the bottom of the lexical ranking."},
+        {"target_index": 10, "token_id": 13213, "text": " universe", "ranks": [24671, 7177, 11148, 55, 2], "head_rank": 1, "head_probability": 0.8309574723243713, "note": "Input-related content becomes readable late rather than early."},
+        {"target_index": 14, "token_id": 4121, "text": " complex", "ranks": [40828, 10614, 27538, 44, 52], "head_rank": 1, "head_probability": 0.2599993646144867, "note": "Nonmonotonic failure: improves sharply at L12, then worsens at L14."},
+        {"target_index": 37, "token_id": 2510, "text": " still", "ranks": [6780, 40337, 8556, 6624, 896], "head_rank": 1, "head_probability": 0.49227607250213623, "note": "Honest late-layer failure despite actual greedy emission."},
+        {"target_index": 41, "token_id": 2835, "text": " current", "ranks": [182, 23101, 261, 51, 1], "head_rank": 1, "head_probability": 0.7791081070899963, "note": "Highly nonmonotonic trajectory that ends at lens rank one."}
+      ],
+      "caveats": [
+        "This is held out from fitting but is still only one example under one projection seed.",
+        "The long 26.32-second generated waveform is omitted from this rights-cleared evidence file.",
+        "Low actual-head probability and poor lens rank answer different questions; neither is calibrated confidence."
+      ]
+    },
+    {
+      "id": "buzzer-held-out-budget-failure",
+      "teaching_role": "held_out_generation_and_lens_failure",
+      "teaching_purpose": "Show that a high safety cap is not a guarantee of natural completion, and that some realized content remains poorly represented even in the latest fitted source layer.",
+      "input": {
+        "source_path": "samples/buzzer.flac",
+        "sha256": "c3e32102b9faeb6dc3ec5203440d4e2a365cc0ea44fa6aeaefe5e3668a9a8585",
+        "utterance_id": "1272-141231-0006",
+        "transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
+        "duration_seconds": 4.93,
+        "license": "CC BY 4.0",
+        "rights_status": "cleared_with_attribution"
+      },
+      "fit_relationship": {
+        "kind": "held_out_input",
+        "detail": "This input was not used to fit the one-example projected lens."
+      },
+      "generated": {
+        "text": "The buzz of the swirir triggered his muscles into complete relaxation.",
+        "audio_included": false,
+        "decoded_audio_duration_seconds": 39.76,
+        "termination": {
+          "termination_reason": "budget_exhausted",
+          "budget_exhausted": true,
+          "max_new_tokens": 512,
+          "generated_steps": 512,
+          "text_tokens_including_controls": 15,
+          "audio_frames_excluding_eos": 497,
+          "audio_eos_seen": false
+        }
+      },
+      "analysis_target_count": 14,
+      "aggregate_rank_metrics": [
+        {"layer": 0, "median_rank": 24726.5, "mean_reciprocal_rank": 0.00011961585963134888, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 0},
+        {"layer": 4, "median_rank": 16966.0, "mean_reciprocal_rank": 0.00017594432936235307, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 0},
+        {"layer": 8, "median_rank": 11799.5, "mean_reciprocal_rank": 0.00033176869367569086, "top_1_count": 0, "top_5_count": 0, "top_10_count": 0, "top_100_count": 0},
+        {"layer": 12, "median_rank": 1170.0, "mean_reciprocal_rank": 0.3594609814233212, "top_1_count": 5, "top_5_count": 5, "top_10_count": 5, "top_100_count": 6},
+        {"layer": 14, "median_rank": 2.5, "mean_reciprocal_rank": 0.5173208444477646, "top_1_count": 6, "top_5_count": 10, "top_10_count": 10, "top_100_count": 10}
+      ],
+      "tracked_tokens": [
+        {"target_index": 1, "token_id": 45224, "text": " buzz", "ranks": [57029, 38644, 53529, 28718, 1], "head_rank": 1, "head_probability": 0.6293819546699524, "note": "Remains unreadable through L12, then jumps to rank one at L14."},
+        {"target_index": 4, "token_id": 3190, "text": " sw", "ranks": [5193, 1025, 327, 26761, 5], "head_rank": 1, "head_probability": 0.38461926579475403, "note": "Nonmonotonic trajectory: improves by L8, collapses at L12, and recovers at L14."},
+        {"target_index": 5, "token_id": 864, "text": "ir", "ranks": [5874, 1295, 3189, 2800, 5428], "head_rank": 1, "head_probability": 0.5397905707359314, "note": "Persistent fitted-readout failure at every inspected layer."},
+        {"target_index": 8, "token_id": 1210, "text": " his", "ranks": [56276, 54439, 10991, 1, 2], "head_rank": 1, "head_probability": 0.7210096120834351, "note": "Sharp late emergence with a small L12-to-L14 reversal."},
+        {"target_index": 12, "token_id": 29641, "text": " relaxation", "ranks": [48619, 53961, 19933, 1, 1], "head_rank": 1, "head_probability": 0.9964697360992432, "note": "Content token becomes readable only at L12."}
+      ],
+      "caveats": [
+        "The model never emitted audio EOS and stopped only at the 512-step hard cap.",
+        "The 39.76-second decoded waveform is omitted and this example should never autoplay or be the default showcase.",
+        "The generated text's 'swirir' differs from the source transcript's 'whirr'; the mismatch is retained rather than corrected."
+      ]
+    }
+  ]
+}
