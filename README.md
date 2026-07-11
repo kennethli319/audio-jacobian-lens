@@ -31,7 +31,7 @@ This repository currently contains four connected workspaces:
 | **Whisper ASR** | Paper-style decoder J-lens, experimental encoder-to-decoder lens, raw output diagnostics, audio upload/samples/recording, synchronized waveform and token timelines | A small synthetic decoder pilot recovers some early lexical directions; the current cross-stream encoder result is negative and must not be treated as a phoneme or streaming-belief detector | [`:8000/`](http://127.0.0.1:8000/) |
 | **LFM2.5 speech-to-speech** | Apple-silicon MLX generation, generated-speech playback, fitted readouts over the 16-layer language backbone | The retained lens is a one-clip integration pilot. It does not explain the FastConformer, audio adapter, acoustic codebooks, or played waveform | [`:8001/`](http://127.0.0.1:8001/) |
 | **Chatterbox TTS** | Corpus-fitted T3 acoustic-code readouts, per-run text sensitivity and attention, forced-code branches, and residual steering with suffix regeneration | The ten-prompt rank-128 pilot is encouraging but incomplete; acoustic-code IDs are not words or phonemes, and the current work does not attribute S3Gen or waveform samples | [`:8002/chatterbox`](http://127.0.0.1:8002/chatterbox) |
-| **Static Showcase** | Curated ASR/TTS/speech examples with exact rank trajectories, failure and null controls, rights status, and the canonical Chatterbox intervention | A backend-free evidence preview with no packaged example audio yet, not a replacement for held-out evaluation or redistribution review | [`:8000/showcase`](http://127.0.0.1:8000/showcase) |
+| **Static review** | Three curated summaries plus full cached ASR, speech-to-speech, and TTS explorers with every saved layer/position cell, bounded candidates, lazy ASR length filtering, TTS text diagnostics, and the canonical recorded intervention | Backend-free and safe to serve as static files. Only three CC BY 4.0 LibriSpeech inputs are packaged; generated LFM/Chatterbox audio and live steering remain excluded | [`:8000/showcase`](http://127.0.0.1:8000/showcase) |
 
 The older Laurel/Yanny steering study is retained as a reproducible archive in
 [`web/causal.html`](web/causal.html) and
@@ -69,9 +69,9 @@ changes the state of the project.
   unquantized-model, finite-difference, and S3-stage controls remain open.
 - The LFM language-backbone path works end to end, but its one-clip fitted lens
   is integration evidence rather than a scientific result.
-- The local explorers and static Showcase are usable now; public artifact and
-  generated-audio distribution remain gated by the provenance reviews recorded
-  in the plan.
+- The local explorers, curated Showcase, and backend-free cached explorer build
+  are usable now. Public fitted-artifact and generated-audio distribution remain
+  gated by the provenance reviews recorded in the plan.
 
 The project is based on
 [`anthropics/jacobian-lens`](https://github.com/anthropics/jacobian-lens), the
@@ -581,6 +581,38 @@ lens = jlens.JacobianLens.from_pretrained(
 )
 lens_logits, model_logits, _ = lens.apply(model, "A prompt", positions=[-1])
 ```
+
+## Refresh and validate the backend-free explorer
+
+The personal-site build uses already-inferred JSON only. With the three local
+model servers ready on ports 8000–8002, regenerate the cached matrices into a
+separate static-site checkout with:
+
+```bash
+.venv/bin/python scripts/export_static_explorer.py \
+  --site-root ../kennethli319.github.io/audio-jacobian-lens
+
+.venv/bin/python scripts/export_static_tts_explorer.py \
+  --site-root ../kennethli319.github.io/audio-jacobian-lens
+```
+
+ASR and speech-to-speech are captured sequentially. Chatterbox generation is
+also sequential, followed by one saved trace request per speech-code position.
+The exporters whitelist fields, pin model/lens provenance, remove ephemeral run
+IDs and generated audio, and hash every report. ASR's larger exact-length token
+buckets are split into compact sidecars and fetched only if a visitor enables
+the filter.
+
+Before publishing, run the static-only integrity gate:
+
+```bash
+.venv/bin/python scripts/validate_static_explorer_site.py \
+  ../kennethli319.github.io/audio-jacobian-lens
+```
+
+This verifies all 3×3 reports, matrices, trace coverage, hashes, cleared input
+media, no-index pages, and the absence of model API calls, generated audio, or
+ephemeral analysis identifiers.
 
 ## Development
 

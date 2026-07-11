@@ -194,12 +194,15 @@ matrix so visitors can inspect neighboring slices and discover counterexamples.
 
 ## Next implementation steps
 
-- [ ] Add a deterministic exporter/validator for reduced static ASR, LFM, and
-  Chatterbox payloads.
-- [ ] Add a static manifest loader to the existing pages without duplicating
-  their rendering logic.
-- [ ] Package the three rights-cleared LibriSpeech ASR cases plus procedural
-  silence.
+- [x] Add deterministic, allowlist-based exporters for reduced static ASR,
+  LFM, Chatterbox generation, and all-position Chatterbox trace payloads.
+- [x] Add a shared static renderer for the three detailed explorer routes, with
+  sample selection, synchronized positions, full cached matrices, local
+  candidate tooltips, and pinned provenance.
+- [x] Package the three rights-cleared LibriSpeech input cases. Procedural
+  silence remains a future null-control addition.
+- [x] Add a static integrity validator covering hashes, schemas, matrix/trace
+  completeness, media scope, no-index pages, and absence of live API calls.
 - [ ] Obtain and rerun rights-cleared flour/flower recordings.
 - [ ] Package the Chatterbox bridge baseline, trace, residual branch, and both
   WAVs after the derived-output review.

@@ -470,18 +470,26 @@ Status: **in progress**
 - [x] Publish an unlinked, `noindex` GitHub Pages review at
   `kennethli319.github.io/audio-jacobian-lens/` without changing the personal
   homepage; include only the three rights-cleared LibriSpeech input FLACs.
-- [ ] Implement deterministic reduced-payload exporters and schema validation
-  for ASR, LFM, Chatterbox generation, trace, and branch responses.
-- [ ] Load precomputed manifests/payloads through the existing page renderers
-  without requiring a model backend or maintaining a second UI implementation.
+- [x] Implement deterministic allowlist-based exporters and schema validation
+  for ASR, LFM, Chatterbox generation, all-position trace, and the recorded
+  bridge-intervention response.
+- [x] Load precomputed manifests/payloads through one shared detailed-static
+  renderer across ASR, speech-to-speech, and TTS. Keep this renderer separate
+  from the live pages so upload, generation, and mutation controls cannot leak
+  into the public build.
 - [ ] Package the Chatterbox bridge baseline/steered pair after completing the
   conversion/S3/derived-output review.
-- [ ] Package three attributed LibriSpeech examples plus procedural silence;
-  obtain rights-cleared owner recordings for the controlled homophone pair.
+- [x] Package the three attributed LibriSpeech inputs with immutable hashes and
+  CC BY 4.0 attribution.
+- [ ] Add procedural silence and obtain rights-cleared owner recordings for the
+  controlled homophone pair.
 - [ ] Fit and evaluate a multi-clip LFM lens on disjoint held-out examples before
   choosing a positive public speech-to-speech hero.
-- [ ] Add static-host build, integrity checks, compressed-size budgets,
-  responsive/browser QA, and deployment documentation.
+- [x] Add a static-host integrity gate and regeneration/deployment
+  documentation covering hashes, matrices, trace coverage, media scope,
+  no-index pages, and absence of live API calls.
+- [ ] Add compressed-transfer size budgets and responsive/browser QA before
+  promoting the review out of its unlinked `noindex` state.
 
 Acceptance criteria:
 
@@ -537,6 +545,15 @@ decision log.
   unfiltered controls. Neither view is treated as a true phoneme inventory.
 - Padded audio frames, forced decoder-prefix positions, and positions without a
   next-token target are excluded from estimator averages.
+- The public detailed replay uses three immutable family manifests and one
+  shared static renderer. Base reports retain the full saved layer × position
+  matrices and bounded candidates. ASR exact-length buckets live in separate,
+  compact, hash-pinned sidecars and load only when the visitor enables the
+  character filter.
+- Static speech-to-speech pages distribute the cleared input waveform and
+  generated text but not generated response audio. Static TTS pages distribute
+  speech-code/readout/trace values and the recorded bridge intervention, but no
+  generated waveform, audio URI, or ephemeral server analysis handle.
 - Pilot lens: at least 10 clips for a plumbing/quality gate. A one-clip lens may
   be used only as an explicitly labeled smoke test.
 - The first hosted target is a Hugging Face Docker Space on port 7860. It is
@@ -1536,3 +1553,24 @@ to avoid duplicate or delayed information.
   embedded/generated audio. The GitHub Pages build for personal-site commit
   `f871bbf` completed successfully, and all three public routes, the JSON
   payload, and cleared source audio returned HTTP 200.
+- Extended that review with three detailed backend-free routes for ASR,
+  speech-to-speech, and TTS. Each route selects among three already-inferred
+  examples and exposes the complete saved layer × position matrix, local
+  candidate ranks/scores, a pinned inspector, keyboard/pointer tooltips, and
+  immutable model/lens provenance through one shared renderer.
+- Preserved the live ASR character-length experiment exactly enough for static
+  replay: all encoder layers and decoder L0–L1 have exact-length top-k buckets,
+  stored as compact 3.2–7.1 MB sidecars that load only when the filter is
+  enabled. The default reports remain 0.4–0.8 MB and L2/HEAD remain unfiltered
+  controls. Speech-to-speech visibly records that this control is unavailable.
+- Cached every Chatterbox speech-code position and its local text trace for the
+  bridge (63), turtles (69), and music (59) prompts. The TTS page compares all
+  seven fitted layers with the actual HEAD, renders gradient and attention
+  shares across prompt tokens, and retains the recorded S9 residual/direct-force
+  comparison without exposing a live branch control.
+- Added deterministic ASR/LFM and TTS exporters, 15 focused exporter tests, and
+  a static-site integrity gate. The published bundle contains only the three
+  cleared LibriSpeech FLAC inputs; generated LFM/Chatterbox audio, embedded
+  audio URIs, waveform outputs, and ephemeral analysis IDs are absent. Local
+  route/cache replay and shared-renderer data-shape smokes passed for all three
+  families; the personal homepage remains unchanged pending owner review.
