@@ -463,6 +463,13 @@ Status: **in progress**
   details, intervention provenance, and publication-status boundaries.
 - [x] Add a checksum-validated, rights-scoped LFM evidence artifact without
   generated audio, ephemeral server IDs, or unresolved-rights media.
+- [x] Freeze a versioned nine-report public-review bundle with exactly three
+  ASR, three speech-to-speech, and three TTS examples; retain full rank
+  denominators, provenance, input hashes, caveats, and cached intervention
+  semantics without live inference identifiers.
+- [x] Publish an unlinked, `noindex` GitHub Pages review at
+  `kennethli319.github.io/audio-jacobian-lens/` without changing the personal
+  homepage; include only the three rights-cleared LibriSpeech input FLACs.
 - [ ] Implement deterministic reduced-payload exporters and schema validation
   for ASR, LFM, Chatterbox generation, trace, and branch responses.
 - [ ] Load precomputed manifests/payloads through the existing page renderers
@@ -1516,3 +1523,16 @@ to avoid duplicate or delayed information.
   curation, and licensing documents; corrects the fitted-probability metric
   language; records the shared local ports; and replaces the stale fixed test
   count with the evergreen release commands.
+- Generated and published the first static personal-site review bundle. The
+  ASR, speech-to-speech, and TTS pages each expose exactly three cached reports
+  through one schema-versioned payload; all rank cells retain their exact
+  per-layer denominators and score semantics, the TTS bridge retains the
+  recorded residual intervention, and only CC BY 4.0 LibriSpeech input audio is
+  present. The public route is deliberately absent from the personal homepage
+  and marked `noindex,nofollow` until owner review.
+- Added `data/static_public_reports_v1.json` as the source-of-truth snapshot and
+  a focused integrity test covering the 3×3 contract, rank bounds, sample
+  hashes, rights scope, intervention type, and absence of ephemeral IDs or
+  embedded/generated audio. The GitHub Pages build for personal-site commit
+  `f871bbf` completed successfully, and all three public routes, the JSON
+  payload, and cleared source audio returned HTTP 200.

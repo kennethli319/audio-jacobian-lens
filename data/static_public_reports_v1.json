@@ -1,0 +1,2707 @@
+{
+  "schema_id": "audio-jacobian-lens.cached-reports",
+  "schema_version": 1,
+  "exported_on": "2026-07-11",
+  "mode": "static_cached_reports",
+  "interaction_boundary": "Visitors inspect cached ranks, probabilities, timing, traces, and an already-recorded intervention. No model inference, upload, recording, or live steering occurs in this bundle.",
+  "family_order": [
+    "asr",
+    "speech",
+    "tts"
+  ],
+  "families": {
+    "asr": {
+      "id": "asr",
+      "label": "Whisper ASR",
+      "description": "Three rights-cleared LibriSpeech reports showing late emergence, mixed confidence, subword structure, and a model-error path.",
+      "provenance": {
+        "evaluated_on": "2026-07-11",
+        "extraction": "Replayed locally through the pinned model and fitted artifact; semantic realized-token ranks were recomputed over the full vocabulary because the browser API serializes only bounded lens candidates.",
+        "model": {
+          "id": "openai/whisper-tiny.en",
+          "revision": "87c7102498dcde7456f24cfd30239ca606ed9063",
+          "weights_fingerprint": "hf-commit:87c7102498dcde7456f24cfd30239ca606ed9063",
+          "model_fingerprint": "5a77767bfe9c962d",
+          "model_config_fingerprint": "a3d3a1205eaef828",
+          "tokenizer_fingerprint": "290cd13e6eb0aa9c",
+          "vocabulary_size": 51864,
+          "encoder_layers": 4,
+          "decoder_layers": 4
+        },
+        "lens": {
+          "source_path": "artifacts/pilot/whisper_tiny_en_10_tts_aligned.pt",
+          "sha256": "489582ce50736e8e7b78b7cb9d0140b963d99c5d7784635ed93e71710ab293a2",
+          "fit_examples": 10,
+          "fit_corpus_fingerprint": "46640e2cbca442f599ef",
+          "decoder_examples_fingerprint": "9e351a804731ec0622fdb9fdb5daa6ce1b78823efcb73beda4e8f0443fe73555",
+          "source_layers": [
+            0,
+            1,
+            2
+          ],
+          "target_layer": 3,
+          "estimator": "decoder-causal-all-targets",
+          "target_reduction": "sum",
+          "audio_preprocessing_version": "mono-polyphase-16khz-v1"
+        },
+        "rank_semantics": {
+          "rank_space": "full_model_vocabulary",
+          "rank_denominator": 51864,
+          "tie_policy": "1_plus_count_strictly_greater",
+          "lens_score_kind": "raw_readout_logit",
+          "head_score_kind": "raw_teacher_forced_probability",
+          "tracked_target_policy": "Generated target tokens whose decoded text contains at least one Unicode alphanumeric character."
+        },
+        "timing_semantics": {
+          "source": "whisper_cross_attention_dtw",
+          "quality": "model_derived",
+          "warning": "Token times are Whisper-derived and are not independent alignment evidence."
+        },
+        "rights": {
+          "source_collection": "LibriSpeech dev-clean (OpenSLR SLR12)",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/",
+          "source_url": "https://www.openslr.org/12",
+          "attribution": "LibriSpeech dev-clean, prepared by Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur; derived from public-domain LibriVox recordings.",
+          "modification_notice": "The three published input FLAC files are copied without modification from the repository's bundled examples."
+        }
+      },
+      "examples": [
+        {
+          "id": "asr-question-late-emergence",
+          "title": "A short question: late lexical emergence",
+          "teaching_role": "late_emergence",
+          "teaching_purpose": "Show that realized words need not be readable at early decoder layers: “now” moves from #6,319 to #7,237 before reaching #3 at L2.",
+          "input": {
+        "asset_path": "audio/question.flac",
+            "source_path": "samples/question.flac",
+            "sha256": "2da8a3d5a915be58a29cae9520c94e96395619f1dd3a0968486c9d5154b77b12",
+            "utterance_id": "1272-135031-0012",
+            "transcript": "Where is my brother now?",
+            "duration_seconds": 2.04,
+            "rights_status": "cleared_with_attribution",
+            "license": "CC BY 4.0"
+          },
+          "fit_relationship": {
+            "kind": "held_out_from_whisper_lens_fit",
+            "detail": "The Whisper lens was fit on a separate ten-clip local TTS corpus; this LibriSpeech input is disjoint."
+          },
+          "model_output": {
+            "text": "Where is my brother now?"
+          },
+          "layers": [
+            "L0",
+            "L1",
+            "L2",
+            "HEAD"
+          ],
+          "tracks": [
+            {
+              "position_index": 0,
+              "token_id": 6350,
+              "text": " Where",
+              "time_window_seconds": {
+                "start": 0,
+                "end": 1.059999942779541,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                523,
+                547,
+                15,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                3.3539164066314697,
+                3.276895046234131,
+                5.191920280456543
+              ],
+              "head_probability": 0.7580215930938721,
+              "note": "Late emergence: the opening token enters the top 15 only at L2."
+            },
+            {
+              "position_index": 1,
+              "token_id": 318,
+              "text": " is",
+              "time_window_seconds": {
+                "start": 1.059999942779541,
+                "end": 1.2400000095367432,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                33,
+                46,
+                2,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                5.5317487716674805,
+                5.527683734893799,
+                18.796794891357422
+              ],
+              "head_probability": 0.8274384140968323,
+              "note": null
+            },
+            {
+              "position_index": 2,
+              "token_id": 616,
+              "text": " my",
+              "time_window_seconds": {
+                "start": 1.2400000095367432,
+                "end": 1.5,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                196,
+                40,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                0.5451736450195312,
+                1.7556378841400146,
+                21.128713607788086
+              ],
+              "head_probability": 0.9943353533744812,
+              "note": null
+            },
+            {
+              "position_index": 3,
+              "token_id": 3956,
+              "text": " brother",
+              "time_window_seconds": {
+                "start": 1.5,
+                "end": 1.8799999952316284,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                627,
+                454,
+                26,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                1.3293440341949463,
+                -2.8534107208251953,
+                0.4163475036621094
+              ],
+              "head_probability": 0.99201500415802,
+              "note": null
+            },
+            {
+              "position_index": 4,
+              "token_id": 783,
+              "text": " now",
+              "time_window_seconds": {
+                "start": 1.8799999952316284,
+                "end": 2.0199999809265137,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                6319,
+                7237,
+                3,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -3.2150275707244873,
+                -5.347250938415527,
+                3.8170547485351562
+              ],
+              "head_probability": 0.5126006603240967,
+              "note": "Selected contrast: rank worsens at L1, then jumps to #3 at L2."
+            }
+          ],
+          "caveats": [
+            "The actual-head probabilities are raw teacher-forced probabilities before Whisper generation suppression and timestamp rules.",
+            "Rank is not calibrated confidence, and a fitted readout is not a causal intervention.",
+            "Token timing is Whisper-derived cross-attention DTW, not independent human alignment."
+          ]
+        },
+        {
+          "id": "asr-universe-late-content",
+          "title": "Sir, I exist: content resolves at different depths",
+          "teaching_role": "mixed_emergence_and_head_uncertainty",
+          "teaching_purpose": "Contrast an input-related content token that reaches #17 only at L2 with “Sir,” whose realized path is merely #2 at the actual output head.",
+          "input": {
+        "asset_path": "audio/universe.flac",
+            "source_path": "samples/universe.flac",
+            "sha256": "adb240047a1e0732c96b029b7dbd7c81a17c853cbd30aec0ee0d9c4e59fe720a",
+            "utterance_id": "1272-141231-0000",
+            "transcript": "A man said to the universe, sir, I exist.",
+            "duration_seconds": 4.65,
+            "rights_status": "cleared_with_attribution",
+            "license": "CC BY 4.0"
+          },
+          "fit_relationship": {
+            "kind": "held_out_from_whisper_lens_fit",
+            "detail": "The Whisper lens was fit on a separate ten-clip local TTS corpus; this LibriSpeech input is disjoint."
+          },
+          "model_output": {
+            "text": "A man said to the universe, Sir, I exist.",
+            "difference_from_reference": "Whisper capitalizes “Sir”; the model path is preserved."
+          },
+          "layers": [
+            "L0",
+            "L1",
+            "L2",
+            "HEAD"
+          ],
+          "tracks": [
+            {
+              "position_index": 0,
+              "token_id": 317,
+              "text": " A",
+              "time_window_seconds": {
+                "start": 0,
+                "end": 1.0800000429153442,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                72,
+                40,
+                2,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                4.141451835632324,
+                3.2658214569091797,
+                9.744840621948242
+              ],
+              "head_probability": 0.6363294720649719,
+              "note": null
+            },
+            {
+              "position_index": 1,
+              "token_id": 582,
+              "text": " man",
+              "time_window_seconds": {
+                "start": 1.0800000429153442,
+                "end": 1.340000033378601,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                197,
+                31,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -5.503556251525879,
+                -4.4034552574157715,
+                7.631256580352783
+              ],
+              "head_probability": 0.9925233721733093,
+              "note": null
+            },
+            {
+              "position_index": 2,
+              "token_id": 531,
+              "text": " said",
+              "time_window_seconds": {
+                "start": 1.340000033378601,
+                "end": 1.5,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                474,
+                748,
+                2,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -1.188330888748169,
+                -3.414111614227295,
+                11.001340866088867
+              ],
+              "head_probability": 0.986179530620575,
+              "note": null
+            },
+            {
+              "position_index": 3,
+              "token_id": 284,
+              "text": " to",
+              "time_window_seconds": {
+                "start": 1.5,
+                "end": 1.7400000095367432,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                31,
+                3,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                4.020011901855469,
+                8.39863395690918,
+                33.80597686767578
+              ],
+              "head_probability": 0.9896838665008545,
+              "note": null
+            },
+            {
+              "position_index": 4,
+              "token_id": 262,
+              "text": " the",
+              "time_window_seconds": {
+                "start": 1.7400000095367432,
+                "end": 2.200000047683716,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                83,
+                79,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -3.9375171661376953,
+                -4.378602981567383,
+                15.765169143676758
+              ],
+              "head_probability": 0.9937050938606262,
+              "note": null
+            },
+            {
+              "position_index": 5,
+              "token_id": 6881,
+              "text": " universe",
+              "time_window_seconds": {
+                "start": 2.200000047683716,
+                "end": 2.880000114440918,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                3045,
+                755,
+                17,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -8.42460823059082,
+                -10.284239768981934,
+                -1.8704948425292969
+              ],
+              "head_probability": 0.8994398713111877,
+              "note": "The content word becomes readable late, reaching #17 only at L2."
+            },
+            {
+              "position_index": 6,
+              "token_id": 7361,
+              "text": " Sir",
+              "time_window_seconds": {
+                "start": 3.2799999713897705,
+                "end": 3.740000009536743,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                1318,
+                742,
+                58,
+                2
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -2.9162566661834717,
+                -7.311224937438965,
+                6.734136581420898
+              ],
+              "head_probability": 0.11090171337127686,
+              "note": "The realized token is only #2 at the actual head, an honest low-confidence output decision."
+            },
+            {
+              "position_index": 7,
+              "token_id": 314,
+              "text": " I",
+              "time_window_seconds": {
+                "start": 3.799999952316284,
+                "end": 4.179999828338623,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                612,
+                50,
+                3,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -3.881857395172119,
+                -5.309090614318848,
+                18.311269760131836
+              ],
+              "head_probability": 0.9270011782646179,
+              "note": null
+            },
+            {
+              "position_index": 8,
+              "token_id": 2152,
+              "text": " exist",
+              "time_window_seconds": {
+                "start": 4.179999828338623,
+                "end": 4.619999885559082,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                17259,
+                38778,
+                64,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                2.07822585105896,
+                -5.564139366149902,
+                -1.3272864818572998
+              ],
+              "head_probability": 0.9788107872009277,
+              "note": "Strongly non-monotonic fitted trajectory that resolves only near the output."
+            }
+          ],
+          "caveats": [
+            "The selected examples are illustrative trajectories, not population-level evidence.",
+            "The actual head emits “Sir” on a path where it is rank #2; realized does not always mean top-1 under the raw teacher-forced head.",
+            "Token timing is model-derived and bidirectional encoder results are intentionally omitted from this positive decoder report."
+          ]
+        },
+        {
+          "id": "asr-buzzer-model-error",
+          "title": "The buzzer’s whirr: follow the model’s wrong path",
+          "teaching_role": "model_error_and_subword_contrast",
+          "teaching_purpose": "Expose a transcription error rather than correcting it: the fitted lens tracks generated “buzz” + “ers,” while the model omits and substitutes words from the reference.",
+          "input": {
+        "asset_path": "audio/buzzer.flac",
+            "source_path": "samples/buzzer.flac",
+            "sha256": "c3e32102b9faeb6dc3ec5203440d4e2a365cc0ea44fa6aeaefe5e3668a9a8585",
+            "utterance_id": "1272-141231-0006",
+            "transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
+            "duration_seconds": 4.93,
+            "rights_status": "cleared_with_attribution",
+            "license": "CC BY 4.0"
+          },
+          "fit_relationship": {
+            "kind": "held_out_from_whisper_lens_fit",
+            "detail": "The Whisper lens was fit on a separate ten-clip local TTS corpus; this LibriSpeech input is disjoint."
+          },
+          "model_output": {
+            "text": "The buzzers were triggered as muscles into complete relaxation.",
+            "difference_from_reference": "The generated path changes “buzzer's whirr” to “buzzers were” and drops “his”; these errors are retained."
+          },
+          "layers": [
+            "L0",
+            "L1",
+            "L2",
+            "HEAD"
+          ],
+          "tracks": [
+            {
+              "position_index": 0,
+              "token_id": 383,
+              "text": " The",
+              "time_window_seconds": {
+                "start": 0,
+                "end": 0.8799999952316284,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                17,
+                14,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                7.28489875793457,
+                6.752315044403076,
+                17.18204689025879
+              ],
+              "head_probability": 0.7221128940582275,
+              "note": null
+            },
+            {
+              "position_index": 1,
+              "token_id": 14713,
+              "text": " buzz",
+              "time_window_seconds": {
+                "start": 0.8799999952316284,
+                "end": 1.159999966621399,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                42240,
+                26596,
+                6799,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -11.574159622192383,
+                -9.642044067382812,
+                -5.665074348449707
+              ],
+              "head_probability": 0.8861696720123291,
+              "note": "The realized error-path stem remains poorly ranked even at L2."
+            },
+            {
+              "position_index": 2,
+              "token_id": 364,
+              "text": "ers",
+              "time_window_seconds": {
+                "start": 1.159999966621399,
+                "end": 2.0199999809265137,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                108,
+                10,
+                2,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -0.5592079162597656,
+                4.893764972686768,
+                8.262292861938477
+              ],
+              "head_probability": 0.8242570161819458,
+              "note": "The suffix becomes readable much earlier than the stem."
+            },
+            {
+              "position_index": 3,
+              "token_id": 547,
+              "text": " were",
+              "time_window_seconds": {
+                "start": 2.0199999809265137,
+                "end": 2.3399999141693115,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                135,
+                2,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -0.9256277084350586,
+                6.493223190185547,
+                30.253408432006836
+              ],
+              "head_probability": 0.990303099155426,
+              "note": null
+            },
+            {
+              "position_index": 4,
+              "token_id": 13973,
+              "text": " triggered",
+              "time_window_seconds": {
+                "start": 2.3399999141693115,
+                "end": 2.5799999237060547,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                17260,
+                6973,
+                3505,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -4.192140579223633,
+                -4.4729814529418945,
+                -3.190836429595825
+              ],
+              "head_probability": 0.44623470306396484,
+              "note": "A high-confidence-looking final emission can have a weak fitted trajectory."
+            },
+            {
+              "position_index": 5,
+              "token_id": 355,
+              "text": " as",
+              "time_window_seconds": {
+                "start": 2.5799999237060547,
+                "end": 2.880000114440918,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                228,
+                138,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -1.9721020460128784,
+                -2.128535747528076,
+                14.780123710632324
+              ],
+              "head_probability": 0.7507903575897217,
+              "note": null
+            },
+            {
+              "position_index": 6,
+              "token_id": 12749,
+              "text": " muscles",
+              "time_window_seconds": {
+                "start": 2.880000114440918,
+                "end": 3.180000066757202,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                6108,
+                8960,
+                4075,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -6.257176876068115,
+                -8.601371765136719,
+                -6.799080848693848
+              ],
+              "head_probability": 0.9689481854438782,
+              "note": "Late fitted-readout failure despite confident actual-head emission."
+            },
+            {
+              "position_index": 7,
+              "token_id": 656,
+              "text": " into",
+              "time_window_seconds": {
+                "start": 3.180000066757202,
+                "end": 3.640000104904175,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                1226,
+                646,
+                5,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                1.0629462003707886,
+                0.6826379895210266,
+                16.93830108642578
+              ],
+              "head_probability": 0.7596960067749023,
+              "note": null
+            },
+            {
+              "position_index": 8,
+              "token_id": 1844,
+              "text": " complete",
+              "time_window_seconds": {
+                "start": 3.640000104904175,
+                "end": 4.320000171661377,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                13582,
+                1936,
+                14,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -9.146991729736328,
+                -6.958158493041992,
+                4.079999923706055
+              ],
+              "head_probability": 0.9930364489555359,
+              "note": null
+            },
+            {
+              "position_index": 9,
+              "token_id": 34205,
+              "text": " relaxation",
+              "time_window_seconds": {
+                "start": 4.320000171661377,
+                "end": 4.93,
+                "source": "whisper_cross_attention_dtw",
+                "quality": "model_derived"
+              },
+              "ranks": [
+                26537,
+                30016,
+                4810,
+                1
+              ],
+              "rank_denominators": [
+                51864,
+                51864,
+                51864,
+                51864
+              ],
+              "rank_spaces": [
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_readout_logit",
+                "raw_teacher_forced_probability"
+              ],
+              "fitted_target_logits": [
+                -5.691263198852539,
+                -6.094843864440918,
+                -6.418939590454102
+              ],
+              "head_probability": 0.9979324340820312,
+              "note": "The fitted lens remains wrong even though the actual head is nearly certain."
+            }
+          ],
+          "caveats": [
+            "A J-lens explains the model-generated path; it is not an oracle for the reference transcript.",
+            "The “buzz” stem and “ers” suffix occupy separate BPE positions and their ranks must not be added into a word confidence.",
+            "Very confident actual-head emissions can coexist with poor fitted ranks, which can indicate a lens limitation rather than absent model information."
+          ]
+        }
+      ]
+    },
+    "speech": {
+      "id": "speech",
+      "label": "LFM speech-to-speech",
+      "description": "One explicitly in-sample integration run and two held-out runs from a provisional one-clip projected language lens; generated speech is not redistributed.",
+      "provenance": {
+        "evaluated_on": "2026-07-11",
+        "model": {
+          "id": "mlx-community/LFM2.5-Audio-1.5B-8bit",
+          "revision": "a569a7805a8e3eae954c244e54ba811d479a12c2",
+          "text_vocabulary_size": 65536
+        },
+        "lens": {
+          "source_path": "artifacts/mlx/lfm2_5_audio_1clip_projected_rank512.pt",
+          "sha256": "2da88652aecfcc8ef634fd3e336983b02afbc505f6b1c86c8069f5b1e9d917cb",
+          "fit_examples": 1,
+          "fit_input": "samples/question.flac",
+          "fitted_target_positions": 6,
+          "source_layers": [
+            0,
+            4,
+            8,
+            12,
+            14
+          ],
+          "target_layer": 15,
+          "projection_method": "subsampled_hadamard_output_probe_vjp",
+          "projection_rank": 512,
+          "target_dimension": 2048,
+          "projection_seed": 29,
+          "fit_generation_max_new_tokens": 18
+        },
+        "evaluation_generation": {
+          "mode": "interleaved",
+          "max_new_tokens": 512,
+          "text_temperature": 0,
+          "text_top_k": 1,
+          "audio_temperature": 0,
+          "audio_top_k": 1,
+          "mlx_random_seed": 7,
+          "audio_frame_seconds": 0.08
+        },
+        "rank_semantics": {
+          "rank_space": "lexical_display_vocabulary",
+          "rank_denominator": 61690,
+          "tie_policy": "1_plus_count_strictly_greater",
+          "eligible_token_policy": "Decoded token is nonempty, contains no angle-bracket control marker or replacement character, and contains at least one Unicode alphanumeric character.",
+          "tracked_target_policy": "Realized generated text positions excluding LFM text controls 7 (IM_END), 128 (AUDIO_START), and 130 (TEXT_END), plus tokenizer-declared special IDs.",
+          "aggregate_policy": "Median rank, mean reciprocal rank, and threshold counts are computed over every tracked target in the example, not only favorable tokens.",
+          "head_rank_space": "full_model_vocabulary",
+          "head_rank_denominator": 65536
+        },
+        "rights_policy": {
+          "included_audio": "Only the three source-input references are cleared for a future static export under LibriSpeech CC BY 4.0.",
+          "excluded_audio": "Generated LFM speech and local macOS-TTS screening clips are intentionally absent pending model-output and voice-output redistribution review.",
+          "attribution": "LibriSpeech dev-clean, prepared by Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur; derived from public-domain LibriVox recordings; CC BY 4.0."
+        }
+      },
+      "examples": [
+        {
+          "id": "question-in-sample",
+          "teaching_role": "in_sample_integration_success_with_late_emergence",
+          "teaching_purpose": "Show a strong late-layer trajectory and one mid-layer lexical emergence, while explicitly demonstrating why an input used to fit a one-example lens is not held-out evidence.",
+          "input": {
+            "source_path": "samples/question.flac",
+            "sha256": "2da8a3d5a915be58a29cae9520c94e96395619f1dd3a0968486c9d5154b77b12",
+            "utterance_id": "1272-135031-0012",
+            "transcript": "Where is my brother now?",
+            "duration_seconds": 2.04,
+            "license": "CC BY 4.0",
+            "rights_status": "cleared_with_attribution",
+          "asset_path": "audio/question.flac"
+          },
+          "fit_relationship": {
+            "kind": "in_sample_input",
+            "detail": "The lens was fitted on this input using only the first six generated target positions under an 18-step generation budget; later positions in this longer replay were not fit targets."
+          },
+          "generated": {
+            "text": "I'm sorry, but I can't help with that. Is there something else you need assistance with?",
+            "audio_included": false,
+            "decoded_audio_duration_seconds": 10.56,
+            "termination": {
+              "termination_reason": "audio_eos",
+              "budget_exhausted": false,
+              "max_new_tokens": 512,
+              "generated_steps": 155,
+              "text_tokens_including_controls": 22,
+              "audio_frames_excluding_eos": 132,
+              "audio_eos_seen": true
+            }
+          },
+          "analysis_target_count": 21,
+          "aggregate_rank_metrics": [
+            {
+              "layer": 0,
+              "median_rank": 24057,
+              "mean_reciprocal_rank": 0.00009009353512653795,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 0
+            },
+            {
+              "layer": 4,
+              "median_rank": 16649,
+              "mean_reciprocal_rank": 0.00015623508272088378,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 0
+            },
+            {
+              "layer": 8,
+              "median_rank": 6207,
+              "mean_reciprocal_rank": 0.0017348620973852398,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 1
+            },
+            {
+              "layer": 12,
+              "median_rank": 2,
+              "mean_reciprocal_rank": 0.5199257276353778,
+              "top_1_count": 8,
+              "top_5_count": 16,
+              "top_10_count": 16,
+              "top_100_count": 18
+            },
+            {
+              "layer": 14,
+              "median_rank": 1,
+              "mean_reciprocal_rank": 0.864980774918663,
+              "top_1_count": 17,
+              "top_5_count": 19,
+              "top_10_count": 20,
+              "top_100_count": 21
+            }
+          ],
+          "tracked_tokens": [
+            {
+              "target_index": 1,
+              "token_id": 6217,
+              "text": "'m",
+              "ranks": [
+                24057,
+                2128,
+                136,
+                3,
+                1
+              ],
+              "head_rank": 1,
+              "head_probability": 0.49635618925094604,
+              "note": "Large, mostly monotonic rise into the late layers."
+            },
+            {
+              "target_index": 8,
+              "token_id": 1801,
+              "text": " help",
+              "ranks": [
+                1977,
+                1202,
+                1726,
+                5,
+                1
+              ],
+              "head_rank": 1,
+              "head_probability": 0.6947411894798279,
+              "note": "Readable only at L12 despite a comparatively less poor early rank."
+            },
+            {
+              "target_index": 14,
+              "token_id": 3503,
+              "text": " something",
+              "ranks": [
+                6399,
+                16649,
+                45,
+                1,
+                1
+              ],
+              "head_rank": 1,
+              "head_probability": 0.9581422209739685,
+              "note": "Only ordinary target in this example to enter the top 100 by L8."
+            },
+            {
+              "target_index": 17,
+              "token_id": 1595,
+              "text": " need",
+              "ranks": [
+                27648,
+                5442,
+                437,
+                2,
+                2
+              ],
+              "head_rank": 1,
+              "head_probability": 0.49946853518486023,
+              "note": "Clear late emergence without reaching lens rank one."
+            },
+            {
+              "target_index": 0,
+              "token_id": 550,
+              "text": "I",
+              "ranks": [
+                11876,
+                35290,
+                51261,
+                701,
+                46
+              ],
+              "head_rank": 1,
+              "head_probability": 0.4795185923576355,
+              "note": "Honest failure: the fitted readout remains rank 46 at L14 while the actual head emits it greedily."
+            }
+          ],
+          "caveats": [
+            "This is the lens's fitting input and must never be presented as held-out validation.",
+            "The lens is a one-example rank-512/2048 projection; fine ordering may change with projection rank, seed, or a multi-example fit.",
+            "Generated speech is omitted and the language lens does not explain acoustic codes or waveform samples."
+          ],
+          "title": "In-sample integration: late language emergence",
+          "layers": [
+            "L0",
+            "L4",
+            "L8",
+            "L12",
+            "L14",
+            "HEAD"
+          ],
+          "tracks": [
+            {
+              "position_index": 1,
+              "token_id": 6217,
+              "text": "'m",
+              "ranks": [
+                24057,
+                2128,
+                136,
+                3,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.49635618925094604,
+              "note": "Large, mostly monotonic rise into the late layers."
+            },
+            {
+              "position_index": 8,
+              "token_id": 1801,
+              "text": " help",
+              "ranks": [
+                1977,
+                1202,
+                1726,
+                5,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.6947411894798279,
+              "note": "Readable only at L12 despite a comparatively less poor early rank."
+            },
+            {
+              "position_index": 14,
+              "token_id": 3503,
+              "text": " something",
+              "ranks": [
+                6399,
+                16649,
+                45,
+                1,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.9581422209739685,
+              "note": "Only ordinary target in this example to enter the top 100 by L8."
+            },
+            {
+              "position_index": 17,
+              "token_id": 1595,
+              "text": " need",
+              "ranks": [
+                27648,
+                5442,
+                437,
+                2,
+                2,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.49946853518486023,
+              "note": "Clear late emergence without reaching lens rank one."
+            },
+            {
+              "position_index": 0,
+              "token_id": 550,
+              "text": "I",
+              "ranks": [
+                11876,
+                35290,
+                51261,
+                701,
+                46,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.4795185923576355,
+              "note": "Honest failure: the fitted readout remains rank 46 at L14 while the actual head emits it greedily."
+            }
+          ]
+        },
+        {
+          "id": "universe-held-out",
+          "teaching_role": "held_out_partial_success_with_nonmonotonic_failures",
+          "teaching_purpose": "Show held-out late-layer improvement together with tokens that remain poorly ranked or become worse, preventing a cherry-picked monotonic story.",
+          "input": {
+            "source_path": "samples/universe.flac",
+            "sha256": "adb240047a1e0732c96b029b7dbd7c81a17c853cbd30aec0ee0d9c4e59fe720a",
+            "utterance_id": "1272-141231-0000",
+            "transcript": "A man said to the universe, sir, I exist.",
+            "duration_seconds": 4.65,
+            "license": "CC BY 4.0",
+            "rights_status": "cleared_with_attribution",
+          "asset_path": "audio/universe.flac"
+          },
+          "fit_relationship": {
+            "kind": "held_out_input",
+            "detail": "This input was not used to fit the one-example projected lens."
+          },
+          "generated": {
+            "text": "That's a profound question. It suggests that the universe is vast and complex, and that there's a lot to explore and understand about it. It's a reminder of the mysteries that still lie beyond our current knowledge.",
+            "audio_included": false,
+            "decoded_audio_duration_seconds": 26.32,
+            "termination": {
+              "termination_reason": "audio_eos",
+              "budget_exhausted": false,
+              "max_new_tokens": 512,
+              "generated_steps": 375,
+              "text_tokens_including_controls": 45,
+              "audio_frames_excluding_eos": 329,
+              "audio_eos_seen": true
+            }
+          },
+          "analysis_target_count": 44,
+          "aggregate_rank_metrics": [
+            {
+              "layer": 0,
+              "median_rank": 34201,
+              "mean_reciprocal_rank": 0.00019938372670662795,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 0
+            },
+            {
+              "layer": 4,
+              "median_rank": 27130,
+              "mean_reciprocal_rank": 0.000524558094888427,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 1
+            },
+            {
+              "layer": 8,
+              "median_rank": 11612,
+              "mean_reciprocal_rank": 0.0005280123866770533,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 0
+            },
+            {
+              "layer": 12,
+              "median_rank": 99.5,
+              "mean_reciprocal_rank": 0.07757393655796153,
+              "top_1_count": 1,
+              "top_5_count": 5,
+              "top_10_count": 7,
+              "top_100_count": 23
+            },
+            {
+              "layer": 14,
+              "median_rank": 2,
+              "mean_reciprocal_rank": 0.4988604781136512,
+              "top_1_count": 15,
+              "top_5_count": 30,
+              "top_10_count": 34,
+              "top_100_count": 41
+            }
+          ],
+          "tracked_tokens": [
+            {
+              "target_index": 3,
+              "token_id": 21215,
+              "text": " profound",
+              "ranks": [
+                59219,
+                51535,
+                10089,
+                4,
+                1
+              ],
+              "head_rank": 1,
+              "head_probability": 0.2368253618478775,
+              "note": "Strong late-layer success from nearly the bottom of the lexical ranking."
+            },
+            {
+              "target_index": 10,
+              "token_id": 13213,
+              "text": " universe",
+              "ranks": [
+                24671,
+                7177,
+                11148,
+                55,
+                2
+              ],
+              "head_rank": 1,
+              "head_probability": 0.8309574723243713,
+              "note": "Input-related content becomes readable late rather than early."
+            },
+            {
+              "target_index": 14,
+              "token_id": 4121,
+              "text": " complex",
+              "ranks": [
+                40828,
+                10614,
+                27538,
+                44,
+                52
+              ],
+              "head_rank": 1,
+              "head_probability": 0.2599993646144867,
+              "note": "Nonmonotonic failure: improves sharply at L12, then worsens at L14."
+            },
+            {
+              "target_index": 37,
+              "token_id": 2510,
+              "text": " still",
+              "ranks": [
+                6780,
+                40337,
+                8556,
+                6624,
+                896
+              ],
+              "head_rank": 1,
+              "head_probability": 0.49227607250213623,
+              "note": "Honest late-layer failure despite actual greedy emission."
+            },
+            {
+              "target_index": 41,
+              "token_id": 2835,
+              "text": " current",
+              "ranks": [
+                182,
+                23101,
+                261,
+                51,
+                1
+              ],
+              "head_rank": 1,
+              "head_probability": 0.7791081070899963,
+              "note": "Highly nonmonotonic trajectory that ends at lens rank one."
+            }
+          ],
+          "caveats": [
+            "This is held out from fitting but is still only one example under one projection seed.",
+            "The long 26.32-second generated waveform is omitted from this rights-cleared evidence file.",
+            "Low actual-head probability and poor lens rank answer different questions; neither is calibrated confidence."
+          ],
+          "title": "Held-out speech: mixed success and non-monotonicity",
+          "layers": [
+            "L0",
+            "L4",
+            "L8",
+            "L12",
+            "L14",
+            "HEAD"
+          ],
+          "tracks": [
+            {
+              "position_index": 3,
+              "token_id": 21215,
+              "text": " profound",
+              "ranks": [
+                59219,
+                51535,
+                10089,
+                4,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.2368253618478775,
+              "note": "Strong late-layer success from nearly the bottom of the lexical ranking."
+            },
+            {
+              "position_index": 10,
+              "token_id": 13213,
+              "text": " universe",
+              "ranks": [
+                24671,
+                7177,
+                11148,
+                55,
+                2,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.8309574723243713,
+              "note": "Input-related content becomes readable late rather than early."
+            },
+            {
+              "position_index": 14,
+              "token_id": 4121,
+              "text": " complex",
+              "ranks": [
+                40828,
+                10614,
+                27538,
+                44,
+                52,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.2599993646144867,
+              "note": "Nonmonotonic failure: improves sharply at L12, then worsens at L14."
+            },
+            {
+              "position_index": 37,
+              "token_id": 2510,
+              "text": " still",
+              "ranks": [
+                6780,
+                40337,
+                8556,
+                6624,
+                896,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.49227607250213623,
+              "note": "Honest late-layer failure despite actual greedy emission."
+            },
+            {
+              "position_index": 41,
+              "token_id": 2835,
+              "text": " current",
+              "ranks": [
+                182,
+                23101,
+                261,
+                51,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.7791081070899963,
+              "note": "Highly nonmonotonic trajectory that ends at lens rank one."
+            }
+          ]
+        },
+        {
+          "id": "buzzer-held-out-budget-failure",
+          "teaching_role": "held_out_generation_and_lens_failure",
+          "teaching_purpose": "Show that a high safety cap is not a guarantee of natural completion, and that some realized content remains poorly represented even in the latest fitted source layer.",
+          "input": {
+            "source_path": "samples/buzzer.flac",
+            "sha256": "c3e32102b9faeb6dc3ec5203440d4e2a365cc0ea44fa6aeaefe5e3668a9a8585",
+            "utterance_id": "1272-141231-0006",
+            "transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
+            "duration_seconds": 4.93,
+            "license": "CC BY 4.0",
+            "rights_status": "cleared_with_attribution",
+          "asset_path": "audio/buzzer.flac"
+          },
+          "fit_relationship": {
+            "kind": "held_out_input",
+            "detail": "This input was not used to fit the one-example projected lens."
+          },
+          "generated": {
+            "text": "The buzz of the swirir triggered his muscles into complete relaxation.",
+            "audio_included": false,
+            "decoded_audio_duration_seconds": 39.76,
+            "termination": {
+              "termination_reason": "budget_exhausted",
+              "budget_exhausted": true,
+              "max_new_tokens": 512,
+              "generated_steps": 512,
+              "text_tokens_including_controls": 15,
+              "audio_frames_excluding_eos": 497,
+              "audio_eos_seen": false
+            }
+          },
+          "analysis_target_count": 14,
+          "aggregate_rank_metrics": [
+            {
+              "layer": 0,
+              "median_rank": 24726.5,
+              "mean_reciprocal_rank": 0.00011961585963134888,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 0
+            },
+            {
+              "layer": 4,
+              "median_rank": 16966,
+              "mean_reciprocal_rank": 0.00017594432936235307,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 0
+            },
+            {
+              "layer": 8,
+              "median_rank": 11799.5,
+              "mean_reciprocal_rank": 0.00033176869367569086,
+              "top_1_count": 0,
+              "top_5_count": 0,
+              "top_10_count": 0,
+              "top_100_count": 0
+            },
+            {
+              "layer": 12,
+              "median_rank": 1170,
+              "mean_reciprocal_rank": 0.3594609814233212,
+              "top_1_count": 5,
+              "top_5_count": 5,
+              "top_10_count": 5,
+              "top_100_count": 6
+            },
+            {
+              "layer": 14,
+              "median_rank": 2.5,
+              "mean_reciprocal_rank": 0.5173208444477646,
+              "top_1_count": 6,
+              "top_5_count": 10,
+              "top_10_count": 10,
+              "top_100_count": 10
+            }
+          ],
+          "tracked_tokens": [
+            {
+              "target_index": 1,
+              "token_id": 45224,
+              "text": " buzz",
+              "ranks": [
+                57029,
+                38644,
+                53529,
+                28718,
+                1
+              ],
+              "head_rank": 1,
+              "head_probability": 0.6293819546699524,
+              "note": "Remains unreadable through L12, then jumps to rank one at L14."
+            },
+            {
+              "target_index": 4,
+              "token_id": 3190,
+              "text": " sw",
+              "ranks": [
+                5193,
+                1025,
+                327,
+                26761,
+                5
+              ],
+              "head_rank": 1,
+              "head_probability": 0.38461926579475403,
+              "note": "Nonmonotonic trajectory: improves by L8, collapses at L12, and recovers at L14."
+            },
+            {
+              "target_index": 5,
+              "token_id": 864,
+              "text": "ir",
+              "ranks": [
+                5874,
+                1295,
+                3189,
+                2800,
+                5428
+              ],
+              "head_rank": 1,
+              "head_probability": 0.5397905707359314,
+              "note": "Persistent fitted-readout failure at every inspected layer."
+            },
+            {
+              "target_index": 8,
+              "token_id": 1210,
+              "text": " his",
+              "ranks": [
+                56276,
+                54439,
+                10991,
+                1,
+                2
+              ],
+              "head_rank": 1,
+              "head_probability": 0.7210096120834351,
+              "note": "Sharp late emergence with a small L12-to-L14 reversal."
+            },
+            {
+              "target_index": 12,
+              "token_id": 29641,
+              "text": " relaxation",
+              "ranks": [
+                48619,
+                53961,
+                19933,
+                1,
+                1
+              ],
+              "head_rank": 1,
+              "head_probability": 0.9964697360992432,
+              "note": "Content token becomes readable only at L12."
+            }
+          ],
+          "caveats": [
+            "The model never emitted audio EOS and stopped only at the 512-step hard cap.",
+            "The 39.76-second decoded waveform is omitted and this example should never autoplay or be the default showcase.",
+            "The generated text's 'swirir' differs from the source transcript's 'whirr'; the mismatch is retained rather than corrected."
+          ],
+          "title": "Held-out speech: generation and fitted-lens failure",
+          "layers": [
+            "L0",
+            "L4",
+            "L8",
+            "L12",
+            "L14",
+            "HEAD"
+          ],
+          "tracks": [
+            {
+              "position_index": 1,
+              "token_id": 45224,
+              "text": " buzz",
+              "ranks": [
+                57029,
+                38644,
+                53529,
+                28718,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.6293819546699524,
+              "note": "Remains unreadable through L12, then jumps to rank one at L14."
+            },
+            {
+              "position_index": 4,
+              "token_id": 3190,
+              "text": " sw",
+              "ranks": [
+                5193,
+                1025,
+                327,
+                26761,
+                5,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.38461926579475403,
+              "note": "Nonmonotonic trajectory: improves by L8, collapses at L12, and recovers at L14."
+            },
+            {
+              "position_index": 5,
+              "token_id": 864,
+              "text": "ir",
+              "ranks": [
+                5874,
+                1295,
+                3189,
+                2800,
+                5428,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.5397905707359314,
+              "note": "Persistent fitted-readout failure at every inspected layer."
+            },
+            {
+              "position_index": 8,
+              "token_id": 1210,
+              "text": " his",
+              "ranks": [
+                56276,
+                54439,
+                10991,
+                1,
+                2,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.7210096120834351,
+              "note": "Sharp late emergence with a small L12-to-L14 reversal."
+            },
+            {
+              "position_index": 12,
+              "token_id": 29641,
+              "text": " relaxation",
+              "ranks": [
+                48619,
+                53961,
+                19933,
+                1,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                61690,
+                61690,
+                61690,
+                61690,
+                61690,
+                65536
+              ],
+              "rank_spaces": [
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "lexical_display_vocabulary",
+                "full_model_vocabulary"
+              ],
+              "score_kinds": [
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_projected_readout_logit",
+                "raw_output_head_probability"
+              ],
+              "head_probability": 0.9964697360992432,
+              "note": "Content token becomes readable only at L12."
+            }
+          ]
+        }
+      ]
+    },
+    "tts": {
+      "id": "tts",
+      "label": "Chatterbox TTS",
+      "description": "Three cached fitted-readout trajectories, including a recorded residual intervention; no generated WAV is shipped pending rights review.",
+      "provenance": {
+        "evaluated_on": "2026-07-11",
+        "model": {
+          "id": "mlx-community/chatterbox-turbo-8bit",
+          "revision": "2f2e21a03863f86a1274d1060dcc188e7cde77e1",
+          "original_model_id": "ResembleAI/chatterbox-turbo",
+          "original_model_revision": "749d1c1a46eb10492095d68fbcf55691ccf137cd",
+          "s3_tokenizer_id": "mlx-community/S3TokenizerV2",
+          "s3_tokenizer_revision": "e0c9886f0e1c35ae85b1f27277416fb19fc72bec",
+          "speech_head_vocabulary_size": 6563,
+          "ordinary_acoustic_code_count": 6561,
+          "speech_code_rate_hz": 25,
+          "quantization": {
+            "bits": 8,
+            "group_size": 64,
+            "mode": "affine"
+          },
+          "model_fingerprint": "47f1c6108840fae0",
+          "model_config_fingerprint": "cb2d9e9bcc2db2c3"
+        },
+        "lens": {
+          "source_path": "artifacts/chatterbox/chatterbox_turbo_10prompt_rank128_seed29.pt",
+          "sha256": "ebf46e3e088106e270eff676b09bac9ff3f5ff5206e9e1f924d692ee9a7b2aa8",
+          "fit_examples": 10,
+          "source_layers": [
+            0,
+            4,
+            8,
+            12,
+            16,
+            20,
+            22
+          ],
+          "target_layer": 23,
+          "source_stream": "t3_speech_position",
+          "target_stream": "t3_speech_position",
+          "source_dimension": 1024,
+          "target_dimension": 1024,
+          "projection_method": "subsampled_hadamard_output_probe_vjp",
+          "projection_rank": 128,
+          "projection_seed": 29,
+          "examples_fingerprint": "9de6342be062cdf4efdf53ae01570cf47f96d0790cb6aa1093e253e4e03bedf7",
+          "capture_convention": "t3_post_block_speech_prediction_v1",
+          "position_axis": "teacher_forced_speech_prediction_positions"
+        },
+        "rank_semantics": {
+          "rank_space": "full_raw_speech_head_vocabulary",
+          "rank_denominator": 6563,
+          "tie_policy": "1_plus_count_strictly_greater",
+          "fitted_score_kind": "fitted_full_speech_head_softmax_probability",
+          "head_score_kind": "raw_speech_head_softmax_probability_before_repetition_penalty_temperature_top_k_or_top_p",
+          "acoustic_code_warning": "Ordinary acoustic-code IDs are learned contextual symbols, not words or published phonemes."
+        },
+        "rights_policy": {
+          "prompts": "Project-authored text prompts may be displayed.",
+          "audio": "Generated baseline and counterfactual WAV files are excluded from this preview pending conversion, S3-tokenizer, and derived-output redistribution review.",
+          "included_audio": false
+        }
+      },
+      "examples": [
+        {
+          "id": "tts-bridge-s9",
+          "title": "A bridge at S9: emergence, sensitivity, and causal steering",
+          "teaching_role": "canonical_fitted_and_causal_case",
+          "teaching_purpose": "Keep three questions separate: when realized code ID 4106 becomes readable, which prompt tokens local diagnostics emphasize, and what a replayed residual edit causes.",
+          "input": {
+            "prompt": "A bright red train crossed the narrow bridge.",
+            "rights_status": "project_authored_text",
+            "audio_asset": null
+          },
+          "selected_position": {
+            "zero_based_code_index": 8,
+            "display_position": "S9",
+            "nominal_start_seconds": 0.32,
+            "nominal_end_seconds": 0.36,
+            "realized_code_id": 4106
+          },
+          "layers": [
+            "L0",
+            "L4",
+            "L8",
+            "L12",
+            "L16",
+            "L20",
+            "L22",
+            "HEAD"
+          ],
+          "tracks": [
+            {
+              "label": "ID 4106 · realized acoustic code",
+              "code_id": 4106,
+              "ranks": [
+                3183,
+                3137,
+                1892,
+                946,
+                396,
+                11,
+                1,
+                1
+              ],
+              "rank_denominators": [
+                6563,
+                6563,
+                6563,
+                6563,
+                6563,
+                6563,
+                6563,
+                6563
+              ],
+              "rank_spaces": [
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary"
+              ],
+              "probability_percent": [
+                0.0016,
+                0.0016,
+                0.0053,
+                0.0183,
+                0.0453,
+                1.915,
+                5.514,
+                13.959
+              ],
+              "probability_reporting": "Percent values are the exact rounded values retained in the curated source."
+            }
+          ],
+          "local_text_diagnostics": [
+            {
+              "metric_kind": "local_gradient_norm_share",
+              "layer": "L0",
+              "text_token": " bright",
+              "value_percent": 28.5,
+              "interpretation": "largest local gradient share"
+            },
+            {
+              "metric_kind": "local_gradient_norm_share",
+              "layer": "L4",
+              "text_token": " bright",
+              "value_percent": 25.4,
+              "interpretation": "largest local gradient share"
+            },
+            {
+              "metric_kind": "within_text_attention_share",
+              "layer": "L4",
+              "text_token": " bright",
+              "value_percent": 46.8,
+              "interpretation": "largest attention share"
+            },
+            {
+              "metric_kind": "within_text_attention_share",
+              "layer": "L8",
+              "text_token": " red",
+              "value_percent": 51,
+              "interpretation": "largest attention share"
+            }
+          ],
+          "intervention": {
+            "kind": "replayed_residual_steering",
+            "edited_layers": [
+              "L20",
+              "L22"
+            ],
+            "baseline_winner": {
+              "code_id": 4106,
+              "rank": 1,
+              "probability_percent": 13.959
+            },
+            "baseline_runner_up": {
+              "code_id": 4358,
+              "rank": 2,
+              "probability_percent": 12.639,
+              "logit_gap_from_winner": 0.0993
+            },
+            "steered_output": {
+              "code_id": 4358,
+              "rank": 1,
+              "probability_percent": 13.17
+            },
+            "relative_residual_norm_per_edited_coordinate": 0.001708984375,
+            "suffix_effect": {
+              "same_index_codes_changed": 44,
+              "total_same_index_codes_compared": 61,
+              "downstream_codes_changed": 43,
+              "baseline_sequence_length": 63,
+              "steered_sequence_length": 61
+            },
+            "branch_check": "The residual branch exactly matched the direct forced-code branch for this run.",
+            "audio_asset": null
+          },
+          "population_context": {
+            "screened_positions": 378,
+            "screened_prompt_count": 7,
+            "median_rank_L0": 1785.5,
+            "median_rank_L22": 12,
+            "top1_rate_L22_percent": 6.6
+          },
+          "caveats": [
+            "An acoustic-code ID has no word or phoneme label; its decoded effect depends on context and voice conditioning.",
+            "Gradient share and attention share are diagnostics, not percent causation or validated word-to-waveform alignment.",
+            "Only the replayed residual branch is causal, and it establishes this run-specific effect rather than a robust natural concept.",
+            "Generated WAVs are intentionally absent pending the recorded rights review."
+          ]
+        },
+        {
+          "id": "tts-turtles-monotonic",
+          "title": "Tiny turtles: a nearly monotonic trajectory",
+          "teaching_role": "near_monotonic_secondary_case",
+          "teaching_purpose": "Give visitors a clean fitted-rank trajectory while disclosing that it is unusually tidy relative to the screened population.",
+          "input": {
+            "prompt": "Tiny turtles travel together toward the tide.",
+            "rights_status": "project_authored_text",
+            "audio_asset": null
+          },
+          "layers": [
+            "L0",
+            "L4",
+            "L8",
+            "L12",
+            "L16",
+            "L20",
+            "L22"
+          ],
+          "tracks": [
+            {
+              "label": "Realized acoustic code · curated position",
+              "code_id": null,
+              "ranks": [
+                4149,
+                3551,
+                1658,
+                176,
+                18,
+                2,
+                1
+              ],
+              "rank_denominators": [
+                6563,
+                6563,
+                6563,
+                6563,
+                6563,
+                6563,
+                6563
+              ],
+              "rank_spaces": [
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary"
+              ],
+              "probability_percent": null
+            }
+          ],
+          "population_context": {
+            "screened_positions": 378,
+            "screened_prompt_count": 7,
+            "median_rank_L0": 1785.5,
+            "median_rank_L22": 12,
+            "top1_rate_L22_percent": 6.6
+          },
+          "caveats": [
+            "The source curation retained the exact rank trajectory but not the position or code ID; this static report does not invent either value.",
+            "This strong row is an illustration, not a claim that every acoustic code improves monotonically.",
+            "Generated audio is excluded pending the recorded derived-output review."
+          ]
+        },
+        {
+          "id": "tts-music-nonmonotonic",
+          "title": "Music fades: readability can reverse",
+          "teaching_role": "non_monotonic_secondary_case",
+          "teaching_purpose": "Counter the impression that fitted readouts must improve layer by layer: the realized code worsens at L4 and again at L12 before resolving late.",
+          "input": {
+            "prompt": "Music fades as the evening grows quiet.",
+            "rights_status": "project_authored_text",
+            "audio_asset": null
+          },
+          "layers": [
+            "L0",
+            "L4",
+            "L8",
+            "L12",
+            "L16",
+            "L20",
+            "L22"
+          ],
+          "tracks": [
+            {
+              "label": "Realized acoustic code · curated position",
+              "code_id": null,
+              "ranks": [
+                5197,
+                5262,
+                3809,
+                4392,
+                1443,
+                6,
+                1
+              ],
+              "rank_denominators": [
+                6563,
+                6563,
+                6563,
+                6563,
+                6563,
+                6563,
+                6563
+              ],
+              "rank_spaces": [
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary",
+                "full_raw_speech_head_vocabulary"
+              ],
+              "probability_percent": null
+            }
+          ],
+          "population_context": {
+            "screened_positions": 378,
+            "screened_prompt_count": 7,
+            "median_rank_L0": 1785.5,
+            "median_rank_L22": 12,
+            "top1_rate_L22_percent": 6.6
+          },
+          "caveats": [
+            "The source curation retained the exact rank trajectory but not the position or code ID; this static report does not invent either value.",
+            "Intermediate fitted readouts are measurements, not a guaranteed refinement pipeline.",
+            "Generated audio is excluded pending the recorded derived-output review."
+          ]
+        }
+      ]
+    }
+  }
+}
