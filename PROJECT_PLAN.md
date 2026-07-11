@@ -1509,3 +1509,10 @@ to avoid duplicate or delayed information.
   Desktop interaction QA, a 390 px responsive pass, and browser console checks
   passed without horizontal overflow, warnings, or errors. Port 8000 was
   restarted and the completed Showcase was left open at `/showcase`.
+- Reworked the repository README as the project front door. It now summarizes
+  the Whisper ASR, LFM speech-to-speech, Chatterbox TTS, and static Showcase
+  tracks; states the positive, negative, and provisional evidence boundaries;
+  links the M0–M9 plan, methodology, pilot, architecture, intervention,
+  curation, and licensing documents; corrects the fitted-probability metric
+  language; records the shared local ports; and replaces the stale fixed test
+  count with the evergreen release commands.

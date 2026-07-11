@@ -18,17 +18,60 @@ tags:
 
 # Audio Jacobian Lens
 
-An experimental, local-first Jacobian-lens explorer for Whisper. This fork
-preserves Anthropic's reference language-model implementation and adds:
+Audio Jacobian Lens is a working research fork that adapts the Jacobian-lens
+method from language models to speech systems. The goal is a local, inspectable
+workspace for asking when output-relevant information becomes readable inside
+automatic speech recognition, speech-to-speech, and text-to-speech models—and
+whether carefully chosen residual interventions can change the resulting path.
 
-- a Hugging Face Whisper encoder-decoder adapter;
-- the paper-style causal decoder J-lens;
-- an experimental encoder-to-decoder audio J-lens;
-- an Apple-silicon MLX vertical slice for LFM2.5 Audio's language backbone;
-- a local MLX Chatterbox-Turbo fitted speech-code J-lens plus per-run
-  code-to-text sensitivity page;
-- checkpointed fitting and held-out evaluation CLIs; and
-- a localhost waveform, raw-output, encoder-grid, and decoder-grid explorer.
+This repository currently contains four connected workspaces:
+
+| Track | What is implemented | Current evidence boundary | Local page |
+|---|---|---|---|
+| **Whisper ASR** | Paper-style decoder J-lens, experimental encoder-to-decoder lens, raw output diagnostics, audio upload/samples/recording, synchronized waveform and token timelines | A small synthetic decoder pilot recovers some early lexical directions; the current cross-stream encoder result is negative and must not be treated as a phoneme or streaming-belief detector | [`:8000/`](http://127.0.0.1:8000/) |
+| **LFM2.5 speech-to-speech** | Apple-silicon MLX generation, generated-speech playback, fitted readouts over the 16-layer language backbone | The retained lens is a one-clip integration pilot. It does not explain the FastConformer, audio adapter, acoustic codebooks, or played waveform | [`:8001/`](http://127.0.0.1:8001/) |
+| **Chatterbox TTS** | Corpus-fitted T3 acoustic-code readouts, per-run text sensitivity and attention, forced-code branches, and residual steering with suffix regeneration | The ten-prompt rank-128 pilot is encouraging but incomplete; acoustic-code IDs are not words or phonemes, and the current work does not attribute S3Gen or waveform samples | [`:8002/chatterbox`](http://127.0.0.1:8002/chatterbox) |
+| **Static Showcase** | Curated ASR/TTS/speech examples with exact rank trajectories, failure and null controls, rights status, and the canonical Chatterbox intervention | A backend-free evidence preview with no packaged example audio yet, not a replacement for held-out evaluation or redistribution review | [`:8000/showcase`](http://127.0.0.1:8000/showcase) |
+
+The older Laurel/Yanny steering study is retained as a reproducible archive in
+[`web/causal.html`](web/causal.html) and
+[`docs/CAUSAL_TRACE.md`](docs/CAUSAL_TRACE.md). The public `/causal` route now
+aliases the evidence Showcase.
+
+## Start here: plans, evidence, and design contracts
+
+The project is deliberately documented as an evolving research program rather
+than only as a demo. **Read the project plan before making changes** and update
+its milestone checklist, decisions, and work log when a development session
+changes the state of the project.
+
+| Document | Use it for |
+|---|---|
+| [`PROJECT_PLAN.md`](PROJECT_PLAN.md) | Canonical goal, scientific contract, milestones M0–M9, implementation decisions, next tasks, and chronological work log |
+| [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) | Mathematical derivation, source/target streams, estimator definitions, rank semantics, and interpretation limits |
+| [`docs/STATIC_SHOWCASE_CURATION.md`](docs/STATIC_SHOWCASE_CURATION.md) | Why each public example was selected, exact rank trajectories, controls, rights gates, and the static-bundle backlog |
+| [`docs/PILOT_RESULTS.md`](docs/PILOT_RESULTS.md) | Failure-inclusive Whisper Tiny pilot results, including the corrected negative encoder finding |
+| [`docs/MLX_LFM.md`](docs/MLX_LFM.md) | Pinned LFM2.5 MLX environment, projected-lens implementation, serving policy, and unfinished validation work |
+| [`docs/CHATTERBOX.md`](docs/CHATTERBOX.md) | T3 sequence structure, fitted speech-code lens, local trace, intervention semantics, pilot evaluation, and model boundaries |
+| [`docs/CAUSAL_TRACE.md`](docs/CAUSAL_TRACE.md) | Archived Whisper residual-steering protocol, matched controls, tokenizer-faithful schedules, and negative results |
+| [`samples/README.md`](samples/README.md) | Bundled LibriSpeech provenance, licenses, utterance IDs, and attribution |
+
+### What is established so far
+
+- The reference implementation has been reproduced and the audio adaptation is
+  specified and unit-tested.
+- Whisper decoder readouts can recover some realized lexical directions before
+  the final decoder block, but early readability varies sharply by token.
+- The current Whisper encoder-to-decoder lens is a **negative pilot**: real
+  speech ranks remain weak and silence can look spuriously strong.
+- The Chatterbox T3 pilot shows acoustic-code readability improving through
+  depth and includes a verified residual intervention, while rank/seed,
+  unquantized-model, finite-difference, and S3-stage controls remain open.
+- The LFM language-backbone path works end to end, but its one-clip fitted lens
+  is integration evidence rather than a scientific result.
+- The local explorers and static Showcase are usable now; public artifact and
+  generated-audio distribution remain gated by the provenance reviews recorded
+  in the plan.
 
 The project is based on
 [`anthropics/jacobian-lens`](https://github.com/anthropics/jacobian-lens), the
@@ -36,12 +79,6 @@ companion implementation for [*Verbalizable Representations Form a Global
 Workspace in Language
 Models*](https://transformer-circuits.pub/2026/workspace/index.html). The fork
 was identical to upstream commit `581d398` before the audio work began.
-
-Read [`PROJECT_PLAN.md`](PROJECT_PLAN.md) before continuing development. It is
-the durable milestone, decision, and work log. The mathematical derivation and
-interpretation rules are in [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md). The
-separate [MLX LFM2.5 guide](docs/MLX_LFM.md) documents the local
-speech-to-speech vertical slice and its narrower interpretation boundary.
 
 ## What the method says—and does not say
 
@@ -55,18 +92,24 @@ lens_l(h) = unembed(J_l h)
 ```
 
 `J_l` is an average first-order causal map over a corpus and valid positions.
-The top tokens name directions that an activation is generally disposed to make
-the model verbalize downstream. They are **not** calibrated probabilities that
-Whisper will emit those tokens, and they are not a complete or unique transcript
-of "what the model is thinking."
+The top output symbols name directions that an activation is generally disposed
+to make the model express downstream. They are **not** calibrated probabilities
+that the model will emit those symbols, and they are not a complete or unique
+transcript of "what the model is thinking."
 
-The site therefore keeps two metrics visibly separate:
+The site therefore keeps three kinds of measurement visibly separate:
 
-- **Raw model probability:** Whisper's teacher-forced base-model distribution at
-  a decoder step, shown before generation-time token processors and without a
-  calibration claim.
-- **J-lens salience:** a ranked vocabulary readout from an intermediate state,
-  shown as a score/rank and never as a confidence percentage.
+- **Raw model probability:** the base model's teacher-forced final-head
+  distribution at a decoder or speech-code step, before generation-time token
+  processors and without a calibration claim.
+- **Fitted J-lens readout:** output-space logits and full-vocabulary ranks after
+  the learned Jacobian transport. Whisper and LFM primarily show the raw score
+  and rank. Chatterbox additionally shows the softmax of the fitted speech-head
+  logits as a **fitted readout probability**; it is not the raw model's emission
+  confidence.
+- **Per-run diagnostics and interventions:** gradients, attention, direct code
+  forcing, and residual steering answer different questions. They are never
+  silently substituted for one another.
 
 Whisper's encoder is bidirectional, so an encoder cell at 1.0 seconds may use
 audio from later in the same window. Treat it as an audio-location view, not a
@@ -92,9 +135,18 @@ Start the frontend in demo-only mode (no model download or fitted lens needed):
 ```
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Three bundled natural
-speech clips and the synthetic interactive demo work without supplying a local
-audio file; model-backed analysis still requires a fitted lens. You can also
-upload audio or record up to 30 seconds from the browser.
+speech clips can be selected and played without supplying a local file. The
+synthetic UI demo provides a complete backend-free analysis; analyzing a bundled,
+uploaded, or recorded clip still requires a compatible fitted lens. You can
+record up to 30 seconds from the browser.
+
+The evidence Showcase is also available from the demo-only server at
+[http://127.0.0.1:8000/showcase](http://127.0.0.1:8000/showcase). It makes no
+model API calls: the current ASR, speech-to-speech, and TTS stories are frozen
+curation records with their exact rank semantics, failure controls, and rights
+status. See
+[`docs/STATIC_SHOWCASE_CURATION.md`](docs/STATIC_SHOWCASE_CURATION.md) before
+adding or replacing a public example.
 
 For live analysis, fit or supply a compatible lens and start:
 
@@ -133,7 +185,8 @@ UV_PROJECT_ENVIRONMENT=.venv-mlx uv sync --extra audio --extra mlx
   --model mlx-community/LFM2.5-Audio-1.5B-8bit \
   --revision a569a7805a8e3eae954c244e54ba811d479a12c2 \
   --lens artifacts/mlx/lfm2_5_audio_1clip_projected_rank512.pt \
-  --lfm-max-new-tokens 512
+  --lfm-max-new-tokens 512 \
+  --port 8001
 ```
 
 This path captures the 16-layer LFM language backbone, fits a projected
@@ -460,7 +513,7 @@ failure-inclusive report.
 
 ## Local explorer
 
-The FastAPI service exposes:
+The Whisper/LFM FastAPI service exposes:
 
 - `GET /api/status`
 - `GET /api/samples`
@@ -468,6 +521,11 @@ The FastAPI service exposes:
 - `POST /api/analyze` with multipart field `audio` and optional
   `time_bin_overlap_seconds` (`0.02` by default; `0` disables overlap)
 - `GET /api/docs`
+
+The Chatterbox service has separate generation, fitted-readout, trace,
+forced-branch, and residual-branch endpoints documented in
+[`docs/CHATTERBOX.md`](docs/CHATTERBOX.md); its acoustic-code payloads should
+not be interpreted using the Whisper text-token contract above.
 
 The dependency-free frontend provides:
 
@@ -530,16 +588,23 @@ lens_logits, model_logits, _ = lens.apply(model, "A prompt", positions=[-1])
 .venv/bin/pytest -q
 .venv/bin/ruff check .
 node --check web/app.js
+node --check web/chatterbox.js
+node --check web/causal.js
+node --check web/showcase.js
+node --check web/workspace-nav.js
+git diff --check
 ```
 
-Current baseline after the decoder L0/L1 length-filter addition: 103 tests
-pass, including an explicit-VJP comparison on a rectangular tiny
-encoder-decoder, an offline random Hugging Face Whisper model, and
-Docker-entrypoint argument coverage.
+The suite includes explicit-VJP comparisons on deterministic tiny models,
+offline Hugging Face Whisper coverage, MLX fitting and replay contracts,
+Chatterbox branch and residual-steering tests, static-showcase integrity checks,
+and Docker-entrypoint coverage. Platform-specific MLX tests may skip outside an
+Apple-silicon environment. Do not commit `artifacts/`, model weights, fitted
+lenses, local recordings, or generated evaluation outputs.
 
 ## License and provenance
 
 Code is Apache License 2.0; see [`LICENSE`](LICENSE). Existing source files
-retain Anthropic's copyright notices. Whisper model code/weights and any audio
-datasets are subject to their own licenses. No Whisper weights, private audio,
-or fitted lens artifacts are committed to this repository.
+retain Anthropic's copyright notices. Whisper, LFM, Chatterbox, tokenizer, and
+audio-dataset artifacts are subject to their own licenses. No model weights,
+private audio, or fitted lens artifacts are committed to this repository.
