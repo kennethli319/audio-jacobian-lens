@@ -467,6 +467,13 @@ Status: **in progress**
   ASR, three speech-to-speech, and three TTS examples; retain full rank
   denominators, provenance, input hashes, caveats, and cached intervention
   semantics without live inference identifiers.
+- [x] Keep that 3×3 bundle as the curated findings layer while expanding the
+  detailed explorers to ten cached reports per family. Use ten ordered,
+  attributed LibriSpeech inputs for ASR/LFM and ten project-authored text
+  prompts for TTS; generated LFM/Chatterbox audio remains excluded.
+- [x] Make ten-example regeneration resumable and publication-safe: revalidate
+  reused reports, refuse partial manifests, reject capped TTS generations,
+  preserve existing deep links, and provide a searchable responsive selector.
 - [x] Publish an unlinked, `noindex` GitHub Pages review at
   `kennethli319.github.io/audio-jacobian-lens/` without changing the personal
   homepage; make the complete cached explorers canonical at the root,
@@ -563,9 +570,10 @@ decision log.
   unfiltered controls. Neither view is treated as a true phoneme inventory.
 - Padded audio frames, forced decoder-prefix positions, and positions without a
   next-token target are excluded from estimator averages.
-- The public detailed replay uses three immutable family manifests and one
-  shared static renderer. Base reports retain the full saved layer × position
-  matrices and bounded candidates. ASR exact-length buckets live in separate,
+- The public detailed replay uses three immutable family manifests, each with
+  ten ordered reports, and one shared static renderer. Base reports retain the
+  full saved layer × position matrices and bounded candidates. ASR exact-length
+  buckets live in separate,
   compact, hash-pinned sidecars and load only when the visitor enables the
   character filter. Base ASR cells retain the realized token's exact unfiltered
   score/rank; sidecars add a compact rank-or-excluded value for every maximum
@@ -578,7 +586,10 @@ decision log.
   layer/position coordinate. Each LFM cell also retains the realized token's
   exact score and competition rank from the complete logits: lexical-display
   rank when that token is eligible, otherwise full-vocabulary rank. The orange
-  HEAD uses the complete 65,536-token vocabulary. Static TTS pages distribute
+  HEAD uses the complete 65,536-token vocabulary. Each speech report must also
+  carry internally consistent generation diagnostics and visibly distinguish a
+  natural audio EOS from exhaustion of the emergency serving cap. Static TTS
+  pages distribute
   speech-code/readout/trace values and the recorded bridge intervention, but no
   generated waveform, audio URI, or ephemeral server analysis handle.
 - Pilot lens: at least 10 clips for a plumbing/quality gate. A one-clip lens may
@@ -1664,3 +1675,33 @@ truncate, or recompute the cached evidence.
   audio windows, layers, and every saved top-five candidate while adding about
   0.65 MB across the complete three-example ASR cache. Static provenance now
   correctly separates encoder source layers L0–L3 from decoder L0–L2.
+- Separated the detailed explorer corpus from the curated 3×3 findings
+  snapshot. Added `static_explorer_catalog_v2.json` with ten ordered
+  LibriSpeech inputs and ten TTS prompts, a pinned-Parquet materializer, exact
+  source hashes and attribution, and catalog integrity tests. The seven new
+  audio cases cover a homophone error, article substitution, numeral
+  tokenization, contractions, a long proper-name case, a rare multi-piece word,
+  and a concise technical phrase.
+- Extended the ASR, speech-to-speech, and TTS detailed caches from three to ten
+  reports each. All original report files and IDs were retained byte-for-byte;
+  only the 21 missing reports were inferred. A two-clause TTS prompt that filled
+  the 96-code safety cap was rejected before tracing and replaced with a
+  shorter uncapped version. All TTS reports retain every generated speech-code
+  position, seven fitted rows, HEAD, and the per-position text trace while
+  excluding generated waveform data and ephemeral analysis IDs.
+- Added publication-safe selective/resume exports, complete-manifest guards,
+  source/media parity checks, orphan rejection, exact hash/byte validation, and
+  a searchable keyboard-accessible ten-example selector. ASR's larger
+  character-length caches remain separate and lazy-loaded. The static gate
+  validates `asr=10`, `speech=10`, and `tts=10`; curated findings remain three
+  per family and the personal homepage remains unlinked.
+- Audited LFM completion across the ten cached speech cases. Four runs reach
+  the 512-step emergency ceiling without a final audio EOS; a 1,024-step replay
+  of the existing buzzer failure also did not end naturally. The static speech
+  explorer now validates and prominently displays natural-EOS versus
+  budget-exhausted status, including the exact step count, so capped responses
+  remain visible failure cases rather than appearing complete.
+- Final ten-example release gate: 327 tests passed with three optional skips;
+  Ruff, JavaScript syntax, whitespace, local HTTP route/media smokes, and the
+  strict static validator all passed. The validator reports 10 ASR, 10
+  speech-to-speech, and 10 TTS reports while the findings bundle remains 3×3.

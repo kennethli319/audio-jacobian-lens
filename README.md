@@ -31,7 +31,7 @@ This repository currently contains four connected workspaces:
 | **Whisper ASR** | Paper-style decoder J-lens, experimental encoder-to-decoder lens, raw output diagnostics, audio upload/samples/recording, synchronized waveform and token timelines | A small synthetic decoder pilot recovers some early lexical directions; the current cross-stream encoder result is negative and must not be treated as a phoneme or streaming-belief detector | [`:8000/`](http://127.0.0.1:8000/) |
 | **LFM2.5 speech-to-speech** | Apple-silicon MLX generation, generated-speech playback, fitted readouts over the 16-layer language backbone | The retained lens is a one-clip integration pilot. It does not explain the FastConformer, audio adapter, acoustic codebooks, or played waveform | [`:8001/`](http://127.0.0.1:8001/) |
 | **Chatterbox TTS** | Corpus-fitted T3 acoustic-code readouts, per-run text sensitivity and attention, forced-code branches, and residual steering with suffix regeneration | The ten-prompt rank-128 pilot is encouraging but incomplete; acoustic-code IDs are not words or phonemes, and the current work does not attribute S3Gen or waveform samples | [`:8002/chatterbox`](http://127.0.0.1:8002/chatterbox) |
-| **Static review** | Primary full cached ASR, speech-to-speech, and TTS explorers with every saved layer/position cell, plus secondary curated findings pages that explain the experiments | Backend-free and safe to serve as static files. Only three CC BY 4.0 LibriSpeech inputs are packaged; generated LFM/Chatterbox audio and live steering remain excluded | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
+| **Static review** | Primary full cached ASR, speech-to-speech, and TTS explorers with every saved layer/position cell, plus secondary curated findings pages that explain the experiments | Backend-free and safe to serve as static files. Each detailed explorer has ten reports; ten CC BY 4.0 LibriSpeech inputs are packaged, while generated LFM/Chatterbox audio and live steering remain excluded | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
 
 The public review opens directly into the detailed ASR explorer. Speech and TTS
 use the canonical `/speech/` and `/tts/` routes. The shorter experimental
@@ -140,7 +140,7 @@ Start the frontend in demo-only mode (no model download or fitted lens needed):
 .venv/bin/audio-jlens
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Three bundled natural
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Ten bundled natural
 speech clips can be selected and played without supplying a local file. The
 synthetic UI demo provides a complete backend-free analysis; analyzing a bundled,
 uploaded, or recorded clip still requires a compatible fitted lens. You can
@@ -609,6 +609,15 @@ IDs and generated audio, and hash every report. ASR's larger exact-length token
 buckets are split into compact sidecars and fetched only if a visitor enables
 the filter.
 
+The detailed explorer catalog lives in
+`data/static_explorer_catalog_v2.json` and contains ten audio inputs plus ten
+held-out or reviewed TTS prompts. It is intentionally separate from
+`data/static_public_reports_v1.json`: the latter remains the three-example-per-
+family findings bundle. Long exports can be resumed without rebuilding valid
+reports: ASR/LFM use repeatable `--only` with `--resume`, while TTS uses
+repeatable `--example-id` with `--resume-valid`. Either way, the resulting
+manifest is still required to contain the full ordered ten-report family.
+
 The canonical static pages are the detailed explorers at the site root,
 `/speech/`, and `/tts/`. Their curated experimental interpretations are under
 `/findings/`, `/findings/speech/`, and `/findings/tts/`. Functional copies at
@@ -619,6 +628,9 @@ bands so token text does not have to fit inside a compressed matrix cell. Its
 large cell label is the layer's top candidate; the smaller `realized #N` label
 is the generated token's exact competition rank from the complete saved
 readout, even when that token is outside the five displayed candidates.
+Each speech report also shows whether generation ended at a natural audio EOS
+or exhausted its emergency step cap. A capped response is visibly marked as
+possibly truncated and must not be read as a naturally completed answer.
 
 The ASR explorer uses the same distinction in a denser form: large text is the
 top candidate and the small `#N` is the exact rank of the realized token. A
@@ -636,9 +648,10 @@ Before publishing, run the static-only integrity gate:
 ```
 
 This verifies the canonical explorer, findings, and legacy-alias hierarchy;
-the correct renderer on every no-index page; all 3×3 reports, matrices, trace
-coverage, hashes, cleared input media; and the absence of model API calls,
-generated audio, or ephemeral analysis identifiers.
+the correct renderer on every no-index page; all 30 detailed reports and the
+separate 3×3 findings bundle; matrices, trace coverage, hashes, ten cleared
+input files; and the absence of model API calls, generated audio, or ephemeral
+analysis identifiers.
 
 ## Development
 

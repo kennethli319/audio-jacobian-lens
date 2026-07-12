@@ -21,6 +21,20 @@ readout, an actual output head, a limitation, or a causal intervention.
 7. Do not ship audio until its redistribution terms and attribution record are
    complete.
 
+## Curated findings versus detailed explorers
+
+The three examples per family selected below remain the compact findings set:
+they are deliberately chosen to teach complementary positive, negative, and
+intervention stories. The detailed cached explorers use the separate
+`data/static_explorer_catalog_v2.json` contract and expose ten reports per
+family. Expanding that browsing corpus does not turn all ten cases into curated
+findings or change the claims attached to the original three.
+
+The ten ASR and speech-to-speech reports share the same ordered, attributed
+LibriSpeech inputs. The ten TTS reports use project-authored text prompts and
+ship no generated audio. Every manifest remains static and hash-pinned; adding
+examples does not add an inference, upload, generation, or steering endpoint.
+
 ## Recommended public sequence
 
 ### 1. ASR: a token is readable early
@@ -199,8 +213,9 @@ matrix so visitors can inspect neighboring slices and discover counterexamples.
 - [x] Add a shared static renderer for the three detailed explorer routes, with
   sample selection, synchronized positions, full cached matrices, local
   candidate tooltips, and pinned provenance.
-- [x] Package the three rights-cleared LibriSpeech input cases. Procedural
-  silence remains a future null-control addition.
+- [x] Package ten rights-cleared LibriSpeech inputs for the detailed explorers,
+  while retaining three examples per family in the curated findings bundle.
+  Procedural silence remains a future null-control addition.
 - [x] Add a static integrity validator covering hashes, schemas, matrix/trace
   completeness, media scope, no-index pages, and absence of live API calls.
 - [ ] Obtain and rerun rights-cleared flour/flower recordings.

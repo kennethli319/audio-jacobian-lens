@@ -52,7 +52,12 @@ def _build_route_fixture(site_root: Path) -> None:
                 f'data-manifest-url="{manifest}"'
             )
             + f'<link rel="canonical" href="{canonical_url}">'
-            + f'<script src="{script}"></script>'
+            + (
+                f'<link rel="stylesheet" href="'
+                f"{script.removesuffix('explorer.js')}explorer.css"
+                f'?v={validator.EXPLORER_ASSET_VERSION}">'
+            )
+            + (f'<script src="{script}?v={validator.EXPLORER_ASSET_VERSION}"></script>')
             + "".join(links),
         )
 
@@ -65,8 +70,7 @@ def _build_route_fixture(site_root: Path) -> None:
         _write(
             site_root / path,
             _noindex(
-                f'data-family="{family}" '
-                f'data-data-url="{data_prefix}data/reports.json"'
+                f'data-family="{family}" data-data-url="{data_prefix}data/reports.json"'
             )
             + f'<script src="{asset_prefix}assets/app.js"></script>',
         )
@@ -81,19 +85,18 @@ def _build_route_fixture(site_root: Path) -> None:
             )
             + (
                 f'<link rel="canonical" href="{validator.PUBLIC_BASE}{suffix}">'
-                '<script src="../../assets/explorer.js"></script>'
+                '<link rel="stylesheet" href="../../assets/explorer.css'
+                f'?v={validator.EXPLORER_ASSET_VERSION}">'
+                '<script src="../../assets/explorer.js'
+                f'?v={validator.EXPLORER_ASSET_VERSION}"></script>'
                 'href="../../" href="../../speech/" href="../../tts/"'
             ),
         )
 
     routes = {
-        "detailed_cached_explorers": list(
-            validator.CANONICAL_DETAILED_ROUTES.values()
-        ),
+        "detailed_cached_explorers": list(validator.CANONICAL_DETAILED_ROUTES.values()),
         "findings": list(validator.FINDINGS_ROUTES.values()),
-        "legacy_explorer_aliases": list(
-            validator.LEGACY_EXPLORER_ROUTES.values()
-        ),
+        "legacy_explorer_aliases": list(validator.LEGACY_EXPLORER_ROUTES.values()),
     }
     _write(site_root / "site-manifest.json", json.dumps({"routes": routes}))
 
@@ -134,6 +137,138 @@ def test_route_contract_rejects_findings_with_detailed_renderer(
         validator._validate_route_contract(tmp_path)
 
 
+def test_route_contract_rejects_stale_explorer_asset_version(
+    tmp_path: Path,
+) -> None:
+    _build_route_fixture(tmp_path)
+    page = tmp_path / "speech" / "index.html"
+    html = page.read_text(encoding="utf-8").replace(
+        f"explorer.js?v={validator.EXPLORER_ASSET_VERSION}",
+        "explorer.js?v=stale",
+    )
+    page.write_text(html, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="canonical speech"):
+        validator._validate_route_contract(tmp_path)
+
+
+def test_renderer_contract_requires_honest_speech_cap_warning() -> None:
+    assert validator.SPEECH_TERMINATION_SCRIPT_MARKERS == (
+        "function renderSpeechTerminationStatus()",
+        'data-speech-termination="budget-exhausted"',
+        "response may be truncated",
+    )
+    assert validator.SPEECH_TERMINATION_CSS_MARKERS == (".generation-status.capped",)
+
+
+def _ten_report_manifest(family: str) -> dict:
+    reports = []
+    for index in range(validator.EXPECTED_REPORT_COUNT):
+        entry = {
+            "id": f"{family}-sample-{index}",
+            "report_url": (
+                f"/audio-jacobian-lens/explorer/data/{family}/sample-{index}.json"
+            ),
+            "audio_url": (
+                None
+                if family == "tts"
+                else f"/audio-jacobian-lens/audio/sample-{index}.flac"
+            ),
+        }
+        if family == "asr":
+            entry["character_length_filter_cache"] = {
+                "url": (
+                    "/audio-jacobian-lens/explorer/data/asr/"
+                    f"sample-{index}.filters.json"
+                )
+            }
+        reports.append(entry)
+    return {
+        "report_count": validator.EXPECTED_REPORT_COUNT,
+        "reports": reports,
+    }
+
+
+@pytest.mark.parametrize("family", validator.FAMILIES)
+def test_manifest_index_accepts_ten_unique_reports(family: str) -> None:
+    manifest = _ten_report_manifest(family)
+
+    reports = validator._manifest_reports(manifest, family=family)
+
+    assert len(reports) == validator.EXPECTED_REPORT_COUNT
+
+
+def test_manifest_index_rejects_wrong_count_and_duplicate_urls() -> None:
+    manifest = _ten_report_manifest("speech")
+    manifest["report_count"] = 9
+    with pytest.raises(ValueError, match="report_count"):
+        validator._manifest_reports(manifest, family="speech")
+
+    manifest = _ten_report_manifest("speech")
+    manifest["reports"][1]["report_url"] = manifest["reports"][0]["report_url"]
+    with pytest.raises(ValueError, match="URLs"):
+        validator._manifest_reports(manifest, family="speech")
+
+
+def test_manifest_index_rejects_tts_generated_audio_url() -> None:
+    manifest = _ten_report_manifest("tts")
+    manifest["reports"][0]["audio_url"] = "/generated.wav"
+
+    with pytest.raises(ValueError, match="generated-audio"):
+        validator._manifest_reports(manifest, family="tts")
+
+
+def test_audio_reference_requires_matching_url_and_content_hash(
+    tmp_path: Path,
+) -> None:
+    audio = tmp_path / "audio" / "sample.flac"
+    _write(audio, "cleared audio fixture")
+    url = "/audio-jacobian-lens/audio/sample.flac"
+    report = {"source": {"audio_url": url, "sha256": validator._sha256(audio)}}
+    entry = {"audio_url": url}
+
+    assert (
+        validator._validate_audio_reference(
+            tmp_path, family="asr", report=report, entry=entry
+        )
+        == audio
+    )
+
+    report["source"]["sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="audio hash mismatch"):
+        validator._validate_audio_reference(
+            tmp_path, family="asr", report=report, entry=entry
+        )
+
+
+def test_site_manifest_integrity_checks_counts_and_hashes(tmp_path: Path) -> None:
+    relative_paths = {
+        "assets/explorer.js": "script",
+        "assets/explorer.css": "styles",
+        "explorer/data/asr/manifest.json": "asr",
+        "explorer/data/speech/manifest.json": "speech",
+        "explorer/data/tts/manifest.json": "tts",
+    }
+    for relative_path, body in relative_paths.items():
+        _write(tmp_path / relative_path, body)
+    counts = {family: validator.EXPECTED_REPORT_COUNT for family in validator.FAMILIES}
+    site_manifest = {
+        "report_counts": dict(counts),
+        "sha256": {
+            relative_path: validator._sha256(tmp_path / relative_path)
+            for relative_path in relative_paths
+        },
+    }
+    _write(tmp_path / "site-manifest.json", json.dumps(site_manifest))
+
+    validator._validate_site_manifest_integrity(tmp_path, counts=counts)
+
+    site_manifest["report_counts"]["asr"] = 9
+    _write(tmp_path / "site-manifest.json", json.dumps(site_manifest))
+    with pytest.raises(ValueError, match="report counts"):
+        validator._validate_site_manifest_integrity(tmp_path, counts=counts)
+
+
 def _ranked_token(token_id: int, *, rank: int, score: float | None = None) -> dict:
     token = {
         "id": token_id,
@@ -142,7 +277,9 @@ def _ranked_token(token_id: int, *, rank: int, score: float | None = None) -> di
         "rank_denominator": 61_690,
         "rank_space": "lexical_display_vocabulary",
         "rank_tie_policy": "1_plus_count_strictly_greater",
-        "score_kind": "raw_readout_logit" if score is not None else "raw_head_probability",
+        "score_kind": "raw_readout_logit"
+        if score is not None
+        else "raw_head_probability",
         "vocabulary_filter": {
             "decoded_character_length": 3,
             "display_lexical_eligible": True,
@@ -167,6 +304,17 @@ def _speech_report() -> dict:
     return {
         "source": {"rights_status": "cleared_with_attribution"},
         "payload": {
+            "metadata": {
+                "generation_diagnostics": {
+                    "termination_reason": "audio_eos",
+                    "audio_eos_seen": True,
+                    "budget_exhausted": False,
+                    "generated_steps": 10,
+                    "max_new_tokens": 512,
+                    "text_tokens": 3,
+                    "audio_frames": 6,
+                }
+            },
             "audio": {"waveform_preview": {"values": [0.0, 0.1]}},
             "transcription": {"tokens": [head]},
             "encoder": {"layers": [], "cells": []},
@@ -177,6 +325,35 @@ def _speech_report() -> dict:
 
 def test_speech_site_validation_accepts_exact_realized_rank_provenance() -> None:
     validator._validate_asr_or_speech(_speech_report(), family="speech")
+
+
+def test_speech_site_validation_accepts_honest_safety_cap_provenance() -> None:
+    report = _speech_report()
+    report["payload"]["metadata"]["generation_diagnostics"] = {
+        "termination_reason": "budget_exhausted",
+        "audio_eos_seen": False,
+        "budget_exhausted": True,
+        "generated_steps": 512,
+        "max_new_tokens": 512,
+        "text_tokens": 17,
+        "audio_frames": 495,
+    }
+
+    validator._validate_asr_or_speech(report, family="speech")
+
+
+def test_speech_site_validation_rejects_missing_or_inconsistent_termination() -> None:
+    report = _speech_report()
+    del report["payload"]["metadata"]["generation_diagnostics"]
+    with pytest.raises(ValueError, match="no generation-termination"):
+        validator._validate_asr_or_speech(report, family="speech")
+
+    report = _speech_report()
+    diagnostics = report["payload"]["metadata"]["generation_diagnostics"]
+    diagnostics["termination_reason"] = "budget_exhausted"
+    diagnostics["budget_exhausted"] = True
+    with pytest.raises(ValueError, match="termination state is inconsistent"):
+        validator._validate_asr_or_speech(report, family="speech")
 
 
 def test_speech_site_validation_rejects_missing_layer_realized_rank() -> None:
@@ -249,12 +426,48 @@ def test_asr_site_validation_accepts_exact_realized_rank_provenance() -> None:
 
 def test_asr_site_validation_rejects_shifted_encoder_token_mapping() -> None:
     report = _asr_report()
-    report["payload"]["encoder"]["cells"][0][0][
-        "realized_token_position"
-    ] = 1
+    report["payload"]["encoder"]["cells"][0][0]["realized_token_position"] = 1
 
     with pytest.raises(ValueError, match="overlap-first"):
         validator._validate_asr_or_speech(report, family="asr")
+
+
+def _tts_report(*, width: int, generation_cap: int) -> dict:
+    return {
+        "payload": {
+            "model": {
+                "generation": {"max_speech_tokens": generation_cap},
+            },
+            "output": {
+                "speech_codes": [{"index": index} for index in range(width)],
+                "speech_head_candidates": {
+                    "positions": [{"position": index} for index in range(width)]
+                },
+            },
+            "fitted_speech_code_jlens": {
+                "rows": [
+                    {
+                        "layer": 0,
+                        "positions": [{"position": index} for index in range(width)],
+                    }
+                ]
+            },
+            "traces_by_position": {
+                str(index): {"selection": {"speech_code_index": index}}
+                for index in range(width)
+            },
+            "generated_audio_included": False,
+        }
+    }
+
+
+def test_tts_site_validation_accepts_sequence_below_saved_cap() -> None:
+    validator._validate_tts(_tts_report(width=2, generation_cap=3))
+
+
+def test_tts_site_validation_rejects_sequence_at_saved_cap() -> None:
+    with pytest.raises(ValueError, match="may be truncated"):
+        validator._validate_tts(_tts_report(width=3, generation_cap=3))
 
 
 def test_asr_filter_cache_requires_exact_compact_realized_ranks(
@@ -266,44 +479,55 @@ def test_asr_filter_cache_requires_exact_compact_realized_ranks(
         "streams": {
             "encoder": {
                 "layers": [0],
-                "cells": [[{
-                    "top_tokens_by_length": {"1": [{"id": 99}]},
-                    "realized_rank_by_max_length": {
-                        "1": None,
-                        "2": None,
-                        "3": 7,
-                    },
-                }]],
+                "cells": [
+                    [
+                        {
+                            "top_tokens_by_length": {"1": [{"id": 99}]},
+                            "realized_rank_by_max_length": {
+                                "1": None,
+                                "2": None,
+                                "3": 7,
+                            },
+                        }
+                    ]
+                ],
             },
             "decoder": {
                 "layers": [0],
-                "cells": [[{
-                    "top_tokens_by_length": {"1": [{"id": 99}]},
-                    "realized_rank_by_max_length": {
-                        "1": None,
-                        "2": None,
-                        "3": 8,
-                    },
-                }]],
+                "cells": [
+                    [
+                        {
+                            "top_tokens_by_length": {"1": [{"id": 99}]},
+                            "realized_rank_by_max_length": {
+                                "1": None,
+                                "2": None,
+                                "3": 8,
+                            },
+                        }
+                    ]
+                ],
             },
         },
     }
     cache_path = tmp_path / "filters.json"
     cache_path.write_text(json.dumps(cache), encoding="utf-8")
-    entry = {
-        "character_length_filter_cache": {
-            "url": "/audio-jacobian-lens/filters.json",
-            "sha256": validator._sha256(cache_path),
-        }
+    reference = {
+        "url": "/audio-jacobian-lens/filters.json",
+        "sha256": validator._sha256(cache_path),
+        "bytes": cache_path.stat().st_size,
     }
+    entry = {
+        "character_length_filter_cache": reference,
+    }
+    report["cache_policy"] = {"character_length_filter_cache": dict(reference)}
     validator._validate_filter_cache(tmp_path, report, entry)
 
-    del cache["streams"]["encoder"]["cells"][0][0][
-        "realized_rank_by_max_length"
-    ]
+    del cache["streams"]["encoder"]["cells"][0][0]["realized_rank_by_max_length"]
     cache_path.write_text(json.dumps(cache), encoding="utf-8")
-    entry["character_length_filter_cache"]["sha256"] = validator._sha256(
-        cache_path
+    entry["character_length_filter_cache"]["sha256"] = validator._sha256(cache_path)
+    entry["character_length_filter_cache"]["bytes"] = cache_path.stat().st_size
+    report["cache_policy"]["character_length_filter_cache"] = dict(
+        entry["character_length_filter_cache"]
     )
     with pytest.raises(ValueError, match="no exact realized ranks"):
         validator._validate_filter_cache(tmp_path, report, entry)

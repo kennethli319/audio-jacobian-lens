@@ -6,10 +6,12 @@ The exporter talks to a ready local Chatterbox server sequentially.  Ephemeral
 never copied into a report.  Generated audio, waveform arrays, and embedded
 audio URIs are excluded by construction and checked again before each write.
 
-The three prompts, immutable model/lens provenance, teaching metadata, and the
-recorded bridge intervention come from ``data/static_public_reports_v1.json``.
-The bridge intervention is metadata from the recorded, reviewed run; this
-script does not re-run either the residual or direct-forced branch.
+The ten prompts and teaching metadata come from
+``data/static_explorer_catalog_v2.json``. Immutable model/lens provenance and
+the recorded bridge intervention remain sourced from the separate curated
+``data/static_public_reports_v1.json`` snapshot. The bridge intervention is
+metadata from the recorded, reviewed run; this script does not re-run either
+the residual or direct-forced branch.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import hashlib
 import json
 import math
 import re
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -28,15 +31,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+try:
+    from jlens.static_explorer_catalog import load_static_explorer_catalog
+except ModuleNotFoundError as error:
+    if error.name != "jlens":
+        raise
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from jlens.static_explorer_catalog import load_static_explorer_catalog
+
 SCHEMA_ID = "audio-jacobian-lens.cached-explorer-report"
 MANIFEST_SCHEMA_ID = "audio-jacobian-lens.cached-explorer-manifest"
 SCHEMA_VERSION = 1
 
-EXPECTED_EXAMPLE_IDS = (
-    "tts-bridge-s9",
-    "tts-turtles-monotonic",
-    "tts-music-nonmonotonic",
-)
 EXPECTED_GENERATION = {
     "max_speech_tokens": 96,
     "repetition_penalty": 1.2,
@@ -172,18 +178,13 @@ class TTSCatalog:
     description: str
     provenance: Mapping[str, Any]
     examples: tuple[TTSExample, ...]
+    report_count: int
 
 
-def _copy_fields(
-    source: Mapping[str, Any], fields: Iterable[str]
-) -> dict[str, Any]:
+def _copy_fields(source: Mapping[str, Any], fields: Iterable[str]) -> dict[str, Any]:
     """Deep-copy an explicit allowlist from a JSON object."""
 
-    return {
-        key: copy.deepcopy(source[key])
-        for key in fields
-        if key in source
-    }
+    return {key: copy.deepcopy(source[key]) for key in fields if key in source}
 
 
 def _mapping(value: Any, *, label: str) -> Mapping[str, Any]:
@@ -198,69 +199,117 @@ def _list(value: Any, *, label: str) -> list[Any]:
     return value
 
 
-def load_catalog(path: Path) -> TTSCatalog:
-    """Load and validate the three pinned examples and family provenance."""
+def load_catalog(catalog_path: Path, curated_path: Path) -> TTSCatalog:
+    """Combine the ten-prompt explorer catalog with curated provenance."""
 
-    source = json.loads(path.read_text(encoding="utf-8"))
+    catalog = load_static_explorer_catalog(catalog_path)
+    source = json.loads(curated_path.read_text(encoding="utf-8"))
     families = _mapping(source.get("families"), label="families")
     family = _mapping(families.get("tts"), label="families.tts")
     raw_examples = _list(family.get("examples"), label="families.tts.examples")
-    by_id: dict[str, Mapping[str, Any]] = {}
+    curated_by_id: dict[str, Mapping[str, Any]] = {}
     for raw_example in raw_examples:
         example = _mapping(raw_example, label="TTS example")
         example_id = str(example.get("id"))
-        if example_id in by_id:
-            raise ValueError(f"duplicate TTS example id {example_id}")
-        by_id[example_id] = example
-    if set(by_id) != set(EXPECTED_EXAMPLE_IDS):
-        raise ValueError(
-            "the pinned TTS catalog must contain exactly "
-            f"{', '.join(EXPECTED_EXAMPLE_IDS)}"
-        )
+        if example_id in curated_by_id:
+            raise ValueError(f"duplicate curated TTS example id {example_id}")
+        curated_by_id[example_id] = example
 
     examples: list[TTSExample] = []
-    for example_id in EXPECTED_EXAMPLE_IDS:
-        example = by_id[example_id]
-        input_metadata = _mapping(
-            example.get("input"), label=f"{example_id}.input"
+    used_curated_ids: set[str] = set()
+    for catalog_example in catalog.tts_examples:
+        curated_source_id = catalog_example.curated_source_id
+        curated = (
+            curated_by_id.get(curated_source_id)
+            if curated_source_id is not None
+            else None
         )
-        prompt = input_metadata.get("prompt")
-        if not isinstance(prompt, str) or not prompt.strip():
-            raise ValueError(f"{example_id} has no prompt")
+        if curated_source_id is not None and curated is None:
+            raise ValueError(
+                f"{catalog_example.example_id} references missing curated "
+                f"source {curated_source_id}"
+            )
+        if curated_source_id is not None:
+            if curated_source_id != catalog_example.example_id:
+                raise ValueError(
+                    f"{catalog_example.example_id} cannot borrow curated "
+                    f"metadata from {curated_source_id}"
+                )
+            if curated_source_id in used_curated_ids:
+                raise ValueError(f"curated TTS source {curated_source_id} is reused")
+            used_curated_ids.add(curated_source_id)
+            assert curated is not None
+            input_metadata = _mapping(
+                curated.get("input"), label=f"{curated_source_id}.input"
+            )
+            if input_metadata.get("prompt") != catalog_example.prompt:
+                raise ValueError(
+                    f"{catalog_example.example_id} prompt disagrees with its "
+                    "curated source"
+                )
+
+        selected_position = None
+        intervention = None
+        if curated is not None:
+            if "selected_position" in curated:
+                selected_position = copy.deepcopy(
+                    _mapping(
+                        curated["selected_position"],
+                        label=(f"{catalog_example.example_id}.selected_position"),
+                    )
+                )
+            if "intervention" in curated:
+                intervention = copy.deepcopy(
+                    _mapping(
+                        curated["intervention"],
+                        label=f"{catalog_example.example_id}.intervention",
+                    )
+                )
+        if intervention is not None and catalog_example.example_id != "tts-bridge-s9":
+            raise ValueError("only tts-bridge-s9 may carry an intervention")
+        title = catalog_example.title
+        teaching_role = catalog_example.teaching_role
+        teaching_purpose = catalog_example.teaching_purpose
+        if curated is not None:
+            title = str(curated["title"])
+            teaching_role = str(curated["teaching_role"])
+            teaching_purpose = str(curated["teaching_purpose"])
         examples.append(
             TTSExample(
-                example_id=example_id,
-                title=str(example["title"]),
-                teaching_role=str(example["teaching_role"]),
-                teaching_purpose=str(example["teaching_purpose"]),
-                prompt=prompt,
-                selected_position=(
-                    _mapping(
-                        example["selected_position"],
-                        label=f"{example_id}.selected_position",
-                    )
-                    if "selected_position" in example
-                    else None
-                ),
-                intervention=(
-                    _mapping(
-                        example["intervention"],
-                        label=f"{example_id}.intervention",
-                    )
-                    if "intervention" in example
-                    else None
-                ),
+                example_id=catalog_example.example_id,
+                title=title,
+                teaching_role=teaching_role,
+                teaching_purpose=teaching_purpose,
+                prompt=catalog_example.prompt,
+                selected_position=selected_position,
+                intervention=intervention,
             )
         )
 
-    provenance = _mapping(
-        family.get("provenance"), label="families.tts.provenance"
+    if used_curated_ids != set(curated_by_id):
+        missing = sorted(set(curated_by_id) - used_curated_ids)
+        raise ValueError(
+            "the detailed TTS catalog does not preserve every curated source: "
+            + ", ".join(missing)
+        )
+    bridge = next(
+        (example for example in examples if example.example_id == "tts-bridge-s9"),
+        None,
     )
+    if bridge is None or bridge.intervention is None:
+        raise ValueError("tts-bridge-s9 must retain its curated intervention")
+
+    provenance = _mapping(family.get("provenance"), label="families.tts.provenance")
     return TTSCatalog(
         label=str(family["label"]),
-        description=str(family["description"]),
+        description=(
+            f"{catalog.reports_per_family} cached fitted-readout trajectories, "
+            "including one recorded residual intervention; no generated WAV "
+            "is shipped pending rights review."
+        ),
         provenance=copy.deepcopy(provenance),
         examples=tuple(examples),
+        report_count=catalog.reports_per_family,
     )
 
 
@@ -305,9 +354,7 @@ def _candidate(source: Mapping[str, Any]) -> dict[str, Any]:
     probability = float(result["probability"])
     if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
         raise ValueError("candidate probability is invalid")
-    result["log_probability"] = (
-        math.log(probability) if probability > 0.0 else None
-    )
+    result["log_probability"] = math.log(probability) if probability > 0.0 else None
     return result
 
 
@@ -346,9 +393,7 @@ def _head_readout(
                 "realized_code_id": source["target_ids"][index],
                 "realized_rank": source["target_ranks"][index],
                 "realized_probability": source["target_probabilities"][index],
-                "realized_log_probability": source[
-                    "target_log_probabilities"
-                ][index],
+                "realized_log_probability": source["target_log_probabilities"][index],
                 "candidates": copy.deepcopy(result["top_codes"][index]),
                 "start_seconds": code.get("start_seconds"),
                 "end_seconds": code.get("end_seconds"),
@@ -368,9 +413,7 @@ def _fitted_readout(
     """Whitelist fitted matrices and expose explicit layer/position rows."""
 
     result = _copy_fields(source, FITTED_FIELDS)
-    source_top_codes = _list(
-        source.get("top_codes"), label="fitted top_codes"
-    )
+    source_top_codes = _list(source.get("top_codes"), label="fitted top_codes")
     result["top_codes"] = [
         [
             [
@@ -390,15 +433,13 @@ def _fitted_readout(
                     "position": position,
                     "display_position": f"S{position + 1}",
                     "realized_code_id": source["target_ids"][position],
-                    "realized_rank": source["target_ranks"][row_index][
+                    "realized_rank": source["target_ranks"][row_index][position],
+                    "realized_probability": source["target_probabilities"][row_index][
                         position
                     ],
-                    "realized_probability": source["target_probabilities"][
+                    "realized_log_probability": source["target_log_probabilities"][
                         row_index
                     ][position],
-                    "realized_log_probability": source[
-                        "target_log_probabilities"
-                    ][row_index][position],
                     "candidates": copy.deepcopy(
                         result["top_codes"][row_index][position]
                     ),
@@ -426,9 +467,7 @@ def sanitize_generation(source: Mapping[str, Any]) -> dict[str, Any]:
         label="generation.fitted_speech_code_jlens",
     )
     raw_codes = _list(output.get("speech_codes"), label="output.speech_codes")
-    codes = [
-        _speech_code(_mapping(code, label="speech code")) for code in raw_codes
-    ]
+    codes = [_speech_code(_mapping(code, label="speech code")) for code in raw_codes]
     tokens = [
         _token(_mapping(token, label="input token"))
         for token in _list(input_payload.get("tokens"), label="input.tokens")
@@ -453,6 +492,44 @@ def sanitize_generation(source: Mapping[str, Any]) -> dict[str, Any]:
         "warnings": copy.deepcopy(source.get("warnings") or []),
         "generated_audio_included": False,
     }
+
+
+def reject_generation_cap(
+    source: Mapping[str, Any], payload: Mapping[str, Any]
+) -> None:
+    """Reject a sequence that filled an exposed generation safety cap.
+
+    Chatterbox omits the stop token from ``speech_codes``. Reaching the exact
+    configured maximum therefore cannot be distinguished from a naturally
+    completed sequence of the same length, so the static exporter takes the
+    conservative publication-safe choice and asks for a shorter prompt or a
+    separately reviewed larger pinned cap.
+    """
+
+    model = source.get("model")
+    if not isinstance(model, Mapping):
+        return
+    generation = model.get("generation")
+    if not isinstance(generation, Mapping):
+        return
+    exposed_cap = generation.get("max_speech_tokens")
+    if exposed_cap is None:
+        return
+    try:
+        cap = int(exposed_cap)
+    except (TypeError, ValueError) as error:
+        raise ValueError("generation max_speech_tokens is invalid") from error
+    if cap <= 0:
+        raise ValueError("generation max_speech_tokens must be positive")
+    codes = payload.get("output", {}).get("speech_codes")
+    if not isinstance(codes, list):
+        raise ValueError("sanitized generation has no speech-code list")
+    if len(codes) >= cap:
+        raise ValueError(
+            f"generation produced {len(codes)} speech codes and reached the "
+            f"exposed {cap}-code safety cap; do not publish a possibly "
+            "truncated example"
+        )
 
 
 def sanitize_trace(source: Mapping[str, Any]) -> dict[str, Any]:
@@ -494,9 +571,7 @@ def merge_curated_bridge_intervention(
     position = int(selected["zero_based_code_index"])
     codes = payload["output"]["speech_codes"]
     head = payload["output"]["speech_head_candidates"]
-    baseline = _mapping(
-        intervention.get("baseline_winner"), label="baseline_winner"
-    )
+    baseline = _mapping(intervention.get("baseline_winner"), label="baseline_winner")
     candidate = _mapping(
         intervention.get("baseline_runner_up"), label="baseline_runner_up"
     )
@@ -552,9 +627,7 @@ def merge_curated_bridge_intervention(
     ]
     branch_check = str(intervention["branch_check"])
     exact_match = "exactly matched" in branch_check
-    chosen_norm = intervention[
-        "relative_residual_norm_per_edited_coordinate"
-    ]
+    chosen_norm = intervention["relative_residual_norm_per_edited_coordinate"]
     return {
         "kind": "replayed_residual_steering_with_direct_forced_code_check",
         "source": "recorded_reviewed_static_public_reports_v1",
@@ -624,7 +697,10 @@ def validate_safe(value: Any, *, path: str = "$") -> None:
                 raise ValueError(f"forbidden field {path}.{key}")
             if "waveform" in lowered or "audio_data" in lowered:
                 raise ValueError(f"forbidden generated-audio field {path}.{key}")
-            if lowered in {"audio_url", "audio_path", "audio_asset"} and item is not None:
+            if (
+                lowered in {"audio_url", "audio_path", "audio_asset"}
+                and item is not None
+            ):
                 raise ValueError(f"non-null generated-audio reference {path}.{key}")
             validate_safe(item, path=f"{path}.{key}")
     elif isinstance(value, list):
@@ -770,8 +846,7 @@ def validate_report(report: Mapping[str, Any]) -> None:
                 )
             if not 1 <= rank <= vocabulary_size:
                 raise ValueError(
-                    f"fitted rank out of range at row {row_index}, "
-                    f"S{position + 1}"
+                    f"fitted rank out of range at row {row_index}, S{position + 1}"
                 )
             if not fitted["top_codes"][row_index][position]:
                 raise ValueError(
@@ -859,6 +934,71 @@ def _write_report(path: Path, report: Mapping[str, Any]) -> tuple[str, int]:
     return hashlib.sha256(body).hexdigest(), len(body)
 
 
+def _report_digest(path: Path) -> tuple[str, int]:
+    body = path.read_bytes()
+    return hashlib.sha256(body).hexdigest(), len(body)
+
+
+def _manifest_entry(
+    example: TTSExample, *, digest: str, byte_count: int
+) -> dict[str, Any]:
+    return {
+        "id": example.example_id,
+        "title": example.title,
+        "teaching_role": example.teaching_role,
+        "summary": example.teaching_purpose,
+        "prompt": example.prompt,
+        "audio_url": None,
+        "report_url": (
+            f"/audio-jacobian-lens/explorer/data/tts/{example.example_id}.json"
+        ),
+        "sha256": digest,
+        "bytes": byte_count,
+    }
+
+
+def _validate_existing_report(
+    path: Path,
+    *,
+    example: TTSExample,
+    provenance: Mapping[str, Any],
+) -> tuple[str, int]:
+    """Validate a cached report before reusing it in a rebuilt manifest."""
+
+    source = json.loads(path.read_text(encoding="utf-8"))
+    report = _mapping(source, label=f"existing report {path}")
+    expected_identity = {
+        "schema_id": SCHEMA_ID,
+        "schema_version": SCHEMA_VERSION,
+        "family": "tts",
+        "example_id": example.example_id,
+        "title": example.title,
+        "teaching_role": example.teaching_role,
+        "teaching_purpose": example.teaching_purpose,
+    }
+    for key, expected in expected_identity.items():
+        if report.get(key) != expected:
+            raise ValueError(f"existing {example.example_id} report has stale {key}")
+    if report.get("provenance") != provenance:
+        raise ValueError(f"existing {example.example_id} report has stale provenance")
+    source_metadata = _mapping(
+        report.get("source"), label=f"existing {example.example_id}.source"
+    )
+    if source_metadata.get("prompt") != example.prompt:
+        raise ValueError(f"existing {example.example_id} report has a stale prompt")
+    payload = _mapping(
+        report.get("payload"), label=f"existing {example.example_id}.payload"
+    )
+    has_intervention = "intervention_comparison" in payload
+    if has_intervention != (example.intervention is not None):
+        raise ValueError(
+            f"existing {example.example_id} report has stale intervention data"
+        )
+    reject_generation_cap(payload, payload)
+    validate_report(report)
+    return _report_digest(path)
+
+
 def _build_report(
     example: TTSExample,
     provenance: Mapping[str, Any],
@@ -892,12 +1032,66 @@ def export_tts_family(
     output_dir: Path,
     catalog: TTSCatalog,
     timeout: float,
+    example_ids: set[str] | None = None,
+    resume_valid: bool = False,
 ) -> dict[str, Any]:
-    """Generate and export all examples, requesting traces strictly in order."""
+    """Export a complete ordered family, safely reusing validated reports.
+
+    ``example_ids`` limits expensive generation, not the resulting manifest.
+    Every unselected report must already exist and pass the same report,
+    provenance, prompt, rights, and safety checks. With ``resume_valid``, a
+    selected report is also reused when valid; invalid selected reports are
+    regenerated.
+    """
 
     base_url = base_url.rstrip("/")
+    catalog_ids = {example.example_id for example in catalog.examples}
+    if len(catalog_ids) != len(catalog.examples):
+        raise ValueError("the TTS catalog contains duplicate example IDs")
+    if len(catalog.examples) != catalog.report_count:
+        raise ValueError("the TTS catalog report count does not match its examples")
+    selected_ids = catalog_ids if example_ids is None else set(example_ids)
+    unknown_ids = selected_ids - catalog_ids
+    if unknown_ids:
+        raise ValueError("unknown TTS example ID(s): " + ", ".join(sorted(unknown_ids)))
+
     manifest_entries: list[dict[str, Any]] = []
     for example in catalog.examples:
+        report_path = output_dir / f"{example.example_id}.json"
+        selected = example.example_id in selected_ids
+        should_try_existing = not selected or resume_valid
+        if should_try_existing and report_path.is_file():
+            try:
+                digest, byte_count = _validate_existing_report(
+                    report_path,
+                    example=example,
+                    provenance=catalog.provenance,
+                )
+            except (OSError, ValueError, json.JSONDecodeError) as error:
+                if not selected:
+                    raise ValueError(
+                        f"unselected report {example.example_id} cannot be "
+                        "reused; select it for regeneration"
+                    ) from error
+                print(
+                    f"regenerating invalid {example.example_id}: {error}",
+                    flush=True,
+                )
+            else:
+                manifest_entries.append(
+                    _manifest_entry(example, digest=digest, byte_count=byte_count)
+                )
+                print(
+                    f"reused {report_path} ({byte_count:,} bytes)",
+                    flush=True,
+                )
+                continue
+        elif not selected:
+            raise ValueError(
+                f"unselected report {example.example_id} is missing; select "
+                "it for generation"
+            )
+
         print(f"generating {example.example_id}: {example.prompt}", flush=True)
         raw = _post_json(
             f"{base_url}/api/chatterbox/generate",
@@ -909,6 +1103,7 @@ def export_tts_family(
         if not isinstance(analysis_id, str) or not analysis_id:
             raise RuntimeError("generation response has no analysis_id for traces")
         payload = sanitize_generation(raw)
+        reject_generation_cap(raw, payload)
         speech_codes = payload["output"]["speech_codes"]
         traces: dict[str, Any] = {}
         for position in range(len(speech_codes)):
@@ -934,24 +1129,14 @@ def export_tts_family(
         payload["traces_by_position"] = traces
         report = _build_report(example, catalog.provenance, payload)
         validate_report(report)
-        report_path = output_dir / f"{example.example_id}.json"
         digest, byte_count = _write_report(report_path, report)
         manifest_entries.append(
-            {
-                "id": example.example_id,
-                "title": example.title,
-                "teaching_role": example.teaching_role,
-                "audio_url": None,
-                "report_url": (
-                    "/audio-jacobian-lens/explorer/data/tts/"
-                    f"{example.example_id}.json"
-                ),
-                "sha256": digest,
-                "bytes": byte_count,
-            }
+            _manifest_entry(example, digest=digest, byte_count=byte_count)
         )
         print(f"wrote {report_path} ({byte_count:,} bytes)", flush=True)
 
+    if len(manifest_entries) != catalog.report_count:
+        raise ValueError("refusing to write an incomplete TTS manifest")
     manifest = {
         "schema_id": MANIFEST_SCHEMA_ID,
         "schema_version": SCHEMA_VERSION,
@@ -960,6 +1145,7 @@ def export_tts_family(
         "label": catalog.label,
         "description": catalog.description,
         "provenance": copy.deepcopy(catalog.provenance),
+        "report_count": len(manifest_entries),
         "reports": manifest_entries,
     }
     validate_safe(manifest)
@@ -980,12 +1166,33 @@ def _parser() -> argparse.ArgumentParser:
         help="The audio-jacobian-lens directory inside the static site checkout.",
     )
     parser.add_argument(
-        "--provenance-source",
+        "--catalog",
+        type=Path,
+        default=Path("data/static_explorer_catalog_v2.json"),
+        help="Versioned catalog that defines the ordered ten TTS prompts.",
+    )
+    parser.add_argument(
+        "--curated-source",
         type=Path,
         default=Path("data/static_public_reports_v1.json"),
+        help="Curated provenance and bridge-intervention source.",
     )
     parser.add_argument("--base-url", default="http://127.0.0.1:8002")
     parser.add_argument("--timeout-seconds", type=float, default=900.0)
+    parser.add_argument(
+        "--example-id",
+        action="append",
+        default=None,
+        help=(
+            "Generate only this catalog ID (repeatable); every other report "
+            "must already exist and validate so the manifest remains complete."
+        ),
+    )
+    parser.add_argument(
+        "--resume-valid",
+        action="store_true",
+        help="Reuse valid selected reports and regenerate only missing/invalid ones.",
+    )
     return parser
 
 
@@ -993,12 +1200,14 @@ def main() -> None:
     args = _parser().parse_args()
     if args.timeout_seconds <= 0:
         raise SystemExit("--timeout-seconds must be positive")
-    catalog = load_catalog(args.provenance_source)
+    catalog = load_catalog(args.catalog, args.curated_source)
     export_tts_family(
         base_url=args.base_url,
         output_dir=args.site_root / "explorer" / "data" / "tts",
         catalog=catalog,
         timeout=args.timeout_seconds,
+        example_ids=(set(args.example_id) if args.example_id else None),
+        resume_valid=args.resume_valid,
     )
 
 

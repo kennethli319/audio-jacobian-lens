@@ -1,0 +1,200 @@
+{
+  "schema_id": "audio-jacobian-lens.static-explorer-catalog",
+  "schema_version": 2,
+  "reports_per_family": 10,
+  "curated_findings_policy": "The findings pages remain the separate three-example static_public_reports_v1 bundle. This catalog drives only the detailed cached explorers.",
+  "audio_source": {
+    "dataset_id": "hf-internal-testing/librispeech_asr_dummy",
+    "dataset_revision": "5be91486e11a2d616f4ec5db8d3fd248585ac07a",
+    "parquet_path": "clean/validation-00000-of-00001.parquet",
+    "upstream_collection": "LibriSpeech dev-clean (OpenSLR SLR12)",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source_url": "https://www.openslr.org/12",
+    "attribution": "LibriSpeech dev-clean, prepared by Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur; derived from public-domain LibriVox recordings."
+  },
+  "audio_samples": [
+    {
+      "slug": "question",
+      "title": "A short question",
+      "description": "Clean short question",
+      "utterance_id": "1272-135031-0012",
+      "reference_transcript": "Where is my brother now?",
+      "duration_seconds": 2.04,
+      "sha256": "2da8a3d5a915be58a29cae9520c94e96395619f1dd3a0968486c9d5154b77b12",
+      "lfm_fit_relationship": "in_sample_integration"
+    },
+    {
+      "slug": "universe",
+      "title": "Sir, I exist",
+      "description": "Measured declarative speech",
+      "utterance_id": "1272-141231-0000",
+      "reference_transcript": "A man said to the universe, sir, I exist.",
+      "duration_seconds": 4.65,
+      "sha256": "adb240047a1e0732c96b029b7dbd7c81a17c853cbd30aec0ee0d9c4e59fe720a",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "buzzer",
+      "title": "The buzzer's whirr",
+      "description": "Consonant-heavy model-error path",
+      "utterance_id": "1272-141231-0006",
+      "reference_transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
+      "duration_seconds": 4.93,
+      "sha256": "c3e32102b9faeb6dc3ec5203440d4e2a365cc0ea44fa6aeaefe5e3668a9a8585",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "raps",
+      "title": "The raps at the door",
+      "description": "Homophone error: raps versus wraps",
+      "utterance_id": "1272-135031-0003",
+      "reference_transcript": "The little girl had been asleep, but she heard the raps and opened the door.",
+      "duration_seconds": 4.755,
+      "sha256": "80f47603018506ec4a646b68d9f7716b132d8d5ee740dc503ed4f9122cd76243",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "one-minute",
+      "title": "One minute",
+      "description": "Article substitution around the time buzzer",
+      "utterance_id": "1272-141231-0004",
+      "reference_transcript": "One minute, a voice said, and the time buzzer sounded.",
+      "duration_seconds": 5.09,
+      "sha256": "34c4339d921ca363faa292996ea12864c9bbdb5a69fa40178e41629f069a36e0",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "ten-seconds",
+      "title": "Ten seconds",
+      "description": "Spoken-word versus numeral tokenization",
+      "utterance_id": "1272-141231-0016",
+      "reference_transcript": "Ten seconds.",
+      "duration_seconds": 1.85,
+      "sha256": "2de6e800e9a973de275a2c57ef2a8ccf0e25655f0158a0a551bdc0e944607ebc",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "oh-no",
+      "title": "Oh no, I'm quite sure",
+      "description": "Short contractions and punctuation",
+      "utterance_id": "1272-135031-0018",
+      "reference_transcript": "Oh no, I'm quite sure he didn't.",
+      "duration_seconds": 2.4449375,
+      "sha256": "db055fdf17b99b4e68f2e2bdbd01a5a8388321df44e0fcb1600e6b4387466fc3",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "metal-forest",
+      "title": "The metal forest",
+      "description": "Long utterance with proper-name substitutions",
+      "utterance_id": "1272-135031-0015",
+      "reference_transcript": "The metal forest is in the great domed cavern, the largest in all our dominions, replied Kaliko.",
+      "duration_seconds": 7.375,
+      "sha256": "95eb0d408f2f4275bd44995e2202b1b1377ac00538662d5cae509de32e9d353f",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "inexhaustible",
+      "title": "An inexhaustible store",
+      "description": "Rare multi-piece lexical item",
+      "utterance_id": "1272-141231-0018",
+      "reference_transcript": "A red-haired mountain of a man with an apparently inexhaustible store of energy.",
+      "duration_seconds": 6.0,
+      "sha256": "dcc9cc41630ec440e639cf8349899f6e76000d728659ca42ef7ac0ef003ca201",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "impossible",
+      "title": "Physically impossible",
+      "description": "Concise technical phrase",
+      "utterance_id": "1272-141231-0024",
+      "reference_transcript": "This is physically impossible when conscious.",
+      "duration_seconds": 3.64,
+      "sha256": "84bd6220942701e8973dc0e8a2c8a7ac5f794a15d1a884994e95c5e3b8efa96e",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    }
+  ],
+  "tts_examples": [
+    {
+      "id": "tts-bridge-s9",
+      "title": "A bridge at S9: emergence, sensitivity, and causal steering",
+      "prompt": "A bright red train crossed the narrow bridge.",
+      "teaching_role": "canonical_fitted_and_causal_case",
+      "teaching_purpose": "Keep three questions separate: when realized code ID 4106 becomes readable, which prompt tokens local diagnostics emphasize, and what a replayed residual edit causes.",
+      "curated_source_id": "tts-bridge-s9"
+    },
+    {
+      "id": "tts-turtles-monotonic",
+      "title": "Tiny turtles: a nearly monotonic trajectory",
+      "prompt": "Tiny turtles travel together toward the tide.",
+      "teaching_role": "near_monotonic_secondary_case",
+      "teaching_purpose": "Give visitors a clean fitted-rank trajectory while disclosing that it is unusually tidy relative to the screened population.",
+      "curated_source_id": "tts-turtles-monotonic"
+    },
+    {
+      "id": "tts-music-nonmonotonic",
+      "title": "Music fades: readability can reverse",
+      "prompt": "Music fades as the evening grows quiet.",
+      "teaching_role": "non_monotonic_secondary_case",
+      "teaching_purpose": "Counter the impression that fitted readouts must improve layer by layer: the realized code worsens at L4 and again at L12 before resolving late.",
+      "curated_source_id": "tts-music-nonmonotonic"
+    },
+    {
+      "id": "tts-voice-question",
+      "title": "Which voice? Question contour",
+      "prompt": "Which voice sounds clearer in this sentence?",
+      "teaching_role": "question_contour_explorer",
+      "teaching_purpose": "Add a held-out interrogative with final question punctuation.",
+      "curated_source_id": null
+    },
+    {
+      "id": "tts-record-in-context",
+      "title": "Record / record in context",
+      "prompt": "Record the new record before lunch.",
+      "teaching_role": "heteronym_context_explorer",
+      "teaching_purpose": "Compare identical spelling in two grammatical and pronunciation contexts.",
+      "curated_source_id": null
+    },
+    {
+      "id": "tts-code-nine-zero-four",
+      "title": "Nine-zero-four as a code",
+      "prompt": "Enter code nine zero four, then press pound.",
+      "teaching_role": "number_grouping_explorer",
+      "teaching_purpose": "Add ordered number words and code-like grouping.",
+      "curated_source_id": null
+    },
+    {
+      "id": "tts-ruby-ribbon",
+      "title": "Ruby ribbon: repeated sounds",
+      "prompt": "Ruby rolled the yellow ribbon.",
+      "teaching_role": "repeated_consonant_explorer",
+      "teaching_purpose": "Add repeated consonant structure across distinct words.",
+      "curated_source_id": null
+    },
+    {
+      "id": "tts-door-two-clause",
+      "title": "Door left open: two clauses",
+      "prompt": "The door is open. Please close it.",
+      "teaching_role": "short_instruction_explorer",
+      "teaching_purpose": "Add a short sentence boundary followed by an imperative.",
+      "curated_source_id": null
+    },
+    {
+      "id": "tts-linh-nguyen",
+      "title": "Welcoming Linh Nguyen",
+      "prompt": "Please welcome Linh Nguyen after lunch.",
+      "teaching_role": "proper_name_explorer",
+      "teaching_purpose": "Add less-common proper-name tokens in a familiar context.",
+      "curated_source_id": null
+    },
+    {
+      "id": "tts-first-then",
+      "title": "First, then: two steps",
+      "prompt": "First, plug in the hub. Then wait ten seconds.",
+      "teaching_role": "procedural_order_explorer",
+      "teaching_purpose": "Add explicit procedural ordering and a clause boundary.",
+      "curated_source_id": null
+    }
+  ]
+}

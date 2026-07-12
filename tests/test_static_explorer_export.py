@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
+from pathlib import Path
 
 import pytest
 
+from jlens.static_explorer_catalog import (
+    StaticAudioSample,
+    StaticAudioSource,
+    StaticExplorerCatalog,
+)
 from scripts import export_static_explorer as exporter
 
 
@@ -156,28 +163,16 @@ def _raw_payload() -> dict[str, object]:
             "layers": [0, 1, 2],
             "cells": [
                 [
-                    _cell(
-                        0, with_filter=True, realized_id=42, realized_text=" a"
-                    ),
-                    _cell(
-                        1, with_filter=True, realized_id=43, realized_text=" the"
-                    ),
+                    _cell(0, with_filter=True, realized_id=42, realized_text=" a"),
+                    _cell(1, with_filter=True, realized_id=43, realized_text=" the"),
                 ],
                 [
-                    _cell(
-                        0, with_filter=True, realized_id=42, realized_text=" a"
-                    ),
-                    _cell(
-                        1, with_filter=True, realized_id=43, realized_text=" the"
-                    ),
+                    _cell(0, with_filter=True, realized_id=42, realized_text=" a"),
+                    _cell(1, with_filter=True, realized_id=43, realized_text=" the"),
                 ],
                 [
-                    _cell(
-                        0, with_filter=False, realized_id=42, realized_text=" a"
-                    ),
-                    _cell(
-                        1, with_filter=False, realized_id=43, realized_text=" the"
-                    ),
+                    _cell(0, with_filter=False, realized_id=42, realized_text=" a"),
+                    _cell(1, with_filter=False, realized_id=43, realized_text=" the"),
                 ],
             ],
         },
@@ -269,9 +264,10 @@ def test_filter_cache_is_separate_and_aligned_with_base_report() -> None:
 
     assert cache["streams"]["encoder"]["layers"] == [0, 1]
     assert cache["streams"]["decoder"]["layers"] == [0, 1]
-    assert cache["streams"]["decoder"]["cells"][0][0][
-        "top_tokens_by_length"
-    ]["2"][0]["id"] == 20
+    assert (
+        cache["streams"]["decoder"]["cells"][0][0]["top_tokens_by_length"]["2"][0]["id"]
+        == 20
+    )
     assert cache["streams"]["decoder"]["cells"][0][0][
         "realized_rank_by_max_length"
     ] == {"1": 5, "2": 6, "3": 7}
@@ -338,3 +334,257 @@ def test_compact_json_writer_has_stable_single_line_payload(tmp_path) -> None:
     rendered = path.read_text(encoding="utf-8")
     assert rendered.count("\n") == 1
     assert json.loads(rendered) == payload
+
+
+def _mini_catalog(audio_values: list[bytes]) -> StaticExplorerCatalog:
+    samples = tuple(
+        StaticAudioSample(
+            slug=f"sample-{index}",
+            title=f"Sample {index}",
+            description=f"Description {index}",
+            utterance_id=f"1-2-{index:04d}",
+            reference_transcript=f"Reference {index}.",
+            duration_seconds=0.4,
+            sha256=sha256(value).hexdigest(),
+            lfm_fit_relationship=(
+                "in_sample_integration" if index == 0 else "held_out_from_one_clip_fit"
+            ),
+        )
+        for index, value in enumerate(audio_values)
+    )
+    return StaticExplorerCatalog(
+        reports_per_family=len(samples),
+        curated_findings_policy="Fixture",
+        audio_source=StaticAudioSource(
+            dataset_id="example/dataset",
+            dataset_revision="1" * 40,
+            parquet_path="clean/example.parquet",
+            upstream_collection="Example collection",
+            license="CC BY 4.0",
+            license_url="https://example.test/license",
+            source_url="https://example.test/source",
+            attribution="Example attribution",
+        ),
+        audio_samples=samples,
+        tts_examples=(),
+    )
+
+
+def test_selective_export_preserves_existing_reports_and_rebuilds_ordered_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audio_values = [b"first-audio", b"second-audio"]
+    catalog = _mini_catalog(audio_values)
+    samples_dir = tmp_path / "samples"
+    samples_dir.mkdir()
+    for sample, value in zip(catalog.audio_samples, audio_values, strict=True):
+        (samples_dir / sample.filename).write_bytes(value)
+    output_dir = tmp_path / "reports"
+    monkeypatch.setattr(exporter, "_analyze", lambda *_args, **_kwargs: _raw_payload())
+
+    first_manifest = exporter.export_family(
+        family="asr",
+        endpoint="http://unused.test",
+        samples_dir=samples_dir,
+        output_dir=output_dir,
+        provenance={},
+        catalog=catalog,
+        selected_slugs={sample.slug for sample in catalog.audio_samples},
+        resume=False,
+        catalog_sha256="0" * 64,
+    )
+    first_report = output_dir / "sample-0.json"
+    first_bytes = first_report.read_bytes()
+    (output_dir / "sample-1.json").unlink()
+    (output_dir / "sample-1.filters.json").unlink()
+
+    second_manifest = exporter.export_family(
+        family="asr",
+        endpoint="http://unused.test",
+        samples_dir=samples_dir,
+        output_dir=output_dir,
+        provenance={},
+        catalog=catalog,
+        selected_slugs={"sample-1"},
+        resume=False,
+        catalog_sha256="0" * 64,
+    )
+
+    assert first_manifest["report_count"] == 2
+    assert first_report.read_bytes() == first_bytes
+    assert [entry["id"] for entry in second_manifest["reports"]] == [
+        "asr-sample-0",
+        "asr-sample-1",
+    ]
+    assert second_manifest["report_count"] == 2
+    assert second_manifest["reports"][1]["summary"] == "Description 1"
+    assert second_manifest["reports"][1]["reference_transcript"] == "Reference 1."
+
+
+def test_selective_export_does_not_replace_manifest_until_catalog_is_complete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audio_values = [b"first-audio", b"second-audio"]
+    catalog = _mini_catalog(audio_values)
+    samples_dir = tmp_path / "samples"
+    samples_dir.mkdir()
+    for sample, value in zip(catalog.audio_samples, audio_values, strict=True):
+        (samples_dir / sample.filename).write_bytes(value)
+    output_dir = tmp_path / "reports"
+    output_dir.mkdir()
+    manifest_path = output_dir / "manifest.json"
+    manifest_path.write_text('{"previous":true}\n', encoding="utf-8")
+    monkeypatch.setattr(exporter, "_analyze", lambda *_args, **_kwargs: _raw_payload())
+
+    with pytest.raises(ValueError, match="manifest has an invalid identity"):
+        exporter.export_family(
+            family="asr",
+            endpoint="http://unused.test",
+            samples_dir=samples_dir,
+            output_dir=output_dir,
+            provenance={},
+            catalog=catalog,
+            selected_slugs={"sample-0"},
+            resume=False,
+            catalog_sha256="0" * 64,
+        )
+
+    assert json.loads(manifest_path.read_text(encoding="utf-8")) == {"previous": True}
+
+
+def test_resume_rejects_reports_bound_to_different_model_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audio_values = [b"first-audio", b"second-audio"]
+    catalog = _mini_catalog(audio_values)
+    samples_dir = tmp_path / "samples"
+    samples_dir.mkdir()
+    for sample, value in zip(catalog.audio_samples, audio_values, strict=True):
+        (samples_dir / sample.filename).write_bytes(value)
+    output_dir = tmp_path / "reports"
+    monkeypatch.setattr(exporter, "_analyze", lambda *_args, **_kwargs: _raw_payload())
+    exporter.export_family(
+        family="asr",
+        endpoint="http://unused.test",
+        samples_dir=samples_dir,
+        output_dir=output_dir,
+        provenance={"model": {"id": "example/model"}},
+        catalog=catalog,
+        selected_slugs={sample.slug for sample in catalog.audio_samples},
+        resume=False,
+        catalog_sha256="0" * 64,
+    )
+    manifest_path = output_dir / "manifest.json"
+    manifest_before = manifest_path.read_bytes()
+    monkeypatch.setattr(
+        exporter,
+        "_analyze",
+        lambda *_args, **_kwargs: pytest.fail("resume must not call analysis"),
+    )
+
+    with pytest.raises(ValueError, match="different model, lens, or generation"):
+        exporter.export_family(
+            family="asr",
+            endpoint="http://unused.test",
+            samples_dir=samples_dir,
+            output_dir=output_dir,
+            provenance={"model": {"id": "different/model"}},
+            catalog=catalog,
+            selected_slugs={sample.slug for sample in catalog.audio_samples},
+            resume=True,
+            catalog_sha256="0" * 64,
+        )
+
+    assert manifest_path.read_bytes() == manifest_before
+
+
+def test_staged_promotion_rolls_back_reports_when_manifest_replace_fails(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "live"
+    stage_dir = tmp_path / "stage"
+    output_dir.mkdir()
+    stage_dir.mkdir()
+    (output_dir / "sample.json").write_text("old report", encoding="utf-8")
+    (output_dir / "manifest.json").write_text("old manifest", encoding="utf-8")
+    (stage_dir / "sample.json").write_text("new report", encoding="utf-8")
+    (stage_dir / "manifest.json").write_text("new manifest", encoding="utf-8")
+    replacements = 0
+
+    def fail_on_manifest(source: Path, destination: Path) -> None:
+        nonlocal replacements
+        replacements += 1
+        if replacements == 2:
+            raise OSError("injected manifest promotion failure")
+        exporter.os.replace(source, destination)
+
+    with pytest.raises(OSError, match="injected manifest"):
+        exporter._promote_staged_family(
+            stage_dir=stage_dir,
+            output_dir=output_dir,
+            changed_filenames={"sample.json"},
+            replace_file=fail_on_manifest,
+        )
+
+    assert (output_dir / "sample.json").read_text(encoding="utf-8") == "old report"
+    assert (output_dir / "manifest.json").read_text(encoding="utf-8") == "old manifest"
+
+
+def _speech_generation_report(max_new_tokens: int) -> dict[str, object]:
+    policy = {
+        "system_prompt": "Respond briefly.",
+        "max_new_tokens": max_new_tokens,
+        "temperature": 0.0,
+        "top_k": 1,
+        "audio_temperature": 0.0,
+        "audio_top_k": 1,
+    }
+    return {
+        "payload": {
+            "metadata": {
+                "serving_generation": dict(policy),
+                "generation": dict(policy),
+                "generation_diagnostics": {"max_new_tokens": max_new_tokens},
+            }
+        }
+    }
+
+
+def test_speech_manifest_cap_is_derived_from_one_report_policy() -> None:
+    provenance = {
+        "evaluation_generation": {
+            "mode": "interleaved",
+            "max_new_tokens": 512,
+            "text_temperature": 0.0,
+            "text_top_k": 1,
+            "audio_temperature": 0.0,
+            "audio_top_k": 1,
+        }
+    }
+
+    exporter._derive_speech_generation_provenance(
+        provenance,
+        [_speech_generation_report(1024), _speech_generation_report(1024)],
+    )
+
+    assert provenance["evaluation_generation"]["max_new_tokens"] == 1024
+    assert provenance["evaluation_generation"]["system_prompt"] == "Respond briefly."
+
+
+def test_speech_manifest_rejects_mixed_serving_caps() -> None:
+    provenance = {
+        "evaluation_generation": {
+            "mode": "interleaved",
+            "max_new_tokens": 512,
+            "text_temperature": 0.0,
+            "text_top_k": 1,
+            "audio_temperature": 0.0,
+            "audio_top_k": 1,
+        }
+    }
+
+    with pytest.raises(ValueError, match="do not share one serving-generation"):
+        exporter._derive_speech_generation_provenance(
+            provenance,
+            [_speech_generation_report(512), _speech_generation_report(1024)],
+        )

@@ -23,6 +23,62 @@
       "description": "Consonant-heavy natural speech · LibriSpeech dev-clean",
       "transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
       "duration_seconds": 4.93
+    },
+    {
+      "id": "raps",
+      "file": "raps.flac",
+      "title": "The raps at the door",
+      "description": "Homophone contrast · LibriSpeech dev-clean",
+      "transcript": "The little girl had been asleep, but she heard the raps and opened the door.",
+      "duration_seconds": 4.755
+    },
+    {
+      "id": "one-minute",
+      "file": "one-minute.flac",
+      "title": "One minute",
+      "description": "Article substitution · LibriSpeech dev-clean",
+      "transcript": "One minute, a voice said, and the time buzzer sounded.",
+      "duration_seconds": 5.09
+    },
+    {
+      "id": "ten-seconds",
+      "file": "ten-seconds.flac",
+      "title": "Ten seconds",
+      "description": "Spoken-number tokenization · LibriSpeech dev-clean",
+      "transcript": "Ten seconds.",
+      "duration_seconds": 1.85
+    },
+    {
+      "id": "oh-no",
+      "file": "oh-no.flac",
+      "title": "Oh no, I'm quite sure",
+      "description": "Contractions and punctuation · LibriSpeech dev-clean",
+      "transcript": "Oh no, I'm quite sure he didn't.",
+      "duration_seconds": 2.4449375
+    },
+    {
+      "id": "metal-forest",
+      "file": "metal-forest.flac",
+      "title": "The metal forest",
+      "description": "Proper-name substitutions · LibriSpeech dev-clean",
+      "transcript": "The metal forest is in the great domed cavern, the largest in all our dominions, replied Kaliko.",
+      "duration_seconds": 7.375
+    },
+    {
+      "id": "inexhaustible",
+      "file": "inexhaustible.flac",
+      "title": "An inexhaustible store",
+      "description": "Rare multi-piece lexical item · LibriSpeech dev-clean",
+      "transcript": "A red-haired mountain of a man with an apparently inexhaustible store of energy.",
+      "duration_seconds": 6.0
+    },
+    {
+      "id": "impossible",
+      "file": "impossible.flac",
+      "title": "Physically impossible",
+      "description": "Concise technical phrase · LibriSpeech dev-clean",
+      "transcript": "This is physically impossible when conscious.",
+      "duration_seconds": 3.64
     }
   ]
 }

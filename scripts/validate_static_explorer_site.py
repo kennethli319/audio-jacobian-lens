@@ -14,6 +14,8 @@ from typing import Any
 SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
+EXPECTED_REPORT_COUNT = 10
+EXPLORER_ASSET_VERSION = "20260711-11"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -35,6 +37,12 @@ FORBIDDEN_KEYS = {
     "generated_audio",
     "output_waveform",
 }
+SPEECH_TERMINATION_SCRIPT_MARKERS = (
+    "function renderSpeechTerminationStatus()",
+    'data-speech-termination="budget-exhausted"',
+    "response may be truncated",
+)
+SPEECH_TERMINATION_CSS_MARKERS = (".generation-status.capped",)
 
 
 def _sha256(path: Path) -> str:
@@ -56,6 +64,51 @@ def _site_path(site_root: Path, url: str) -> Path:
     if not url.startswith(SITE_PREFIX):
         raise ValueError(f"published URL is outside {SITE_PREFIX}: {url}")
     return site_root / url.removeprefix(SITE_PREFIX)
+
+
+def _manifest_reports(
+    manifest: Mapping[str, Any], *, family: str
+) -> list[Mapping[str, Any]]:
+    reports = manifest.get("reports")
+    if manifest.get("report_count") != EXPECTED_REPORT_COUNT:
+        raise ValueError(
+            f"{family} manifest report_count must be {EXPECTED_REPORT_COUNT}"
+        )
+    if not isinstance(reports, list) or len(reports) != EXPECTED_REPORT_COUNT:
+        raise ValueError(
+            f"{family} must publish exactly {EXPECTED_REPORT_COUNT} reports"
+        )
+    if not all(isinstance(entry, Mapping) for entry in reports):
+        raise ValueError(f"{family} manifest contains a non-object report entry")
+    ids = [str(entry.get("id") or "") for entry in reports]
+    report_urls = [str(entry.get("report_url") or "") for entry in reports]
+    if any(not value for value in ids) or len(set(ids)) != len(ids):
+        raise ValueError(f"{family} manifest report IDs are empty or duplicated")
+    if any(not value for value in report_urls) or len(set(report_urls)) != len(
+        report_urls
+    ):
+        raise ValueError(f"{family} manifest report URLs are empty or duplicated")
+    if family == "tts":
+        if any(entry.get("audio_url") is not None for entry in reports):
+            raise ValueError("TTS manifest must not publish generated-audio URLs")
+    else:
+        audio_urls = [str(entry.get("audio_url") or "") for entry in reports]
+        if any(not value for value in audio_urls) or len(set(audio_urls)) != len(
+            audio_urls
+        ):
+            raise ValueError(f"{family} manifest audio URLs are empty or duplicated")
+    if family == "asr":
+        filter_urls: list[str] = []
+        for entry in reports:
+            reference = entry.get("character_length_filter_cache")
+            if not isinstance(reference, Mapping) or not reference.get("url"):
+                raise ValueError(
+                    "ASR manifest entry is missing its character-filter URL"
+                )
+            filter_urls.append(str(reference["url"]))
+        if len(set(filter_urls)) != len(filter_urls):
+            raise ValueError("ASR manifest character-filter URLs are duplicated")
+    return reports
 
 
 def _validate_safe(value: Any, *, path: str = "$") -> None:
@@ -115,7 +168,9 @@ def _validate_exact_realized_rank(
         required.add("score")
     missing = sorted(required - candidate.keys())
     if missing:
-        raise ValueError(f"{label} realized-token provenance lacks {', '.join(missing)}")
+        raise ValueError(
+            f"{label} realized-token provenance lacks {', '.join(missing)}"
+        )
     if candidate["id"] != expected_id:
         raise ValueError(f"{label} realized-token ID does not match the output token")
     try:
@@ -129,6 +184,53 @@ def _validate_exact_realized_rank(
         raise ValueError(f"{label} realized-token rank space is empty")
     if candidate["rank_tie_policy"] != "1_plus_count_strictly_greater":
         raise ValueError(f"{label} realized-token tie policy is unsupported")
+
+
+def _validate_speech_generation_diagnostics(report: Mapping[str, Any]) -> None:
+    diagnostics = (
+        report.get("payload", {}).get("metadata", {}).get("generation_diagnostics")
+    )
+    if not isinstance(diagnostics, Mapping):
+        raise ValueError("speech report has no generation-termination diagnostics")
+    values: dict[str, int] = {}
+    for field in (
+        "generated_steps",
+        "max_new_tokens",
+        "text_tokens",
+        "audio_frames",
+    ):
+        value = diagnostics.get(field)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"speech generation diagnostic {field} is invalid")
+        values[field] = value
+    generated_steps = values["generated_steps"]
+    max_new_tokens = values["max_new_tokens"]
+    if (
+        generated_steps < 1
+        or max_new_tokens < generated_steps
+        or values["text_tokens"] < 0
+        or values["audio_frames"] < 0
+    ):
+        raise ValueError("speech generation diagnostic counts are out of bounds")
+    audio_eos_seen = diagnostics.get("audio_eos_seen")
+    budget_exhausted = diagnostics.get("budget_exhausted")
+    if not isinstance(audio_eos_seen, bool) or not isinstance(budget_exhausted, bool):
+        raise ValueError("speech generation diagnostic flags are invalid")
+    eos_step = 1 if audio_eos_seen else 0
+    if generated_steps != values["text_tokens"] + values["audio_frames"] + eos_step:
+        raise ValueError("speech generation diagnostic step accounting is invalid")
+    termination_reason = diagnostics.get("termination_reason")
+    natural = (
+        termination_reason == "audio_eos" and audio_eos_seen and not budget_exhausted
+    )
+    capped = (
+        termination_reason == "budget_exhausted"
+        and not audio_eos_seen
+        and budget_exhausted
+        and generated_steps == max_new_tokens
+    )
+    if not natural and not capped:
+        raise ValueError("speech generation termination state is inconsistent")
 
 
 def _aligned_transcription_token(
@@ -219,16 +321,14 @@ def _validate_encoder_alignment_provenance(
             raise ValueError(f"ASR encoder alignment {field} does not match timing")
 
 
-def _validate_asr_or_speech(
-    report: Mapping[str, Any], *, family: str
-) -> None:
+def _validate_asr_or_speech(report: Mapping[str, Any], *, family: str) -> None:
+    if family == "speech":
+        _validate_speech_generation_diagnostics(report)
     payload = report["payload"]
     tokens = payload.get("transcription", {}).get("tokens")
     if not isinstance(tokens, list) or not tokens:
         raise ValueError(f"{family} report has no output tokens")
-    _validate_stream(
-        payload["decoder"], label=f"{family} decoder", allow_empty=False
-    )
+    _validate_stream(payload["decoder"], label=f"{family} decoder", allow_empty=False)
     if len(payload["decoder"]["cells"][0]) != len(tokens):
         raise ValueError(f"{family} decoder/token width mismatch")
     if family in {"asr", "speech"}:
@@ -254,9 +354,10 @@ def _validate_asr_or_speech(
     )
     if family == "asr":
         alignment_metadata = payload["encoder"].get("realized_token_alignment")
-        if not isinstance(alignment_metadata, Mapping) or alignment_metadata.get(
-            "method"
-        ) != "maximum_token_interval_overlap":
+        if (
+            not isinstance(alignment_metadata, Mapping)
+            or alignment_metadata.get("method") != "maximum_token_interval_overlap"
+        ):
             raise ValueError("ASR encoder stream has no alignment-method provenance")
         for layer_index, row in enumerate(payload["encoder"]["cells"]):
             for position, cell in enumerate(row):
@@ -299,6 +400,24 @@ def _validate_tts(report: Mapping[str, Any]) -> None:
     if not isinstance(codes, list) or not codes:
         raise ValueError("TTS report has no speech-code positions")
     width = len(codes)
+    model = payload.get("model")
+    if not isinstance(model, Mapping):
+        raise ValueError("TTS report has no saved model metadata")
+    generation = model.get("generation")
+    if not isinstance(generation, Mapping):
+        raise ValueError("TTS report has no saved generation settings")
+    generation_cap = generation.get("max_speech_tokens")
+    if (
+        isinstance(generation_cap, bool)
+        or not isinstance(generation_cap, int)
+        or generation_cap <= 0
+    ):
+        raise ValueError("TTS report has an invalid speech-code generation cap")
+    if width >= generation_cap:
+        raise ValueError(
+            "TTS report reached its saved speech-code generation cap and may "
+            "be truncated"
+        )
     if len(head.get("positions", [])) != width:
         raise ValueError("TTS HEAD width mismatch")
     rows = fitted.get("rows")
@@ -325,6 +444,13 @@ def _validate_filter_cache(
     path = _site_path(site_root, str(reference["url"]))
     if not path.is_file() or _sha256(path) != reference["sha256"]:
         raise ValueError(f"ASR filter cache hash mismatch: {path}")
+    if path.stat().st_size != int(reference.get("bytes", -1)):
+        raise ValueError(f"ASR filter cache byte count mismatch: {path}")
+    report_reference = report.get("cache_policy", {}).get(
+        "character_length_filter_cache"
+    )
+    if report_reference != reference:
+        raise ValueError("ASR report and manifest disagree on the filter cache")
     cache = _load(path)
     if cache.get("example_id") != report.get("example_id"):
         raise ValueError("ASR filter cache/report ID mismatch")
@@ -344,9 +470,7 @@ def _validate_filter_cache(
         width = len(base["cells"][0])
         if any(len(row) != width for row in filtered["cells"]):
             raise ValueError(f"ASR {stream_name} filter width mismatch")
-        for layer, row in zip(
-            filtered["layers"], filtered["cells"], strict=True
-        ):
+        for layer, row in zip(filtered["layers"], filtered["cells"], strict=True):
             report_layer_index = base["layers"].index(layer)
             for position, cell in enumerate(row):
                 if not cell.get("top_tokens_by_length"):
@@ -402,13 +526,56 @@ def _validate_filter_cache(
                             f"ASR {stream_name} filtered realized rank is out of bounds"
                         )
                     if not target_eligible or (
-                        target_length is not None
-                        and int(target_length) > numeric_limit
+                        target_length is not None and int(target_length) > numeric_limit
                     ):
                         raise ValueError(
                             f"ASR {stream_name} excluded realized token has a rank"
                         )
     _validate_safe(cache)
+
+
+def _validate_audio_reference(
+    site_root: Path,
+    *,
+    family: str,
+    report: Mapping[str, Any],
+    entry: Mapping[str, Any],
+) -> Path:
+    entry_url = str(entry.get("audio_url") or "")
+    source = report.get("source")
+    if not isinstance(source, Mapping) or source.get("audio_url") != entry_url:
+        raise ValueError(f"{family} report and manifest audio URLs disagree")
+    audio_path = _site_path(site_root, entry_url)
+    if not audio_path.is_file():
+        raise ValueError(f"missing cleared input audio: {audio_path}")
+    expected_hash = source.get("sha256")
+    if not isinstance(expected_hash, str) or _sha256(audio_path) != expected_hash:
+        raise ValueError(f"{family} input audio hash mismatch: {audio_path}")
+    return audio_path
+
+
+def _validate_site_manifest_integrity(
+    site_root: Path, *, counts: Mapping[str, int]
+) -> None:
+    manifest = _load(site_root / "site-manifest.json")
+    if manifest.get("report_counts") != dict(counts):
+        raise ValueError("site manifest report counts do not match family manifests")
+    recorded_hashes = manifest.get("sha256")
+    if not isinstance(recorded_hashes, Mapping) or not recorded_hashes:
+        raise ValueError("site manifest has no asset hashes")
+    required = {
+        "assets/explorer.js",
+        "assets/explorer.css",
+        *(f"explorer/data/{family}/manifest.json" for family in FAMILIES),
+    }
+    if not required.issubset(recorded_hashes):
+        raise ValueError("site manifest does not hash every explorer contract file")
+    for relative_path, expected_hash in recorded_hashes.items():
+        path = (site_root / str(relative_path)).resolve()
+        if not path.is_relative_to(site_root) or not path.is_file():
+            raise ValueError(f"site manifest hash path is missing or unsafe: {path}")
+        if not isinstance(expected_hash, str) or _sha256(path) != expected_hash:
+            raise ValueError(f"site manifest hash mismatch: {path}")
 
 
 def _require_page(site_root: Path, relative_path: str, *, label: str) -> str:
@@ -433,19 +600,19 @@ def _validate_route_contract(site_root: Path) -> None:
             "index.html",
             "./assets/explorer.js",
             "./explorer/data/asr/manifest.json",
-            ("href=\"./\"", "href=\"./speech/\"", "href=\"./tts/\""),
+            ('href="./"', 'href="./speech/"', 'href="./tts/"'),
         ),
         "speech": (
             "speech/index.html",
             "../assets/explorer.js",
             "../explorer/data/speech/manifest.json",
-            ("href=\"../\"", "href=\"./\"", "href=\"../tts/\""),
+            ('href="../"', 'href="./"', 'href="../tts/"'),
         ),
         "tts": (
             "tts/index.html",
             "../assets/explorer.js",
             "../explorer/data/tts/manifest.json",
-            ("href=\"../\"", "href=\"../speech/\"", "href=\"./\""),
+            ('href="../"', 'href="../speech/"', 'href="./"'),
         ),
     }
     findings_pages = {
@@ -483,7 +650,11 @@ def _validate_route_contract(site_root: Path) -> None:
                 'class="detailed-explorer"',
                 f'data-family="{family}"',
                 f'data-manifest-url="{manifest}"',
-                f'src="{script}"',
+                f'src="{script}?v={EXPLORER_ASSET_VERSION}"',
+                (
+                    f'href="{script.removesuffix("explorer.js")}explorer.css'
+                    f'?v={EXPLORER_ASSET_VERSION}"'
+                ),
                 f'<link rel="canonical" href="{PUBLIC_BASE}{CANONICAL_DETAILED_ROUTES[family].removeprefix(SITE_PREFIX)}">',
                 *nav_links,
             ),
@@ -522,7 +693,11 @@ def _validate_route_contract(site_root: Path) -> None:
                 'class="detailed-explorer"',
                 f'data-family="{family}"',
                 f'data-manifest-url="{manifest}"',
-                f'src="{script}"',
+                f'src="{script}?v={EXPLORER_ASSET_VERSION}"',
+                (
+                    f'href="{script.removesuffix("explorer.js")}explorer.css'
+                    f'?v={EXPLORER_ASSET_VERSION}"'
+                ),
                 f'<link rel="canonical" href="{PUBLIC_BASE}{canonical_suffix}">',
                 *canonical_alias_nav,
             ),
@@ -548,6 +723,8 @@ def _validate_route_contract(site_root: Path) -> None:
 def validate_site(site_root: Path) -> dict[str, int]:
     site_root = site_root.resolve()
     counts: dict[str, int] = {}
+    referenced_media: set[Path] = set()
+    audio_urls_by_family: dict[str, list[str]] = {}
     for asset in (
         "assets/explorer.js",
         "assets/explorer.css",
@@ -560,13 +737,11 @@ def validate_site(site_root: Path) -> dict[str, int]:
         script = (site_root / asset).read_text(encoding="utf-8")
         if (
             "/api/" in script
-            or "method: \"POST\"" in script
+            or 'method: "POST"' in script
             or "method: 'POST'" in script
         ):
             raise ValueError(f"published {asset} contains a live API call")
-    explorer_script = (site_root / "assets/explorer.js").read_text(
-        encoding="utf-8"
-    )
+    explorer_script = (site_root / "assets/explorer.js").read_text(encoding="utf-8")
     if 'URLSearchParams(window.location.search).get("sample")' not in explorer_script:
         raise ValueError("static explorer does not preserve ?sample selection")
     for marker in (
@@ -578,21 +753,28 @@ def validate_site(site_root: Path) -> dict[str, int]:
         'class="realized-rank-badge"',
         "showASRRealizedRank",
         "realized_rank_by_max_length",
+        "expectedReportCount = 10",
+        "payload.report_count !== expectedReportCount",
+        'id="sample-search"',
+        'class="sample-button-grid"',
+        *SPEECH_TERMINATION_SCRIPT_MARKERS,
     ):
         if marker not in explorer_script:
             raise ValueError(
                 "static explorer is missing the readable speech-band contract: "
                 f"{marker}"
             )
-    explorer_css = (site_root / "assets/explorer.css").read_text(
-        encoding="utf-8"
-    )
+    explorer_css = (site_root / "assets/explorer.css").read_text(encoding="utf-8")
     for marker in (
         ".position-timeline.speech-readable",
         ".speech-matrix-window",
         ".speech-matrix-grid",
         ".realized-rank-badge",
         '[data-family="asr"] .matrix-cell .realized-rank-badge',
+        ".sample-picker-tools",
+        ".sample-button-grid",
+        "overflow-x: hidden",
+        *SPEECH_TERMINATION_CSS_MARKERS,
     ):
         if marker not in explorer_css:
             raise ValueError(
@@ -606,34 +788,41 @@ def validate_site(site_root: Path) -> dict[str, int]:
         manifest_path = site_root / "explorer" / "data" / family / "manifest.json"
         manifest = _load(manifest_path)
         if (
-            manifest.get("schema_id")
-            != "audio-jacobian-lens.cached-explorer-manifest"
+            manifest.get("schema_id") != "audio-jacobian-lens.cached-explorer-manifest"
             or manifest.get("family") != family
             or manifest.get("mode") != "static_cached_explorer"
         ):
             raise ValueError(f"invalid {family} manifest envelope")
-        reports = manifest.get("reports")
-        if not isinstance(reports, list) or len(reports) != 3:
-            raise ValueError(f"{family} must publish exactly three reports")
+        reports = _manifest_reports(manifest, family=family)
         if not manifest.get("provenance", {}).get("lens"):
             raise ValueError(f"{family} manifest has no pinned lens provenance")
         lens_provenance = manifest["provenance"]["lens"]
         if family == "asr":
             if "source_layers" in lens_provenance:
-                raise ValueError("ASR lens provenance has an ambiguous source_layers field")
+                raise ValueError(
+                    "ASR lens provenance has an ambiguous source_layers field"
+                )
             if not isinstance(lens_provenance.get("encoder_source_layers"), list):
                 raise ValueError("ASR lens provenance has no encoder source layers")
             if not isinstance(lens_provenance.get("decoder_source_layers"), list):
                 raise ValueError("ASR lens provenance has no decoder source layers")
 
+        expected_family_files = {manifest_path.resolve()}
         for entry in reports:
             report_path = _site_path(site_root, str(entry["report_url"]))
+            expected_parent = (site_root / "explorer" / "data" / family).resolve()
+            if report_path.resolve().parent != expected_parent:
+                raise ValueError(f"{family} report URL is outside its family directory")
+            expected_family_files.add(report_path.resolve())
             if not report_path.is_file() or _sha256(report_path) != entry["sha256"]:
                 raise ValueError(f"{family} report hash mismatch: {report_path}")
             if report_path.stat().st_size != int(entry["bytes"]):
                 raise ValueError(f"{family} report byte count mismatch: {report_path}")
             report = _load(report_path)
-            if report.get("family") != family or report.get("example_id") != entry["id"]:
+            if (
+                report.get("family") != family
+                or report.get("example_id") != entry["id"]
+            ):
                 raise ValueError(f"{family} report/manifest identity mismatch")
             _validate_safe(report)
             if family == "tts":
@@ -641,33 +830,64 @@ def validate_site(site_root: Path) -> dict[str, int]:
             else:
                 _validate_asr_or_speech(report, family=family)
                 if family == "asr":
-                    if report["payload"]["encoder"]["layers"] != lens_provenance[
-                        "encoder_source_layers"
-                    ]:
+                    if (
+                        report["payload"]["encoder"]["layers"]
+                        != lens_provenance["encoder_source_layers"]
+                    ):
                         raise ValueError("ASR encoder layers disagree with provenance")
-                    if report["payload"]["decoder"]["layers"] != lens_provenance[
-                        "decoder_source_layers"
-                    ]:
+                    if (
+                        report["payload"]["decoder"]["layers"]
+                        != lens_provenance["decoder_source_layers"]
+                    ):
                         raise ValueError("ASR decoder layers disagree with provenance")
-                audio_path = _site_path(site_root, str(entry["audio_url"]))
-                if not audio_path.is_file():
-                    raise ValueError(f"missing cleared input audio: {audio_path}")
+                audio_path = _validate_audio_reference(
+                    site_root,
+                    family=family,
+                    report=report,
+                    entry=entry,
+                )
+                referenced_media.add(audio_path.resolve())
                 if family == "asr":
                     _validate_filter_cache(site_root, report, entry)
+                    filter_path = _site_path(
+                        site_root,
+                        str(entry["character_length_filter_cache"]["url"]),
+                    )
+                    if filter_path.resolve().parent != expected_parent:
+                        raise ValueError(
+                            "ASR filter URL is outside its family directory"
+                        )
+                    expected_family_files.add(filter_path.resolve())
+        family_files = {
+            path.resolve()
+            for path in manifest_path.parent.glob("*.json")
+            if path.is_file()
+        }
+        if family_files != expected_family_files:
+            raise ValueError(
+                f"{family} explorer data contains unreferenced or missing JSON files"
+            )
+        if family != "tts":
+            audio_urls_by_family[family] = [
+                str(entry["audio_url"]) for entry in reports
+            ]
         counts[family] = len(reports)
 
+    if audio_urls_by_family.get("asr") != audio_urls_by_family.get("speech"):
+        raise ValueError(
+            "ASR and speech manifests must use the same ordered input-audio set"
+        )
     media = [
         path
         for path in site_root.rglob("*")
-        if path.is_file() and path.suffix.lower() in {".wav", ".mp3", ".m4a", ".ogg", ".opus", ".flac"}
+        if path.is_file()
+        and path.suffix.lower() in {".wav", ".mp3", ".m4a", ".ogg", ".opus", ".flac"}
     ]
-    expected = {
-        site_root / "audio" / "question.flac",
-        site_root / "audio" / "universe.flac",
-        site_root / "audio" / "buzzer.flac",
-    }
-    if set(media) != expected:
-        raise ValueError("the static site contains media outside the three cleared inputs")
+    if {path.resolve() for path in media} != referenced_media:
+        raise ValueError(
+            "the static site media set does not match the cleared manifest inputs"
+        )
+    _validate_site_manifest_integrity(site_root, counts=counts)
     return counts
 
 
