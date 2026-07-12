@@ -42,7 +42,10 @@
       "reference_transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
       "duration_seconds": 4.93,
       "sha256": "c3e32102b9faeb6dc3ec5203440d4e2a365cc0ea44fa6aeaefe5e3668a9a8585",
-      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+      "lfm_fit_relationship": "held_out_from_one_clip_fit",
+      "featured_views": [
+        "asr_phone_signature"
+      ]
     },
     {
       "slug": "raps",

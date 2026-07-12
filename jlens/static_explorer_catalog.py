@@ -55,6 +55,7 @@ class StaticAudioSample:
     duration_seconds: float
     sha256: str
     lfm_fit_relationship: str
+    featured_views: tuple[str, ...] = ()
 
     @property
     def filename(self) -> str:
@@ -163,6 +164,13 @@ def _audio_sample(value: Any, *, index: int) -> StaticAudioSample:
     )
     if relationship not in _LFM_FIT_RELATIONSHIPS:
         raise ValueError(f"{label}.lfm_fit_relationship is unsupported")
+    featured_value = source.get("featured_views", [])
+    featured = tuple(
+        _text(value, label=f"{label}.featured_views")
+        for value in _list(featured_value, label=f"{label}.featured_views")
+    )
+    if len(set(featured)) != len(featured):
+        raise ValueError(f"{label}.featured_views contains duplicates")
     return StaticAudioSample(
         slug=slug,
         title=_text(source.get("title"), label=f"{label}.title"),
@@ -175,6 +183,7 @@ def _audio_sample(value: Any, *, index: int) -> StaticAudioSample:
         duration_seconds=float(duration),
         sha256=sha256,
         lfm_fit_relationship=relationship,
+        featured_views=featured,
     )
 
 

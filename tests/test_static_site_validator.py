@@ -176,6 +176,75 @@ def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:
     )
 
 
+def test_renderer_contract_requires_asr_phone_signature_hybrid() -> None:
+    assert validator.ASR_PHONE_SIGNATURE_SCRIPT_MARKERS == (
+        "phoneSignatureEnabled: false,",
+        "function validatePhoneSignatureReport(payload)",
+        "function renderPhoneSignatureControl()",
+        "const phoneCell = encoderPhoneMode(kind);",
+        "label: phoneMode ? compactText(top?.phone)",
+        "descriptor.candidates.slice(0, 5)",
+        "PHONE SIGNATURE EXAMPLE",
+        "Audio and alignment attribution",
+    )
+    assert validator.ASR_PHONE_SIGNATURE_CSS_MARKERS == (
+        ".sample-button.phone-example",
+        ".phone-signature-control",
+        ".matrix-cell.phone-signature-cell .matrix-cell-label",
+        ".phone-candidate-row",
+        ".rights-block",
+        ".explorer-tooltip",
+    )
+
+
+def test_safe_cache_rejects_private_artifact_paths() -> None:
+    with pytest.raises(ValueError, match="private filesystem"):
+        validator._validate_safe({"source": "/Users/example/private/lens.pt"})
+    with pytest.raises(ValueError, match="private model or alignment"):
+        validator._validate_safe(
+            {"source": "phone-prototypes.npz"}, reject_artifact_files=True
+        )
+
+
+def test_asr_manifest_provenance_requires_held_out_train_only_fit() -> None:
+    manifest = {
+        "provenance": {
+            "lens": {
+                "encoder": {
+                    "sha256": "0" * 64,
+                    "public_evaluation_relationship": (
+                        "speaker-held-out; public clips use speaker 1272"
+                    )
+                },
+                "decoder": {"artifact": "decoder lens", "sha256": "1" * 64},
+                "phone_signature": {
+                    "sha256": "2" * 64,
+                    "signature_top_k": 100,
+                    "phone_inventory_size": 34,
+                    "training_split": "train",
+                    "training_rows": 3400,
+                    "development_or_test_opened_for_fit": False,
+                },
+            },
+            "rights": {
+                "license": "CC BY 4.0",
+                "license_url": "https://creativecommons.org/licenses/by/4.0/",
+                "source_url": "https://www.openslr.org/12",
+                "alignment_source_url": "https://zenodo.org/records/2619474",
+                "alignment_license": "CC BY 4.0",
+                "attribution": "LibriSpeech dev-clean",
+            },
+        }
+    }
+    validator._validate_asr_manifest_provenance(manifest)
+
+    manifest["provenance"]["lens"]["phone_signature"][
+        "development_or_test_opened_for_fit"
+    ] = True
+    with pytest.raises(ValueError, match="phone-prototype provenance"):
+        validator._validate_asr_manifest_provenance(manifest)
+
+
 def _ten_report_manifest(family: str) -> dict:
     reports = []
     for index in range(validator.EXPECTED_REPORT_COUNT):
@@ -197,6 +266,8 @@ def _ten_report_manifest(family: str) -> dict:
                     f"sample-{index}.filters.json"
                 )
             }
+            if index == 0:
+                entry["featured_views"] = ["asr_phone_signature"]
         reports.append(entry)
     return {
         "report_count": validator.EXPECTED_REPORT_COUNT,
@@ -394,6 +465,13 @@ def _asr_report() -> dict:
     }
     encoder_cell = {
         **decoder_cell,
+        "phone_signatures": [
+            {"phone": "AA", "similarity": 0.8, "rank": 1},
+            {"phone": "B", "similarity": 0.6, "rank": 2},
+            {"phone": "D", "similarity": 0.4, "rank": 3},
+            {"phone": "EH", "similarity": 0.3, "rank": 4},
+            {"phone": "F", "similarity": 0.2, "rank": 5},
+        ],
         "time_window": {"start_seconds": 0.0, "end_seconds": 0.2},
         "realized_token_position": 0,
         "realized_token_alignment": {
@@ -416,7 +494,26 @@ def _asr_report() -> dict:
                         "2": 20,
                         "3": 30,
                     }
-                }
+                },
+                "phone_signature": {
+                    "available": True,
+                    "display_unit": "pooled_encoder_window",
+                    "effective_display_hop_seconds": 0.18,
+                    "effective_display_window_seconds": 0.2,
+                    "interpretation": "prototype cosine, not probability",
+                    "method": "nearest_frozen_top_k_j_signature_phone_prototype",
+                    "phone_inventory": list(validator.PUBLIC_PHONE_INVENTORY),
+                    "phone_inventory_size": len(validator.PUBLIC_PHONE_INVENTORY),
+                    "prototype_fit_opened_eval_splits": False,
+                    "prototype_fit_rows": 3400,
+                    "prototype_fit_split": "train",
+                    "prototype_lens_examples": 20,
+                    "schema_version": 1,
+                    "score_kind": "phone_prototype_cosine_similarity",
+                    "signature_top_k": 100,
+                    "silence_or_unknown_class_available": False,
+                    "training_unit": "aligned_native_20_ms_phone_midpoint_state",
+                },
             },
             "audio": {"waveform_preview": {"values": [0.0, 0.1]}},
             "transcription": {"tokens": [head]},
@@ -444,6 +541,14 @@ def test_asr_site_validation_rejects_shifted_encoder_token_mapping() -> None:
     report["payload"]["encoder"]["cells"][0][0]["realized_token_position"] = 1
 
     with pytest.raises(ValueError, match="overlap-first"):
+        validator._validate_asr_or_speech(report, family="asr")
+
+
+def test_asr_site_validation_rejects_missing_phone_candidate() -> None:
+    report = _asr_report()
+    report["payload"]["encoder"]["cells"][0][0]["phone_signatures"].pop()
+
+    with pytest.raises(ValueError, match="no usable phone signature"):
         validator._validate_asr_or_speech(report, family="asr")
 
 

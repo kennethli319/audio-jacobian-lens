@@ -7,6 +7,10 @@ import pytest
 import torch
 
 from jlens.cross_lens import CrossJacobianLens
+from jlens.phonetic_signatures import (
+    PhoneSignaturePrototypes,
+    encoder_lens_fingerprint,
+)
 from jlens.whisper import (
     WhisperLensInputs,
     downsample_feature_mask,
@@ -436,6 +440,17 @@ def test_encoder_length_buckets_and_waveform_windows_apply_to_every_layer():
         model_metadata={"model_fingerprint": _Model.fingerprint},
         estimator_metadata={},
     )
+    phone_values = torch.zeros(2, vocab_size)
+    phone_values[0, 8] = 1
+    phone_values[1, 7] = 1
+    phone_prototypes = PhoneSignaturePrototypes(
+        {layer: phone_values for layer in (0, 2)},
+        labels=["AA", "B"],
+        signature_top_k=2,
+        vocab_size=vocab_size,
+        model_fingerprint=_Model.fingerprint,
+        encoder_lens_fingerprint_value=encoder_lens_fingerprint(encoder_lens),
+    )
     inputs = WhisperLensInputs(
         input_features=torch.zeros(1, 2, 2),
         decoder_input_ids=torch.tensor([[0, 1]]),
@@ -446,7 +461,12 @@ def test_encoder_length_buckets_and_waveform_windows_apply_to_every_layer():
     )
 
     payload = analyze_whisper_run(
-        _Model(), lens, inputs, np.zeros(640, dtype=np.float32), top_k=2
+        _Model(),
+        lens,
+        inputs,
+        np.zeros(640, dtype=np.float32),
+        top_k=2,
+        phone_signature_prototypes=phone_prototypes,
     )
 
     assert payload["encoder"]["layers"] == [0, 2]
@@ -468,7 +488,21 @@ def test_encoder_length_buckets_and_waveform_windows_apply_to_every_layer():
         assert cell["top_tokens"][0]["score_kind"] == (
             "target_mean_relative_logit_delta"
         )
+        assert cell["phone_signature_usable"] is True
+        assert [candidate["phone"] for candidate in cell["phone_signatures"]] == [
+            "AA",
+            "B",
+        ]
+        assert all(
+            candidate["score_kind"] == "phone_prototype_cosine_similarity"
+            for candidate in cell["phone_signatures"]
+        )
         assert "realized_token" not in cell
+    assert payload["metadata"]["phone_signature"]["available"] is True
+    assert payload["metadata"]["phone_signature"]["phone_inventory_size"] == 2
+    assert payload["metadata"]["phone_signature"][
+        "effective_display_window_seconds"
+    ] == 0.2
 
 
 def test_encoder_realized_rank_uses_maximum_overlap_output_token():

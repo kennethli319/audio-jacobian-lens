@@ -1,6 +1,16 @@
 {
   "samples": [
     {
+      "id": "buzzer-whirr",
+      "file": "buzzer.flac",
+      "title": "The buzzer's whirr",
+      "description": "Consonant-rich natural speech · recommended for Phone signature view",
+      "transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
+      "duration_seconds": 4.93,
+      "badge": "PHONE SIGNATURE EXAMPLE",
+      "recommended_for": "phone-signature"
+    },
+    {
       "id": "short-question",
       "file": "question.flac",
       "title": "A short question",
@@ -15,14 +25,6 @@
       "description": "Measured natural speech · LibriSpeech dev-clean",
       "transcript": "A man said to the universe, sir, I exist.",
       "duration_seconds": 4.65
-    },
-    {
-      "id": "buzzer-whirr",
-      "file": "buzzer.flac",
-      "title": "The buzzer's whirr",
-      "description": "Consonant-heavy natural speech · LibriSpeech dev-clean",
-      "transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
-      "duration_seconds": 4.93
     },
     {
       "id": "raps",

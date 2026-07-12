@@ -1,0 +1,82 @@
+{
+  "schema_id": "audio-jacobian-lens.static-explorer-provenance",
+  "schema_version": 2,
+  "families": {
+    "asr": {
+      "provenance": {
+        "evaluated_on": "2026-07-12",
+        "extraction": "Replayed locally through the pinned Whisper model, the speaker-held-out natural-speech A2 encoder lens, the existing decoder lens, and frozen train-only A2 phone prototypes. Published phone values are bounded scored candidates; prototype tensors and occurrence-level training data are excluded.",
+        "model": {
+          "id": "openai/whisper-tiny.en",
+          "revision": "87c7102498dcde7456f24cfd30239ca606ed9063",
+          "weights_fingerprint": "hf-commit:87c7102498dcde7456f24cfd30239ca606ed9063",
+          "model_fingerprint": "5a77767bfe9c962d",
+          "model_config_fingerprint": "a3d3a1205eaef828",
+          "tokenizer_fingerprint": "290cd13e6eb0aa9c",
+          "vocabulary_size": 51864,
+          "encoder_layers": 4,
+          "decoder_layers": 4
+        },
+        "lens": {
+          "capture_convention": "separately fitted encoder and decoder streams combined only at analysis time",
+          "encoder": {
+            "artifact": "speaker-held-out natural-speech A2 global-mean encoder lens",
+            "sha256": "89774a2ebf02818acd5b17bfeb40de671f678ce1efd12e5d419d5bbd8bb56400",
+            "semantic_fingerprint": "0bd2b634e27e51565501e896f7f35612344d5d96416483e114b667049a3ad4f1",
+            "fit_examples": 20,
+            "corpus_fingerprint": "a52b159995f9ee66873a",
+            "examples_fingerprint": "7541d4cd52a10d71c5cda95a9e1bf1ef44ba3f008322a578d2939b66de1122ee",
+            "estimator": "encoder-global-all-targets",
+            "target_reduction": "mean",
+            "public_evaluation_relationship": "speaker-held-out; all ten public clips use speaker 1272, which is excluded from the A2 fit"
+          },
+          "decoder": {
+            "artifact": "10-clip aligned Whisper pilot decoder lens",
+            "sha256": "489582ce50736e8e7b78b7cb9d0140b963d99c5d7784635ed93e71710ab293a2",
+            "fit_examples": 10,
+            "corpus_fingerprint": "46640e2cbca442f599ef",
+            "examples_fingerprint": "9e351a804731ec0622fdb9fdb5daa6ce1b78823efcb73beda4e8f0443fe73555",
+            "estimator": "decoder-causal-all-targets",
+            "target_reduction": "sum"
+          },
+          "phone_signature": {
+            "artifact": "A2 frozen top-100 phone prototypes",
+            "sha256": "d628b6c0c90b397695375987d8ed180d3368f3961a27470c0bce5f905e449cf3",
+            "signature_top_k": 100,
+            "phone_inventory_size": 34,
+            "training_split": "train",
+            "training_rows": 3400,
+            "development_or_test_opened_for_fit": false
+          },
+          "encoder_source_layers": [0, 1, 2, 3],
+          "decoder_source_layers": [0, 1, 2],
+          "target_layer": 3,
+          "audio_preprocessing_version": "mono-polyphase-16khz-v1"
+        },
+        "rank_semantics": {
+          "tie_policy": "1_plus_count_strictly_greater",
+          "lens_score_kind": "target_mean_relative_logit_delta for encoder; raw_readout_logit for decoder",
+          "head_score_kind": "raw_teacher_forced_probability",
+          "phone_score_kind": "phone_prototype_cosine_similarity",
+          "phone_rank_space": "34 frozen phone prototypes"
+        },
+        "timing_semantics": {
+          "source": "whisper_cross_attention_dtw",
+          "quality": "model_derived",
+          "warning": "Token times are Whisper-derived and are not independent alignment evidence. Phone prototypes were validated on native aligned 20 ms midpoint states, while the explorer displays pooled 200 ms windows that may contain multiple phones."
+        },
+        "rights": {
+          "source_collection": "LibriSpeech dev-clean (OpenSLR SLR12)",
+          "license": "CC BY 4.0",
+          "license_url": "https://creativecommons.org/licenses/by/4.0/",
+          "source_url": "https://www.openslr.org/12",
+          "attribution": "LibriSpeech dev-clean, prepared by Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur; derived from public-domain LibriVox recordings.",
+          "alignment_source": "LibriSpeech Alignments (MFA), Zenodo record 2619474",
+          "alignment_source_url": "https://zenodo.org/records/2619474",
+          "alignment_license": "CC BY 4.0",
+          "modification_notice": "The 10 published input FLAC files are copied without modification from the pinned catalog source."
+        }
+      }
+    }
+  }
+}

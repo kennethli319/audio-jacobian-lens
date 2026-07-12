@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 
 import torch
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from jlens.audio_io import (
@@ -28,6 +28,7 @@ from jlens.audio_io import (
     DecodedAudio,
     decode_audio_bytes,
 )
+from jlens.phonetic_signatures import PhoneSignaturePrototypes
 from jlens.whisper import HFWhisperLensModel
 from jlens.whisper_analysis import analyze_whisper_run
 from jlens.whisper_lens import WhisperJacobianLens
@@ -60,9 +61,11 @@ class BundledAudioSample:
     transcript: str | None
     duration_seconds: float | None
     media_type: str
+    badge: str | None = None
+    recommended_for: str | None = None
 
     def public_metadata(self) -> dict[str, Any]:
-        return {
+        payload = {
             "id": self.sample_id,
             "title": self.title,
             "description": self.description,
@@ -72,6 +75,11 @@ class BundledAudioSample:
             "media_type": self.media_type,
             "audio_url": f"/api/samples/{self.sample_id}",
         }
+        if self.badge is not None:
+            payload["badge"] = self.badge
+        if self.recommended_for is not None:
+            payload["recommended_for"] = self.recommended_for
+        return payload
 
 
 def _sample_directory(samples_dir: str | Path | None) -> Path | None:
@@ -95,6 +103,26 @@ def _sample_directory(samples_dir: str | Path | None) -> Path | None:
         ):
             return candidate.resolve()
     return None
+
+
+def _phonetic_experiment_directory(
+    directory: str | Path | None,
+) -> Path | None:
+    """Resolve an explicitly enabled, local-only phonetic report microsite."""
+
+    if directory is None:
+        return None
+    resolved = Path(directory).expanduser().resolve()
+    if not resolved.is_dir():
+        raise ValueError(
+            f"configured phonetic experiment directory does not exist: {resolved}"
+        )
+    if not (resolved / "index.html").is_file():
+        raise ValueError(
+            "configured phonetic experiment directory must contain index.html: "
+            f"{resolved}"
+        )
+    return resolved
 
 
 def _sample_path(directory: Path, filename: str) -> Path:
@@ -163,6 +191,10 @@ def _manifest_samples(directory: Path, payload: Any) -> list[BundledAudioSample]
                 transcript=_optional_manifest_text(raw_entry, "transcript"),
                 duration_seconds=duration,
                 media_type=SAMPLE_MEDIA_TYPES[path.suffix.lower()],
+                badge=_optional_manifest_text(raw_entry, "badge"),
+                recommended_for=_optional_manifest_text(
+                    raw_entry, "recommended_for"
+                ),
             )
         )
     return samples
@@ -282,6 +314,7 @@ class WhisperAnalysisBackend:
         top_k: int = 5,
         time_bin_seconds: float = 0.2,
         time_bin_overlap_seconds: float = 0.02,
+        phone_signature_prototypes: PhoneSignaturePrototypes | None = None,
     ) -> None:
         lens.validate_model(model)
         preprocessing_versions = {
@@ -304,6 +337,14 @@ class WhisperAnalysisBackend:
         self.top_k = top_k
         self.time_bin_seconds = time_bin_seconds
         self.time_bin_overlap_seconds = time_bin_overlap_seconds
+        if phone_signature_prototypes is not None:
+            if lens.encoder is None:
+                raise ValueError("phone signatures require an encoder lens")
+            phone_signature_prototypes.validate(
+                model=model,
+                encoder_lens=lens.encoder,
+            )
+        self.phone_signature_prototypes = phone_signature_prototypes
         self._lock = threading.Lock()
 
     @classmethod
@@ -319,6 +360,7 @@ class WhisperAnalysisBackend:
         top_k: int = 5,
         time_bin_seconds: float = 0.2,
         time_bin_overlap_seconds: float = 0.02,
+        phone_signatures_path: str | None = None,
     ) -> WhisperAnalysisBackend:
         from transformers import AutoProcessor, WhisperForConditionalGeneration
 
@@ -352,6 +394,11 @@ class WhisperAnalysisBackend:
         )
         model = HFWhisperLensModel(hf_model, processor, model_id=model_id)
         hf_model.to(device)
+        phone_signature_prototypes = (
+            None
+            if phone_signatures_path is None
+            else PhoneSignaturePrototypes.load(phone_signatures_path)
+        )
         return cls(
             model,
             lens,
@@ -359,6 +406,7 @@ class WhisperAnalysisBackend:
             top_k=top_k,
             time_bin_seconds=time_bin_seconds,
             time_bin_overlap_seconds=time_bin_overlap_seconds,
+            phone_signature_prototypes=phone_signature_prototypes,
         )
 
     def status(self) -> dict[str, Any]:
@@ -375,6 +423,7 @@ class WhisperAnalysisBackend:
             "model_id": self.model.model_id,
             "device": str(self.device),
             "streams": streams,
+            "phone_signatures": self.phone_signature_prototypes is not None,
             "message": f"{', '.join(streams)} lens ready on {self.device}",
         }
 
@@ -446,6 +495,7 @@ class WhisperAnalysisBackend:
             top_k=self.top_k,
             time_bin_seconds=self.time_bin_seconds,
             time_bin_overlap_seconds=time_bin_overlap_seconds,
+            phone_signature_prototypes=self.phone_signature_prototypes,
         )
 
 
@@ -455,9 +505,13 @@ def create_app(
     web_dir: str | Path | None = None,
     samples_dir: str | Path | None = None,
     chatterbox_backend: ChatterboxBackend | None = None,
+    phonetic_experiment_dir: str | Path | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Audio Jacobian Lens", docs_url="/api/docs")
     sample_catalog = load_sample_catalog(samples_dir)
+    private_phonetic_site = _phonetic_experiment_directory(
+        phonetic_experiment_dir
+    )
 
     @app.middleware("http")
     async def protect_local_analysis(request: Request, call_next):
@@ -827,6 +881,21 @@ def create_app(
         static_dir = (
             source_checkout if source_checkout.is_dir() else installed_data
         )
+    if private_phonetic_site is not None:
+
+        @app.get("/experiments/phonetic-signatures", include_in_schema=False)
+        def private_phonetic_experiment_redirect() -> RedirectResponse:
+            return RedirectResponse(
+                url="/experiments/phonetic-signatures/",
+                status_code=307,
+            )
+
+        app.mount(
+            "/experiments/phonetic-signatures",
+            StaticFiles(directory=private_phonetic_site, html=True),
+            name="private-phonetic-experiment",
+        )
+
     if static_dir.is_dir():
 
         @app.get("/")
@@ -889,6 +958,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--lens", help="combined WhisperJacobianLens artifact")
     parser.add_argument("--encoder-lens", help="encoder-only lens artifact")
     parser.add_argument("--decoder-lens", help="decoder-only lens artifact")
+    parser.add_argument(
+        "--phone-signatures",
+        help=(
+            "optional frozen phone-prototype artifact for an encoder-only "
+            "phone-signature display mode"
+        ),
+    )
     parser.add_argument("--device", default="auto", help="auto, mps, cuda, or cpu")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
@@ -907,6 +983,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--time-bin-overlap-seconds", type=float, default=0.02)
     parser.add_argument("--web-dir")
     parser.add_argument(
+        "--phonetic-experiment-dir",
+        help=(
+            "opt-in local directory containing the private phonetic-signature "
+            "microsite; mounted at /experiments/phonetic-signatures/"
+        ),
+    )
+    parser.add_argument(
         "--samples-dir",
         help="directory containing bundled audio and optional samples.json manifest",
     )
@@ -915,6 +998,22 @@ def _parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _parser().parse_args()
+    try:
+        is_loopback = ipaddress.ip_address(args.host).is_loopback
+    except ValueError:
+        is_loopback = args.host == "localhost"
+    if args.phonetic_experiment_dir is not None and not is_loopback:
+        raise SystemExit(
+            "--phonetic-experiment-dir is private development output and may "
+            "only be served on a loopback host"
+        )
+    if (
+        args.phone_signatures is not None
+        and args.lens is None
+        and args.encoder_lens is None
+    ):
+        raise SystemExit("--phone-signatures requires an encoder lens")
+
     if args.lens is None and args.encoder_lens is None and args.decoder_lens is None:
         backend = None
     elif args.backend == "mlx-lfm":
@@ -924,6 +1023,8 @@ def main() -> None:
             raise SystemExit(
                 "--encoder-lens/--decoder-lens are Whisper-only; use --lens for mlx-lfm"
             )
+        if args.phone_signatures is not None:
+            raise SystemExit("--phone-signatures is supported only by Whisper")
         from jlens.mlx_lfm import DEFAULT_LFM_MODEL_ID, DEFAULT_LFM_MODEL_REVISION
         from jlens.mlx_webapp import MLXLFMAnalysisBackend
 
@@ -945,18 +1046,16 @@ def main() -> None:
             top_k=args.top_k,
             time_bin_seconds=args.time_bin_seconds,
             time_bin_overlap_seconds=args.time_bin_overlap_seconds,
+            phone_signatures_path=args.phone_signatures,
         )
     app = create_app(
         backend,
         web_dir=args.web_dir,
         samples_dir=args.samples_dir,
+        phonetic_experiment_dir=args.phonetic_experiment_dir,
     )
     import uvicorn
 
-    try:
-        is_loopback = ipaddress.ip_address(args.host).is_loopback
-    except ValueError:
-        is_loopback = args.host == "localhost"
     if not is_loopback:
         warnings.warn(
             "binding Audio Jacobian Lens beyond loopback exposes uploaded audio "

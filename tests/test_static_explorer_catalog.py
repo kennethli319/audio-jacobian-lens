@@ -36,6 +36,11 @@ def test_real_catalog_has_ten_ordered_examples_per_family() -> None:
         for sample in catalog.audio_samples
         if sample.lfm_fit_relationship == "in_sample_integration"
     ] == ["question"]
+    assert [
+        sample.slug
+        for sample in catalog.audio_samples
+        if "asr_phone_signature" in sample.featured_views
+    ] == ["buzzer"]
 
 
 def test_catalog_audio_assets_and_local_sample_manifest_are_aligned() -> None:

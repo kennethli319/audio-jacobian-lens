@@ -268,6 +268,14 @@
                 <div><p class="section-label">04 · ENCODER LENS</p><h2 id="encoder-title">Across the audio representation</h2><p id="encoder-description">Select a pooled audio window to see which downstream text-token directions become readable across encoder layers. This cross-modal view is experimental and baseline-relative.</p></div>
                 <span class="lens-metric" id="encoder-score-label">Blue strip: within-layer percentile of target-mean-relative logit delta · never probability</span>
               </div>
+              <div class="encoder-phone-mode" id="encoder-phone-mode">
+                <button class="encoder-phone-mode-button" id="encoder-phone-signature-toggle" type="button" aria-pressed="false" disabled>
+                  <span><strong>Phone signature view</strong><small>Replace encoder token readouts with fitted phone prototypes</small></span>
+                  <i aria-hidden="true">Off</i>
+                </button>
+                <p id="encoder-phone-signature-status">Run an analysis with matching fitted phone prototypes to enable this view.</p>
+                <details class="filter-explainer"><summary>What does this show?</summary><p>The nearest frozen phone prototypes for each pooled encoder J-signature, ranked by cosine similarity. These labels are an exploratory fitted readout—not model probabilities, phoneme confidence, or causal effects. A 200 ms window can contain more than one phone.</p></details>
+              </div>
               <div class="encoder-filter-note">
                 <label class="encoder-filter-control" for="encoder-token-length-filter">
                   <input id="encoder-token-length-filter" type="checkbox">
@@ -323,7 +331,7 @@
               <div class="score-definition">
                 <span id="score-kicker">J-lens readout score</span><strong id="selected-score">—</strong><p id="score-description"></p>
               </div>
-              <div class="rank-key"><span>Exact rank in the labeled vocabulary scope</span><i></i></div>
+              <div class="rank-key"><span id="rank-key-label">Exact rank in the labeled vocabulary scope</span><i></i></div>
               <ol class="topk-list" id="topk-list"></ol>
               <p class="inspector-footnote" id="topk-metric-label">Display-filtered token rank and raw score.</p>
             </div>

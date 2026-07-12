@@ -139,6 +139,31 @@ CELL_FIELDS = {
     "time_window",
 }
 
+PHONE_SIGNATURE_FIELDS = {
+    "phone",
+    "rank",
+    "similarity",
+}
+PHONE_SIGNATURE_METADATA_FIELDS = {
+    "available",
+    "display_unit",
+    "effective_display_hop_seconds",
+    "effective_display_window_seconds",
+    "interpretation",
+    "method",
+    "phone_inventory",
+    "phone_inventory_size",
+    "score_kind",
+    "signature_top_k",
+    "silence_or_unknown_class_available",
+    "training_unit",
+}
+PUBLIC_PHONE_INVENTORY = (
+    "AA", "AE", "AH", "AO", "AW", "AY", "B", "CH", "D", "DH", "EH",
+    "ER", "EY", "F", "G", "HH", "IH", "IY", "K", "L", "M", "N",
+    "NG", "OW", "P", "R", "S", "SH", "T", "TH", "UW", "V", "W", "Z",
+)
+
 STREAM_FIELDS = {
     "layers",
     "pooling",
@@ -177,10 +202,159 @@ def _token(source: Mapping[str, Any]) -> dict[str, Any]:
 def _cell(source: Mapping[str, Any]) -> dict[str, Any]:
     result = _pick(source, CELL_FIELDS)
     result["top_tokens"] = [_candidate(item) for item in source.get("top_tokens", [])]
+    if "phone_signatures" in source:
+        result["phone_signatures"] = [
+            _pick(item, PHONE_SIGNATURE_FIELDS)
+            for item in source.get("phone_signatures", [])
+        ]
     realized = source.get("realized_token")
     if isinstance(realized, Mapping):
         result["realized_token"] = _candidate(realized)
     return result
+
+
+def _phone_signature_metadata(source: Any) -> dict[str, Any]:
+    if not isinstance(source, Mapping):
+        raise ValueError("ASR phone-signature metadata is missing")
+    result = _pick(source, PHONE_SIGNATURE_METADATA_FIELDS)
+    prototype_source = source.get("prototype_source")
+    if not isinstance(prototype_source, Mapping):
+        raise ValueError("ASR phone-signature prototype source is missing")
+    result.update(
+        {
+            "schema_version": 1,
+            "prototype_fit_split": prototype_source.get("split"),
+            "prototype_fit_rows": prototype_source.get("non_silence_rows"),
+            "prototype_fit_opened_eval_splits": prototype_source.get(
+                "development_or_test_opened"
+            ),
+            "prototype_lens_examples": prototype_source.get("lens_examples"),
+        }
+    )
+    return result
+
+
+def _validate_phone_signature_candidate(
+    candidate: Any,
+    *,
+    labels: set[str],
+    previous_similarity: float | None,
+) -> float:
+    if not isinstance(candidate, Mapping):
+        raise ValueError("ASR phone signature candidate is not an object")
+    if set(candidate) != PHONE_SIGNATURE_FIELDS:
+        raise ValueError("ASR phone signature candidate has an unapproved field")
+    phone = candidate.get("phone")
+    if not isinstance(phone, str) or phone not in labels:
+        raise ValueError("ASR phone signature candidate has an unknown phone")
+    rank_value = candidate.get("rank")
+    try:
+        rank = int(rank_value)
+        similarity = float(candidate.get("similarity"))
+    except (TypeError, ValueError) as error:
+        raise ValueError("ASR phone signature candidate has invalid values") from error
+    if isinstance(rank_value, bool) or rank != rank_value or rank < 1:
+        raise ValueError("ASR phone signature rank is outside its prototype inventory")
+    if not math.isfinite(similarity) or not -1 <= similarity <= 1:
+        raise ValueError("ASR phone signature similarity is invalid")
+    if previous_similarity is not None and similarity > previous_similarity + 1e-8:
+        raise ValueError("ASR phone signatures are not sorted by similarity")
+    return similarity
+
+
+def _validate_phone_signature_view(report: Mapping[str, Any]) -> None:
+    payload = report["payload"]
+    metadata = payload.get("metadata", {}).get("phone_signature")
+    if not isinstance(metadata, Mapping) or metadata.get("available") is not True:
+        raise ValueError("ASR report has no fitted phone-signature metadata")
+    if metadata.get("score_kind") != "phone_prototype_cosine_similarity":
+        raise ValueError("ASR phone-signature metadata has the wrong score kind")
+    if (
+        metadata.get("signature_top_k") != 100
+        or metadata.get("display_unit") != "pooled_encoder_window"
+        or metadata.get("method")
+        != "nearest_frozen_top_k_j_signature_phone_prototype"
+        or metadata.get("training_unit")
+        != "aligned_native_20_ms_phone_midpoint_state"
+        or not str(metadata.get("interpretation") or "").strip()
+        or not math.isclose(
+            float(metadata.get("effective_display_window_seconds") or 0),
+            0.2,
+            rel_tol=0,
+            abs_tol=1e-9,
+        )
+        or not math.isclose(
+            float(metadata.get("effective_display_hop_seconds") or 0),
+            0.18,
+            rel_tol=0,
+            abs_tol=1e-9,
+        )
+    ):
+        raise ValueError("ASR phone-signature display semantics are invalid")
+    if set(metadata) != PHONE_SIGNATURE_METADATA_FIELDS | {
+        "schema_version",
+        "prototype_fit_split",
+        "prototype_fit_rows",
+        "prototype_fit_opened_eval_splits",
+        "prototype_lens_examples",
+    }:
+        raise ValueError("ASR phone-signature metadata keys are not allowlisted")
+    if metadata.get("interpretation") is None:
+        raise ValueError("ASR phone-signature metadata lacks interpretation text")
+    labels_value = metadata.get("phone_inventory")
+    denominator_value = metadata.get("phone_inventory_size")
+    if not isinstance(labels_value, list) or any(
+        not isinstance(label, str) or not label for label in labels_value
+    ):
+        raise ValueError("ASR phone-signature inventory is invalid")
+    labels = set(labels_value)
+    try:
+        denominator = int(denominator_value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("ASR phone-signature inventory size is invalid") from error
+    if (
+        tuple(labels_value) != PUBLIC_PHONE_INVENTORY
+        or denominator != len(PUBLIC_PHONE_INVENTORY)
+        or len(labels) != denominator
+    ):
+        raise ValueError("ASR phone-signature inventory size does not match labels")
+    if metadata.get("silence_or_unknown_class_available") is not False:
+        raise ValueError("ASR phone-signature silence/unknown policy is missing")
+    if (
+        metadata.get("schema_version") != 1
+        or metadata.get("prototype_fit_split") != "train"
+        or metadata.get("prototype_fit_rows") != 3400
+        or metadata.get("prototype_fit_opened_eval_splits") is not False
+        or metadata.get("prototype_lens_examples") != 20
+    ):
+        raise ValueError("ASR phone-signature fit provenance is invalid")
+
+    encoder = payload.get("encoder", {})
+    for row in encoder.get("cells", []):
+        for cell in row:
+            candidates = cell.get("phone_signatures")
+            if not isinstance(candidates, list) or len(candidates) != 5:
+                raise ValueError("ASR encoder cell has no phone-signature candidates")
+            phones: set[str] = set()
+            previous: float | None = None
+            for candidate in candidates:
+                previous = _validate_phone_signature_candidate(
+                    candidate,
+                    labels=labels,
+                    previous_similarity=previous,
+                )
+                if candidate["phone"] in phones:
+                    raise ValueError("ASR encoder cell repeats a phone prototype")
+                phones.add(candidate["phone"])
+            if int(candidates[0]["rank"]) != 1:
+                raise ValueError("ASR phone signature top candidate must rank first")
+            for candidate in candidates:
+                expected_rank = 1 + sum(
+                    float(other["similarity"]) > float(candidate["similarity"])
+                    for other in candidates
+                )
+                if int(candidate["rank"]) != expected_rank:
+                    raise ValueError("ASR phone signature tie rank is inconsistent")
 
 
 def _stream(source: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -219,6 +393,10 @@ def _reduce_payload(source: Mapping[str, Any]) -> dict[str, Any]:
     audio = source.get("audio") or {}
     transcription = source.get("transcription") or {}
     metadata = _pick(source.get("metadata") or {}, METADATA_FIELDS)
+    if "phone_signature" in (source.get("metadata") or {}):
+        metadata["phone_signature"] = _phone_signature_metadata(
+            source["metadata"]["phone_signature"]
+        )
     if isinstance(metadata.get("capabilities"), dict):
         metadata["capabilities"] = {
             key: value
@@ -511,6 +689,7 @@ def _validate_matrix(report: Mapping[str, Any]) -> None:
             or alignment_metadata.get("method") != "maximum_token_interval_overlap"
         ):
             raise ValueError("asr encoder stream has no alignment-method provenance")
+        _validate_phone_signature_view(report)
     for stream_name in ("encoder", "decoder"):
         stream = payload[stream_name]
         layers = stream.get("layers", [])
@@ -999,6 +1178,8 @@ def _manifest_entry(
     }
     if filter_manifest is not None:
         entry["character_length_filter_cache"] = dict(filter_manifest)
+    if sample.featured_views:
+        entry["featured_views"] = list(sample.featured_views)
     return entry
 
 

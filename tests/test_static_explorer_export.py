@@ -99,6 +99,21 @@ def _encoder_cell(
         "overlap_seconds": 0.2,
         "overlap_fraction_of_window": 1.0,
     }
+    result["phone_signatures"] = [
+        {
+            "phone": "AA",
+            "similarity": 0.75,
+            "rank": 1,
+        },
+        {
+            "phone": "B",
+            "similarity": 0.5,
+            "rank": 2,
+        },
+        {"phone": "D", "similarity": 0.4, "rank": 3},
+        {"phone": "EH", "similarity": 0.3, "rank": 4},
+        {"phone": "F", "similarity": 0.2, "rank": 5},
+    ]
     return result
 
 
@@ -116,6 +131,27 @@ def _raw_payload() -> dict[str, object]:
                     "2": 20,
                     "3": 30,
                 }
+            },
+            "phone_signature": {
+                "available": True,
+                "method": "nearest_frozen_top_k_j_signature_phone_prototype",
+                "score_kind": "phone_prototype_cosine_similarity",
+                "signature_top_k": 100,
+                "phone_inventory": list(exporter.PUBLIC_PHONE_INVENTORY),
+                "phone_inventory_size": len(exporter.PUBLIC_PHONE_INVENTORY),
+                "training_unit": "aligned_native_20_ms_phone_midpoint_state",
+                "display_unit": "pooled_encoder_window",
+                "silence_or_unknown_class_available": False,
+                "interpretation": "prototype similarity, not probability",
+                "effective_display_window_seconds": 0.2,
+                "effective_display_hop_seconds": 0.18,
+                "prototype_source": {
+                    "split": "train",
+                    "development_or_test_opened": False,
+                    "non_silence_rows": 3400,
+                    "lens_examples": 20,
+                    "private_path": "/Users/example/private.npz",
+                },
             },
         },
         "audio": {
@@ -189,6 +225,13 @@ def test_reduced_payload_keeps_bounded_views_and_drops_generated_audio() -> None
     assert preview["source_sample_count"] == 2048
     assert len(preview["values"]) == exporter.WAVEFORM_PREVIEW_POINTS
     assert "top_tokens_by_length" not in reduced["encoder"]["cells"][0][0]
+    assert reduced["encoder"]["cells"][0][0]["phone_signatures"][0] == {
+        "phone": "AA",
+        "similarity": 0.75,
+        "rank": 1,
+    }
+    assert "prototype_source" not in reduced["metadata"]["phone_signature"]
+    assert "private_path" not in json.dumps(reduced)
 
 
 def test_reduced_payload_preserves_allowlisted_realized_token_rank() -> None:

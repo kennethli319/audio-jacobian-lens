@@ -113,6 +113,9 @@ const elements = {
   decoderTitle: $("#decoder-title"),
   decoderDescription: $("#decoder-description"),
   encoderScoreLabel: $("#encoder-score-label"),
+  encoderPhoneMode: $("#encoder-phone-mode"),
+  encoderPhoneSignatureToggle: $("#encoder-phone-signature-toggle"),
+  encoderPhoneSignatureStatus: $("#encoder-phone-signature-status"),
   encoderTokenLengthFilter: $("#encoder-token-length-filter"),
   encoderMaxTokenLength: $("#encoder-max-token-length"),
   encoderLengthSummary: $("#encoder-length-summary"),
@@ -139,6 +142,7 @@ const elements = {
   scoreKicker: $("#score-kicker"),
   scoreDescription: $("#score-description"),
   selectedScore: $("#selected-score"),
+  rankKeyLabel: $("#rank-key-label"),
   topkMetricLabel: $("#topk-metric-label"),
   topkList: $("#topk-list"),
   closeInspector: $("#close-inspector"),
@@ -208,6 +212,8 @@ const state = {
   resizeObserver: null,
   loading: false,
   serverMode: "asr",
+  encoderPhoneSignatureAvailable: false,
+  encoderPhoneSignatureEnabled: false,
   encoderTokenLengthFilterEnabled: false,
   encoderMaxTokenLength: 2,
   decoderTokenLengthFilterEnabled: false,
@@ -841,6 +847,10 @@ async function loadSamples() {
     samples.forEach((sample) => {
       const button = createElement("button", "sample-card");
       button.type = "button";
+      button.dataset.sampleId = sample.id || "";
+      const phoneExample = sample.recommended_for === "phone-signature";
+      button.classList.toggle("recommended-sample", phoneExample);
+      if (sample.badge) button.append(createElement("span", "sample-badge", sample.badge));
       const top = createElement("span", "sample-card-top");
       const duration = finiteNumberOrNull(sample.duration_seconds);
       top.append(
@@ -849,7 +859,7 @@ async function loadSamples() {
       );
       button.append(top, createElement("span", "sample-description", sample.description || "Prepared speech sample"));
       if (sample.transcript) button.append(createElement("span", "sample-transcript", `“${sample.transcript}”`));
-      button.append(createElement("span", "sample-action", "Analyze sample →"));
+      button.append(createElement("span", "sample-action", phoneExample ? "Analyze phone example →" : "Analyze sample →"));
       button.setAttribute("aria-label", `Analyze prepared sample ${sample.title || sample.id || "audio"}`);
       button.addEventListener("click", () => loadSample(sample, button));
       elements.sampleList.append(button);
@@ -883,7 +893,7 @@ async function loadSample(sample, button) {
   } finally {
     button.classList.remove("loading");
     const action = button.querySelector(".sample-action");
-    if (action) action.textContent = "Analyze sample →";
+    if (action) action.textContent = sample.recommended_for === "phone-signature" ? "Analyze phone example →" : "Analyze sample →";
   }
 }
 
@@ -1049,9 +1059,8 @@ function renderResult(payload, mode) {
   elements.decoderSection.hidden = !streams.has("decoder");
   elements.lensLayout.hidden = !streams.size;
   elements.inspector.hidden = !streams.size;
-  elements.encoderScoreLabel.textContent = state.encoderTokenLengthFilterEnabled
-    ? `Vocabulary limited to ≤ ${state.encoderMaxTokenLength} characters · encoder layers reranked · not probability`
-    : "Blue strip intensity: within-layer percentile of target-mean-relative logit delta · not probability";
+  updateEncoderPhoneSignatureMode({ rerender: false });
+  updateEncoderMetricLabel();
   elements.decoderScoreLabel.textContent = state.decoderTokenLengthFilterEnabled
     ? `L0–L1 vocabulary limited to ≤ ${state.decoderMaxTokenLength} characters · L2 and output head unchanged`
     : "Blue strip intensity: within-layer percentile of raw readout logit · orange HEAD: actual probability";
@@ -1093,6 +1102,7 @@ function renderMetadata(payload, streams, timing) {
     ["Output head", isSpeechToSpeech ? "Tied text head" : "Whisper LM head"],
     ["Lens streams", [...streams].join(" + ") || "None"],
     ...(streams.has("encoder") ? [["Encoder score", scoreKindDetails("encoder", payload.encoder).metadataLabel]] : []),
+    ...(metadata.phone_signature?.available !== false && metadata.phone_signature ? [["Encoder phone view", `${String(metadata.phone_signature.method || metadata.phone_signature.estimator || "Fitted phone prototypes").replaceAll("_", " ")} · cosine similarity · not probability`]] : []),
     ...(streams.has("encoder") ? [["Encoder pooling", poolingSummary]] : []),
     ...(streams.has("decoder") ? [["Decoder score", scoreKindDetails("decoder", payload.decoder).metadataLabel]] : []),
     ["Estimator", metadata.estimator || "Not provided"],
@@ -1108,7 +1118,7 @@ function renderMetadata(payload, streams, timing) {
   elements.metadataList.replaceChildren();
   values.forEach(([label, value]) => {
     const wrapper = createElement("div");
-    if (["Analysis type", "Encoder score", "Encoder pooling", "Decoder score", "Estimator", "Projection", "Display vocabulary", "Token timing", "Generated speech", "Generation stop"].includes(label)) wrapper.classList.add("metadata-wide");
+    if (["Analysis type", "Encoder score", "Encoder phone view", "Encoder pooling", "Decoder score", "Estimator", "Projection", "Display vocabulary", "Token timing", "Generated speech", "Generation stop"].includes(label)) wrapper.classList.add("metadata-wide");
     const description = createElement("dd", "", String(value));
     description.title = String(value);
     wrapper.append(createElement("dt", "", label), description);
@@ -1164,6 +1174,44 @@ function decodedTokenLength(token) {
   return text.includes("<|") ? 0 : [...text].length;
 }
 
+function phoneSignaturesForCell(cell) {
+  return (Array.isArray(cell?.phone_signatures) ? cell.phone_signatures : [])
+    .map((candidate, index) => ({
+      phone: String(candidate?.phone ?? "").trim(),
+      similarity: finiteNumberOrNull(candidate?.similarity),
+      rank: Math.max(1, Math.trunc(asFiniteNumber(candidate?.rank, index + 1))),
+      rankDenominator: finiteNumberOrNull(candidate?.rank_denominator),
+    }))
+    .filter((candidate) => candidate.phone && candidate.similarity !== null)
+    .sort((left, right) => left.rank - right.rank || right.similarity - left.similarity);
+}
+
+function phoneSignatureMetadata() {
+  const metadata = state.result?.metadata?.phone_signature;
+  return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : null;
+}
+
+function phoneSignatureAvailable() {
+  const metadata = phoneSignatureMetadata();
+  const cells = state.result?.encoder?.cells;
+  if (!metadata || metadata.available === false || !Array.isArray(cells) || !cells.length) return false;
+  const flattened = cells.flatMap((layerCells) => Array.isArray(layerCells) ? layerCells : []);
+  return flattened.length > 0 && flattened.every((cell) => phoneSignaturesForCell(cell).length > 0);
+}
+
+function phoneSignatureCandidateCount(cell) {
+  const metadata = phoneSignatureMetadata();
+  const candidateReported = finiteNumberOrNull(phoneSignaturesForCell(cell)[0]?.rankDenominator);
+  const reported = candidateReported ?? finiteNumberOrNull(
+    metadata?.phone_inventory_size ?? metadata?.phone_count ?? metadata?.prototype_count ?? metadata?.label_count,
+  );
+  return reported === null ? phoneSignaturesForCell(cell).length : Math.max(1, Math.trunc(reported));
+}
+
+function encoderUsesPhoneSignatures(kind) {
+  return kind === "encoder" && state.encoderPhoneSignatureEnabled && state.encoderPhoneSignatureAvailable;
+}
+
 function decoderLengthFilterLayers() {
   const layers = Array.isArray(state.result?.decoder?.layers) ? state.result.decoder.layers : [];
   const cells = Array.isArray(state.result?.decoder?.cells) ? state.result.decoder.cells : [];
@@ -1181,7 +1229,7 @@ function decoderLengthFilterLayers() {
 }
 
 function tokenLengthFilterSettings(kind, layer) {
-  if (kind === "encoder" && state.encoderTokenLengthFilterEnabled) {
+  if (kind === "encoder" && state.encoderTokenLengthFilterEnabled && !encoderUsesPhoneSignatures(kind)) {
     return { active: true, limit: state.encoderMaxTokenLength };
   }
   if (
@@ -1243,6 +1291,7 @@ function tokensForCell(kind, cell, layer = null) {
 }
 
 function scoreForCell(kind, cell, layer = null) {
+  if (encoderUsesPhoneSignatures(kind)) return finiteNumberOrNull(phoneSignaturesForCell(cell)[0]?.similarity);
   const tokens = tokensForCell(kind, cell, layer);
   if (tokenLengthFilterSettings(kind, layer).active) return finiteNumberOrNull(tokens[0]?.score);
   return finiteNumberOrNull(cell?.selected_score ?? tokens[0]?.score);
@@ -1389,6 +1438,17 @@ function timelineTooltipCandidate(candidate, options) {
   };
 }
 
+function phoneTooltipCandidate(candidate, denominator) {
+  return {
+    token: candidate.phone,
+    tokenId: "frozen prototype",
+    tokenIdPrefix: "",
+    rank: `#${candidate.rank}${denominator ? ` / ${denominator}` : ""}`,
+    rankLabel: `phone-prototype rank #${candidate.rank}${denominator ? ` of ${denominator}` : ""}`,
+    score: `cosine ${formatScore(candidate.similarity)}`,
+  };
+}
+
 function timelineTooltipDetails(kind, layerIndex, columnIndex) {
   const isHead = kind === "head";
   const view = isHead ? state.views.decoder : state.views[kind];
@@ -1428,6 +1488,27 @@ function timelineTooltipDetails(kind, layerIndex, columnIndex) {
   const safeLayerIndex = Math.max(0, Math.min(view.layers.length - 1, Number(layerIndex) || 0));
   const layer = view.layers[safeLayerIndex];
   const cell = view.cells[safeLayerIndex]?.[columnIndex];
+  if (encoderUsesPhoneSignatures(kind)) {
+    const signatures = phoneSignaturesForCell(cell);
+    if (!signatures.length) return null;
+    const topSignature = signatures[0];
+    const denominator = phoneSignatureCandidateCount(cell);
+    return {
+      kind,
+      eyebrow: `ENCODER PHONE SIGNATURE · L${layer}`,
+      token: topSignature.phone,
+      tokenId: "frozen prototype",
+      tokenIdPrefix: "",
+      coordinate: lensContext(kind, column, columnIndex),
+      metrics: [
+        { label: "Prototype similarity", value: `cosine ${formatScore(topSignature.similarity)}` },
+        { label: "Prototype rank", value: `#${topSignature.rank}${denominator ? ` / ${denominator}` : ""}` },
+        { label: "Character-length filter", value: "Paused in phone view" },
+      ],
+      candidatesLabel: "Nearest phone prototypes",
+      candidates: signatures.slice(0, 3).map((candidate) => phoneTooltipCandidate(candidate, denominator)),
+    };
+  }
   const tokens = tokensForCell(kind, cell, layer);
   if (!cell || !tokens.length) return null;
   const topToken = tokens[0];
@@ -1459,7 +1540,7 @@ function renderTimelineTooltip(details) {
   elements.timelineTooltip.dataset.kind = details.kind;
   elements.tooltipEyebrow.textContent = details.eyebrow;
   elements.tooltipToken.textContent = details.token;
-  elements.tooltipTokenId.textContent = `ID ${details.tokenId}`;
+  elements.tooltipTokenId.textContent = `${details.tokenIdPrefix ?? "ID "}${details.tokenId}`;
   elements.tooltipCoordinate.textContent = details.coordinate;
   elements.tooltipMetrics.replaceChildren();
   details.metrics.forEach(({ label, value }) => {
@@ -1473,16 +1554,17 @@ function renderTimelineTooltip(details) {
     const candidateCopy = createElement("span", "lens-tooltip-candidate-copy");
     candidateCopy.append(
       createElement("strong", "lens-tooltip-candidate-token", candidate.token),
-      createElement("small", "lens-tooltip-candidate-id", `ID ${candidate.tokenId}`),
+      createElement("small", "lens-tooltip-candidate-id", candidate.tokenIdPrefix === "" ? String(candidate.tokenId) : `ID ${candidate.tokenId}`),
     );
     row.append(
       createElement("span", "lens-tooltip-rank", candidate.rank),
       candidateCopy,
       createElement("span", "lens-tooltip-candidate-score", candidate.score),
     );
-    row.setAttribute("aria-label", `${candidate.rankLabel}; token ${candidate.token}; token ID ${candidate.tokenId}; ${candidate.score}.`);
+    row.setAttribute("aria-label", `${candidate.rankLabel}; ${candidate.token}; ${candidate.tokenIdPrefix === "" ? candidate.tokenId : `token ID ${candidate.tokenId}`}; ${candidate.score}.`);
     elements.tooltipCandidates.append(row);
   });
+  elements.tooltipCandidatesLabel.textContent = details.candidatesLabel || "Top candidates";
   elements.tooltipCandidatesLabel.hidden = !details.candidates.length;
   elements.tooltipCandidates.hidden = !details.candidates.length;
   return true;
@@ -1557,9 +1639,12 @@ function renderTimelineRow(view, layerIndex) {
   track.setAttribute("aria-label", `${streamDisplayName(view.kind)} layer ${layer} across ${view.kind === "encoder" ? "overlapping audio windows" : "approximate output-token spans"}`);
   view.columns.forEach((column, columnIndex) => {
     const cell = view.cells[layerIndex]?.[columnIndex];
+    const phoneMode = encoderUsesPhoneSignatures(view.kind);
+    const phoneSignatures = phoneMode ? phoneSignaturesForCell(cell) : [];
     const tokens = tokensForCell(view.kind, cell, layer);
-    if (!cell || !tokens.length) return;
+    if (!cell || (phoneMode ? !phoneSignatures.length : !tokens.length)) return;
     const topToken = tokens[0];
+    const topSignature = phoneSignatures[0];
     const score = scoreForCell(view.kind, cell, layer);
     const strength = view.layerStrength[layerIndex](score ?? 0);
     const geometry = timelineCellGeometry(view.kind, column, columnIndex);
@@ -1573,9 +1658,17 @@ function renderTimelineRow(view, layerIndex) {
     button.style.setProperty("--timeline-intensity", strength.toFixed(6));
     button.setAttribute("aria-pressed", "false");
     button.tabIndex = -1;
-    const rankLabel = timelineRankLabel(topToken, { kind: view.kind, layer });
-    const filterState = timelineFilterState(view.kind, layer);
-    const description = `${streamDisplayName(view.kind)} layer ${layer}, ${lensContext(view.kind, column, columnIndex)}. Top candidate ${visibleToken(topToken.text)}, token ID ${topToken.id ?? "unknown"}, ${timelineCandidateScoreLabel(topToken, { metric: view.metric })}, ${rankLabel}. ${filterState}.`;
+    let description;
+    if (phoneMode) {
+      const denominator = phoneSignatureCandidateCount(cell);
+      button.classList.add("phone-signature-cell");
+      button.append(createElement("span", "", topSignature.phone));
+      description = `Encoder layer ${layer}, ${lensContext(view.kind, column, columnIndex)}. Nearest frozen phone prototype ${topSignature.phone}, cosine similarity ${formatScore(topSignature.similarity)}, rank #${topSignature.rank}${denominator ? ` of ${denominator}` : ""}. Exploratory fitted readout, not probability or confidence.`;
+    } else {
+      const rankLabel = timelineRankLabel(topToken, { kind: view.kind, layer });
+      const filterState = timelineFilterState(view.kind, layer);
+      description = `${streamDisplayName(view.kind)} layer ${layer}, ${lensContext(view.kind, column, columnIndex)}. Top candidate ${visibleToken(topToken.text)}, token ID ${topToken.id ?? "unknown"}, ${timelineCandidateScoreLabel(topToken, { metric: view.metric })}, ${rankLabel}. ${filterState}.`;
+    }
     button.setAttribute("aria-label", description);
     button.addEventListener("pointerenter", (event) => {
       if (event.pointerType !== "touch") showTimelineTooltip(button, timelineTooltipDetails(view.kind, layerIndex, columnIndex), { mode: "pointer" });
@@ -1930,23 +2023,45 @@ function inspectTimelineCell(kind, layerIndex, columnIndex, { pin = false, annou
   }
   const layer = view.layers[safeLayer];
   const cell = view.cells[safeLayer]?.[safeColumn];
+  const phoneMode = encoderUsesPhoneSignatures(kind);
+  const phoneSignatures = phoneMode ? phoneSignaturesForCell(cell) : [];
   const tokens = tokensForCell(kind, cell, layer);
-  if (!cell || !tokens.length) return;
+  if (!cell || (phoneMode ? !phoneSignatures.length : !tokens.length)) return;
   const column = view.columns[safeColumn];
-  const topToken = tokens[0];
-  const score = finiteNumberOrNull(topToken.score ?? scoreForCell(kind, cell, layer));
   const focusedButton = view.cellButtons.find((button) => (
     Number(button.dataset.layerIndex) === safeLayer && Number(button.dataset.columnIndex) === safeColumn
   ));
   if (pin) state.selectedCellButton = focusedButton || null;
   elements.inspectorEmpty.hidden = true;
   elements.inspectorContent.hidden = false;
+  if (phoneMode) {
+    const topSignature = phoneSignatures[0];
+    const denominator = phoneSignatureCandidateCount(cell);
+    elements.inspectorKind.textContent = "Encoder · fitted phone-prototype readout";
+    elements.inspectorCellTitle.textContent = `Encoder L${layer} · phone ${topSignature.phone}`;
+    elements.inspectorContext.textContent = `${lensContext(kind, column, safeColumn)} · frozen prototype rank #${topSignature.rank}${denominator ? ` of ${denominator}` : ""}`;
+    elements.scoreKicker.textContent = "Cosine similarity to frozen phone prototype";
+    elements.selectedScore.textContent = formatScore(topSignature.similarity);
+    elements.rankKeyLabel.textContent = "Rank among fitted phone prototypes";
+    elements.scoreDescription.textContent = `The nearest fitted phone label is ${topSignature.phone}. Similarity is computed against frozen training prototypes from the matching encoder J-lens. It is not a model probability, phoneme confidence, or causal effect; this pooled 200 ms window may contain more than one phone.`;
+    elements.topkMetricLabel.textContent = "Phone-prototype rank · ARPAbet label · cosine similarity. The character-length token filter is paused in this view. Blue intensity is a within-layer display percentile, not probability.";
+    renderPhoneSignatures(phoneSignatures, denominator);
+    if (pin) {
+      updateCompactTimelineSelection(view);
+      updateCompactTimelineSelection(state.views.decoder);
+    }
+    if (announceChange) announce(`Encoder layer ${layer} phone signature ${topSignature.phone} pinned in the focused readout.`);
+    return;
+  }
+  const topToken = tokens[0];
+  const score = finiteNumberOrNull(topToken.score ?? scoreForCell(kind, cell, layer));
   const streamName = streamDisplayName(kind);
   elements.inspectorKind.textContent = `${streamName} · ${view.metric.shortLabel}`;
   elements.inspectorCellTitle.textContent = `${streamName} L${layer} · ${visibleToken(topToken.text)}`;
   elements.inspectorContext.textContent = `${lensContext(kind, column, safeColumn)} · token ID ${topToken.id ?? "unknown"}`;
   elements.scoreKicker.textContent = view.metric.metadataLabel;
   elements.selectedScore.textContent = formatScore(score);
+  elements.rankKeyLabel.textContent = "Exact rank in the labeled vocabulary scope";
   const lengthFilter = tokenLengthFilterSettings(kind, layer);
   const filterState = timelineFilterState(kind, layer);
   const rank = timelineRankDetails(topToken, { kind, layer });
@@ -1984,6 +2099,7 @@ function inspectOutputHeadPosition(columnIndex, { pin = false, announceChange = 
   elements.inspectorContext.textContent = `${lensContext("decoder", column, columnIndex)} · token ID ${token.id ?? "unknown"}`;
   elements.scoreKicker.textContent = "Raw full-softmax output probability";
   elements.selectedScore.textContent = formatProbabilityPrecise(token.probability);
+  elements.rankKeyLabel.textContent = "Exact rank in the labeled vocabulary scope";
   const logProbability = finiteNumberOrNull(token.log_probability);
   elements.scoreDescription.textContent = `Actual Whisper LM-head probability${logProbability === null ? "" : ` · ln p ${formatScore(logProbability)}`} · ${rank.label}. Full model vocabulary, explicitly unfiltered. Tie policy: ${String(rank.tiePolicy).replaceAll("_", " ")}. This is direct model output, not a J-lens readout.`;
   elements.topkMetricLabel.textContent = "Full-model-vocabulary rank · token string and ID · raw probability and log probability. Character-length filters never apply to HEAD.";
@@ -2029,6 +2145,26 @@ function renderTopTokens(tokens, { kind = null, layer = null, metric = null, isH
   });
 }
 
+function renderPhoneSignatures(signatures, denominator) {
+  elements.topkList.replaceChildren();
+  signatures.forEach((candidate, index) => {
+    const item = createElement("li", "topk-item");
+    const strength = signatures.length <= 1 ? 1 : 1 - index / (signatures.length - 1);
+    item.style.setProperty("--rank-border-alpha", (0.08 + strength * 0.25).toFixed(3));
+    item.style.setProperty("--rank-bg-alpha", (0.02 + strength * 0.09).toFixed(3));
+    item.style.setProperty("--rank-fill", `${(strength * 100).toFixed(1)}%`);
+    const rankElement = createElement("span", "topk-rank", `#${candidate.rank}`);
+    if (denominator) rankElement.append(createElement("small", "", `/ ${denominator}`));
+    const phoneElement = createElement("span", "topk-token");
+    phoneElement.append(createElement("strong", "", candidate.phone), createElement("small", "", "frozen phone prototype"));
+    const scoreElement = createElement("span", "topk-score", `cosine ${formatScore(candidate.similarity)}`);
+    item.append(rankElement, phoneElement, scoreElement);
+    item.setAttribute("aria-label", `Phone-prototype rank #${candidate.rank}${denominator ? ` of ${denominator}` : ""}; phone ${candidate.phone}; cosine similarity ${formatScore(candidate.similarity)}; exploratory fitted readout, not probability or confidence.`);
+    item.title = `Phone prototype ${candidate.phone} · cosine ${formatScore(candidate.similarity)}`;
+    elements.topkList.append(item);
+  });
+}
+
 function clearInspector({ restoreFocus = false } = {}) {
   const previousButton = state.selectedCellButton;
   const previousKind = previousButton?.dataset.timelineKind === "head" ? "decoder" : previousButton?.dataset.timelineKind || null;
@@ -2040,6 +2176,7 @@ function clearInspector({ restoreFocus = false } = {}) {
   updateCompactTimelineSelection(state.views.decoder);
   elements.inspectorEmpty.hidden = false;
   elements.inspectorContent.hidden = true;
+  elements.rankKeyLabel.textContent = "Exact rank in the labeled vocabulary scope";
   elements.topkList.replaceChildren();
   if (restoreFocus && previousKind) {
     state.restoringTimelineFocus = true;
@@ -2549,6 +2686,8 @@ function buildDemoData() {
   const encoderLayers = [0, 1, 2, 3];
   const acousticTokens = ["speech", "th", "kw", "br", "f", "j", "ow", "ih", "period", "end", "silence", "end"];
   const lexicalTokens = [" The", " quick", " quick", " brown", " fox", " jumps", " jumps", " over", " it", " period", " end", " end"];
+  const demoPhones = ["DH", "AH", "K", "W", "IH", "B", "R", "AW", "N", "F", "AA", "K", "S", "JH", "AH", "M", "P", "S", "OW", "V", "ER", "IH", "T", "SIL"];
+  const phoneAlternatives = ["AH", "IH", "EH", "N", "S", "T", "R", "K"];
   const tokensByLength = {
     1: ["a", "i", "s", "f", "o"], 2: ["th", "sh", "ng", "ch", "ow"],
     3: ["fox", "the", "end", "run", "mod"], 4: ["over", "slow", "card", "word", "jump"],
@@ -2561,6 +2700,8 @@ function buildDemoData() {
     );
     const target = layerIndex < 2 ? acousticTokens[tokenIndex] : lexicalTokens[tokenIndex];
     const next = lexicalTokens[Math.min(lexicalTokens.length - 1, tokenIndex + 1)];
+    const phoneIndex = Math.min(demoPhones.length - 1, Math.floor(columnIndex / Math.max(1, timeBins.length) * demoPhones.length));
+    const primaryPhone = demoPhones[phoneIndex];
     const base = 0.09 + layerIndex * 0.085 + Math.sin(columnIndex * 1.4 + layerIndex) * 0.055;
     return {
       position_index: columnIndex,
@@ -2573,6 +2714,9 @@ function buildDemoData() {
         character_length_filter_policy: "exact_decoded_character_length_buckets",
       },
       selected_score: base,
+      phone_signatures: [primaryPhone, ...phoneAlternatives.filter((phone) => phone !== primaryPhone)]
+        .slice(0, 5)
+        .map((phone, rank) => ({ phone, rank: rank + 1, similarity: 0.78 - rank * 0.075 + layerIndex * 0.012 + Math.sin(columnIndex + rank) * 0.018 })),
       top_tokens: decorateDemoLensCandidates(
         [target, next, " speech", " the", " end"].map((text, rank) => ({ id: 1000 + columnIndex * 20 + layerIndex * 5 + rank, text, score: base - rank * (0.026 + layerIndex * 0.006) })),
         { scoreKind: "target_mean_relative_logit_delta" },
@@ -2659,11 +2803,19 @@ function buildDemoData() {
         character_filter_merge: "merge disjoint exact-length buckets, sort by score, and rank by strictly greater scores",
       },
       encoder_token_length_filter: { policy: "exact_decoded_character_length_buckets", maximum_available_length: 6, character_count_ignores_surrounding_whitespace: true },
+      phone_signature: {
+        available: true,
+        method: "synthetic frozen phone-prototype cosine",
+        phone_count: 34,
+        score_kind: "cosine_similarity",
+        demo_only: true,
+      },
       decoder_token_length_filter: { policy: "exact_decoded_character_length_buckets", eligible_source_layers: [0, 1], maximum_available_length: 6, character_count_ignores_surrounding_whitespace: true },
       warnings: [
         "Demo transcript, timing, probabilities, and readout scores are synthetic.",
         "J-lens colors are layer-normalized rank/intensity and cannot be compared as percentages.",
         "Encoder and decoder readouts are not signed causal effects or calibrated model confidence.",
+        "Demo phone labels and prototype similarities are synthetic and only exercise the interface.",
         "Decoder token-length filtering reranks the complete synthetic L0/L1 vocabulary buckets; L2 and the output head remain unchanged.",
       ],
     },
@@ -2691,17 +2843,58 @@ function createDemoAudio(duration) {
   return new Blob([view], { type: "audio/wav" });
 }
 
+function updateEncoderMetricLabel() {
+  elements.encoderScoreLabel.textContent = state.encoderPhoneSignatureEnabled
+    ? "Phone labels: cosine similarity to frozen prototypes · blue intensity is within-layer percentile · never probability"
+    : state.encoderTokenLengthFilterEnabled
+      ? `Vocabulary limited to ≤ ${state.encoderMaxTokenLength} characters · encoder layers reranked · not probability`
+      : "Blue strip intensity: within-layer percentile of target-mean-relative logit delta · not probability";
+}
+
+function updateEncoderPhoneSignatureMode({ enabled = null, announceChange = false, rerender = true } = {}) {
+  const available = phoneSignatureAvailable();
+  state.encoderPhoneSignatureAvailable = available;
+  if (enabled !== null) state.encoderPhoneSignatureEnabled = Boolean(enabled) && available;
+  if (!available) state.encoderPhoneSignatureEnabled = false;
+  const metadata = phoneSignatureMetadata();
+  const method = String(metadata?.method || metadata?.estimator || "fitted phone prototypes").replaceAll("_", " ");
+  elements.encoderPhoneSignatureToggle.disabled = !available;
+  elements.encoderPhoneSignatureToggle.setAttribute("aria-pressed", String(state.encoderPhoneSignatureEnabled));
+  elements.encoderPhoneSignatureToggle.querySelector("i").textContent = state.encoderPhoneSignatureEnabled ? "On" : "Off";
+  elements.encoderPhoneMode.classList.toggle("available", available);
+  elements.encoderPhoneSignatureStatus.textContent = available
+    ? state.encoderPhoneSignatureEnabled
+      ? `${method} enabled · token-length reranking is paused`
+      : `${method} available · token readout remains the default`
+    : state.result
+      ? "Unavailable for this result: no matching fitted phone signatures were returned."
+      : "Run an analysis with matching fitted phone prototypes to enable this view.";
+  elements.encoderTokenLengthFilter.disabled = state.encoderPhoneSignatureEnabled;
+  elements.encoderMaxTokenLength.disabled = state.encoderPhoneSignatureEnabled || !state.encoderTokenLengthFilterEnabled;
+  elements.encoderLengthSummary.textContent = state.encoderPhoneSignatureEnabled
+    ? `Paused in phone view · lexical limit remains ≤ ${state.encoderMaxTokenLength}`
+    : `${state.encoderTokenLengthFilterEnabled ? "Keeping" : "Enable to keep"} tokens with ≤ ${state.encoderMaxTokenLength} characters`;
+  updateEncoderMetricLabel();
+  if (rerender && state.views.encoder) refreshCompactStream("encoder");
+  if (announceChange) announce(state.encoderPhoneSignatureEnabled
+    ? "Phone signature view enabled. Encoder cells now show cosine similarity to frozen phone prototypes; the token-length filter is paused."
+    : available
+      ? "Phone signature view disabled. Encoder lexical token readouts restored."
+      : "Phone signature view is unavailable for this result because matching fitted prototypes were not returned.");
+}
+
 function updateEncoderTokenLengthFilter({ announceChange = false, normalizeInput = false, rerender = true } = {}) {
   const parsedLength = Math.floor(Number(elements.encoderMaxTokenLength.value));
   if (Number.isFinite(parsedLength) && parsedLength >= 1) state.encoderMaxTokenLength = parsedLength;
   else if (normalizeInput) elements.encoderMaxTokenLength.value = String(state.encoderMaxTokenLength);
   state.encoderTokenLengthFilterEnabled = elements.encoderTokenLengthFilter.checked;
-  elements.encoderMaxTokenLength.disabled = !state.encoderTokenLengthFilterEnabled;
-  elements.encoderLengthSummary.textContent = `${state.encoderTokenLengthFilterEnabled ? "Keeping" : "Enable to keep"} tokens with ≤ ${state.encoderMaxTokenLength} characters`;
+  elements.encoderTokenLengthFilter.disabled = state.encoderPhoneSignatureEnabled;
+  elements.encoderMaxTokenLength.disabled = state.encoderPhoneSignatureEnabled || !state.encoderTokenLengthFilterEnabled;
+  elements.encoderLengthSummary.textContent = state.encoderPhoneSignatureEnabled
+    ? `Paused in phone view · lexical limit remains ≤ ${state.encoderMaxTokenLength}`
+    : `${state.encoderTokenLengthFilterEnabled ? "Keeping" : "Enable to keep"} tokens with ≤ ${state.encoderMaxTokenLength} characters`;
   const view = state.views.encoder;
-  elements.encoderScoreLabel.textContent = state.encoderTokenLengthFilterEnabled
-    ? `Vocabulary limited to ≤ ${state.encoderMaxTokenLength} characters · encoder layers reranked · not probability`
-    : "Blue strip intensity: within-layer percentile of target-mean-relative logit delta · not probability";
+  updateEncoderMetricLabel();
   if (rerender && view) {
     refreshCompactStream("encoder");
   }
@@ -2808,6 +3001,10 @@ function bindEvents() {
     state.resizeObserver.observe(elements.waveform);
     state.resizeObserver.observe(elements.encoderLayers);
   } else window.addEventListener("resize", drawWaveform);
+  elements.encoderPhoneSignatureToggle.addEventListener("click", () => updateEncoderPhoneSignatureMode({
+    enabled: !state.encoderPhoneSignatureEnabled,
+    announceChange: true,
+  }));
   elements.encoderTokenLengthFilter.addEventListener("change", () => updateEncoderTokenLengthFilter({ announceChange: true }));
   elements.encoderMaxTokenLength.addEventListener("input", () => updateEncoderTokenLengthFilter({ announceChange: false }));
   elements.encoderMaxTokenLength.addEventListener("change", () => updateEncoderTokenLengthFilter({ announceChange: true, normalizeInput: true }));

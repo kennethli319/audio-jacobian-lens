@@ -15,7 +15,7 @@ SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260712-12"
+EXPLORER_ASSET_VERSION = "20260712-13"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -54,6 +54,84 @@ ASR_DECODER_HIERARCHY_SCRIPT_MARKERS = (
 ASR_DECODER_HIERARCHY_CSS_MARKERS = (
     '[data-family="asr"] .speech-matrix-grid .matrix-cell .matrix-cell-label',
     '[data-family="asr"] .speech-matrix-grid .matrix-cell .realized-rank-badge',
+)
+ASR_PHONE_SIGNATURE_SCRIPT_MARKERS = (
+    "phoneSignatureEnabled: false,",
+    "function validatePhoneSignatureReport(payload)",
+    "function renderPhoneSignatureControl()",
+    "const phoneCell = encoderPhoneMode(kind);",
+    "label: phoneMode ? compactText(top?.phone)",
+    "descriptor.candidates.slice(0, 5)",
+    "PHONE SIGNATURE EXAMPLE",
+    "Audio and alignment attribution",
+)
+ASR_PHONE_SIGNATURE_CSS_MARKERS = (
+    ".sample-button.phone-example",
+    ".phone-signature-control",
+    ".matrix-cell.phone-signature-cell .matrix-cell-label",
+    ".phone-candidate-row",
+    ".rights-block",
+    ".explorer-tooltip",
+)
+PHONE_SIGNATURE_FIELDS = {
+    "phone",
+    "rank",
+    "similarity",
+}
+PHONE_SIGNATURE_METADATA_FIELDS = {
+    "available",
+    "display_unit",
+    "effective_display_hop_seconds",
+    "effective_display_window_seconds",
+    "interpretation",
+    "method",
+    "phone_inventory",
+    "phone_inventory_size",
+    "prototype_fit_opened_eval_splits",
+    "prototype_fit_rows",
+    "prototype_fit_split",
+    "prototype_lens_examples",
+    "schema_version",
+    "score_kind",
+    "signature_top_k",
+    "silence_or_unknown_class_available",
+    "training_unit",
+}
+PUBLIC_PHONE_INVENTORY = (
+    "AA",
+    "AE",
+    "AH",
+    "AO",
+    "AW",
+    "AY",
+    "B",
+    "CH",
+    "D",
+    "DH",
+    "EH",
+    "ER",
+    "EY",
+    "F",
+    "G",
+    "HH",
+    "IH",
+    "IY",
+    "K",
+    "L",
+    "M",
+    "N",
+    "NG",
+    "OW",
+    "P",
+    "R",
+    "S",
+    "SH",
+    "T",
+    "TH",
+    "UW",
+    "V",
+    "W",
+    "Z",
 )
 
 
@@ -111,6 +189,7 @@ def _manifest_reports(
             raise ValueError(f"{family} manifest audio URLs are empty or duplicated")
     if family == "asr":
         filter_urls: list[str] = []
+        featured_phone_examples = 0
         for entry in reports:
             reference = entry.get("character_length_filter_cache")
             if not isinstance(reference, Mapping) or not reference.get("url"):
@@ -118,22 +197,95 @@ def _manifest_reports(
                     "ASR manifest entry is missing its character-filter URL"
                 )
             filter_urls.append(str(reference["url"]))
+            featured = entry.get("featured_views", [])
+            if (
+                not isinstance(featured, list)
+                or any(not isinstance(value, str) for value in featured)
+                or set(featured) - {"asr_phone_signature"}
+            ):
+                raise ValueError("ASR manifest has invalid featured views")
+            if "asr_phone_signature" in featured:
+                featured_phone_examples += 1
         if len(set(filter_urls)) != len(filter_urls):
             raise ValueError("ASR manifest character-filter URLs are duplicated")
+        if featured_phone_examples < 1:
+            raise ValueError("ASR manifest has no featured phone-signature example")
     return reports
 
 
-def _validate_safe(value: Any, *, path: str = "$") -> None:
+def _validate_safe(
+    value: Any, *, path: str = "$", reject_artifact_files: bool = False
+) -> None:
     if isinstance(value, Mapping):
         for key, item in value.items():
             if key in FORBIDDEN_KEYS or key.endswith("_analysis_id"):
                 raise ValueError(f"forbidden cached field {path}.{key}")
-            _validate_safe(item, path=f"{path}.{key}")
+            _validate_safe(
+                item,
+                path=f"{path}.{key}",
+                reject_artifact_files=reject_artifact_files,
+            )
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            _validate_safe(item, path=f"{path}[{index}]")
-    elif isinstance(value, str) and value.lower().startswith("data:audio/"):
-        raise ValueError(f"embedded audio URI at {path}")
+            _validate_safe(
+                item,
+                path=f"{path}[{index}]",
+                reject_artifact_files=reject_artifact_files,
+            )
+    elif isinstance(value, str):
+        lowered = value.strip().lower().replace("\\", "/")
+        if lowered.startswith("data:audio/"):
+            raise ValueError(f"embedded audio URI at {path}")
+        if "/users/" in lowered or "artifacts/private/" in lowered:
+            raise ValueError(f"private filesystem reference at {path}")
+        if reject_artifact_files and lowered.endswith(
+            (".pt", ".pth", ".npz", ".npy", ".textgrid")
+        ):
+            raise ValueError(f"private model or alignment artifact at {path}")
+
+
+def _validate_asr_manifest_provenance(manifest: Mapping[str, Any]) -> None:
+    provenance = manifest.get("provenance")
+    lens = provenance.get("lens") if isinstance(provenance, Mapping) else None
+    if not isinstance(lens, Mapping):
+        raise ValueError("ASR manifest has no composite lens provenance")
+    encoder = lens.get("encoder")
+    decoder = lens.get("decoder")
+    phones = lens.get("phone_signature")
+    if not all(isinstance(value, Mapping) for value in (encoder, decoder, phones)):
+        raise ValueError("ASR manifest lacks encoder, decoder, or phone provenance")
+    for label, record in (
+        ("encoder", encoder),
+        ("decoder", decoder),
+        ("phone", phones),
+    ):
+        digest = record.get("sha256")
+        if not isinstance(digest, str) or len(digest) != 64 or any(
+            character not in "0123456789abcdef" for character in digest.lower()
+        ):
+            raise ValueError(f"ASR {label} provenance has no pinned SHA-256")
+    relationship = str(encoder.get("public_evaluation_relationship") or "")
+    if "speaker-held-out" not in relationship or "1272" not in relationship:
+        raise ValueError("ASR public examples are not declared speaker-held-out")
+    if (
+        phones.get("signature_top_k") != 100
+        or phones.get("phone_inventory_size") != 34
+        or phones.get("training_split") != "train"
+        or phones.get("training_rows") != 3400
+        or phones.get("development_or_test_opened_for_fit") is not False
+    ):
+        raise ValueError("ASR phone-prototype provenance is inconsistent")
+    rights = provenance.get("rights")
+    if not isinstance(rights, Mapping) or (
+        rights.get("license") != "CC BY 4.0"
+        or rights.get("license_url") != "https://creativecommons.org/licenses/by/4.0/"
+        or rights.get("source_url") != "https://www.openslr.org/12"
+        or rights.get("alignment_source_url")
+        != "https://zenodo.org/records/2619474"
+        or rights.get("alignment_license") != "CC BY 4.0"
+        or not str(rights.get("attribution") or "").strip()
+    ):
+        raise ValueError("ASR manifest lacks complete public-source rights provenance")
 
 
 def _validate_stream(
@@ -245,6 +397,95 @@ def _validate_speech_generation_diagnostics(report: Mapping[str, Any]) -> None:
         raise ValueError("speech generation termination state is inconsistent")
 
 
+def _validate_asr_phone_signatures(report: Mapping[str, Any]) -> None:
+    payload = report["payload"]
+    metadata = payload.get("metadata", {}).get("phone_signature")
+    if not isinstance(metadata, Mapping) or metadata.get("available") is not True:
+        raise ValueError("ASR report has no public phone-signature metadata")
+    labels_value = metadata.get("phone_inventory")
+    if not isinstance(labels_value, list) or any(
+        not isinstance(label, str) or not label for label in labels_value
+    ):
+        raise ValueError("ASR report has an invalid phone inventory")
+    labels = set(labels_value)
+    denominator = metadata.get("phone_inventory_size")
+    if (
+        isinstance(denominator, bool)
+        or not isinstance(denominator, int)
+        or tuple(labels_value) != PUBLIC_PHONE_INVENTORY
+        or denominator != len(PUBLIC_PHONE_INVENTORY)
+        or len(labels) != denominator
+    ):
+        raise ValueError("ASR phone inventory size is inconsistent")
+    if (
+        set(metadata) != PHONE_SIGNATURE_METADATA_FIELDS
+        or metadata.get("schema_version") != 1
+        or metadata.get("score_kind") != "phone_prototype_cosine_similarity"
+        or metadata.get("signature_top_k") != 100
+        or metadata.get("display_unit") != "pooled_encoder_window"
+        or metadata.get("method")
+        != "nearest_frozen_top_k_j_signature_phone_prototype"
+        or metadata.get("training_unit")
+        != "aligned_native_20_ms_phone_midpoint_state"
+        or not str(metadata.get("interpretation") or "").strip()
+        or not math.isclose(
+            float(metadata.get("effective_display_window_seconds") or 0),
+            0.2,
+            rel_tol=0,
+            abs_tol=1e-9,
+        )
+        or not math.isclose(
+            float(metadata.get("effective_display_hop_seconds") or 0),
+            0.18,
+            rel_tol=0,
+            abs_tol=1e-9,
+        )
+        or metadata.get("silence_or_unknown_class_available") is not False
+        or metadata.get("prototype_fit_split") != "train"
+        or metadata.get("prototype_fit_rows") != 3400
+        or metadata.get("prototype_fit_opened_eval_splits") is not False
+        or metadata.get("prototype_lens_examples") != 20
+    ):
+        raise ValueError("ASR phone-signature semantics are invalid")
+    for row in payload.get("encoder", {}).get("cells", []):
+        for cell in row:
+            candidates = cell.get("phone_signatures")
+            if not isinstance(candidates, list) or len(candidates) != 5:
+                raise ValueError("ASR encoder cell has no usable phone signature")
+            previous: float | None = None
+            seen: set[str] = set()
+            for candidate in candidates:
+                if not isinstance(candidate, Mapping) or set(candidate) != PHONE_SIGNATURE_FIELDS:
+                    raise ValueError("ASR phone candidate has unapproved fields")
+                phone = candidate.get("phone")
+                rank = candidate.get("rank")
+                similarity = candidate.get("similarity")
+                if (
+                    phone not in labels
+                    or phone in seen
+                    or isinstance(rank, bool)
+                    or not isinstance(rank, int)
+                    or not 1 <= rank <= denominator
+                    or isinstance(similarity, bool)
+                    or not isinstance(similarity, (int, float))
+                    or not math.isfinite(float(similarity))
+                    or not -1 <= float(similarity) <= 1
+                    or (previous is not None and float(similarity) > previous + 1e-8)
+                ):
+                    raise ValueError("ASR phone candidate is invalid")
+                seen.add(phone)
+                previous = float(similarity)
+            if candidates[0]["rank"] != 1:
+                raise ValueError("ASR top phone candidate does not rank first")
+            for candidate in candidates:
+                expected_rank = 1 + sum(
+                    float(other["similarity"]) > float(candidate["similarity"])
+                    for other in candidates
+                )
+                if candidate["rank"] != expected_rank:
+                    raise ValueError("ASR phone candidate tie rank is inconsistent")
+
+
 def _aligned_transcription_token(
     tokens: list[Mapping[str, Any]], time_window: Mapping[str, Any]
 ) -> tuple[int, Mapping[str, Any]]:
@@ -337,6 +578,8 @@ def _validate_asr_or_speech(report: Mapping[str, Any], *, family: str) -> None:
     if family == "speech":
         _validate_speech_generation_diagnostics(report)
     payload = report["payload"]
+    if family == "asr":
+        _validate_asr_phone_signatures(report)
     tokens = payload.get("transcription", {}).get("tokens")
     if not isinstance(tokens, list) or not tokens:
         raise ValueError(f"{family} report has no output tokens")
@@ -570,6 +813,7 @@ def _validate_site_manifest_integrity(
     site_root: Path, *, counts: Mapping[str, int]
 ) -> None:
     manifest = _load(site_root / "site-manifest.json")
+    _validate_safe(manifest)
     if manifest.get("report_counts") != dict(counts):
         raise ValueError("site manifest report counts do not match family manifests")
     recorded_hashes = manifest.get("sha256")
@@ -770,6 +1014,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         'class="sample-button-grid"',
         *SPEECH_TERMINATION_SCRIPT_MARKERS,
         *ASR_DECODER_HIERARCHY_SCRIPT_MARKERS,
+        *ASR_PHONE_SIGNATURE_SCRIPT_MARKERS,
     ):
         if marker not in explorer_script:
             raise ValueError(
@@ -788,6 +1033,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         "overflow-x: hidden",
         *SPEECH_TERMINATION_CSS_MARKERS,
         *ASR_DECODER_HIERARCHY_CSS_MARKERS,
+        *ASR_PHONE_SIGNATURE_CSS_MARKERS,
     ):
         if marker not in explorer_css:
             raise ValueError(
@@ -800,6 +1046,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
     for family in FAMILIES:
         manifest_path = site_root / "explorer" / "data" / family / "manifest.json"
         manifest = _load(manifest_path)
+        _validate_safe(manifest, reject_artifact_files=family == "asr")
         if (
             manifest.get("schema_id") != "audio-jacobian-lens.cached-explorer-manifest"
             or manifest.get("family") != family
@@ -811,6 +1058,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
             raise ValueError(f"{family} manifest has no pinned lens provenance")
         lens_provenance = manifest["provenance"]["lens"]
         if family == "asr":
+            _validate_asr_manifest_provenance(manifest)
             if "source_layers" in lens_provenance:
                 raise ValueError(
                     "ASR lens provenance has an ambiguous source_layers field"
@@ -837,12 +1085,31 @@ def validate_site(site_root: Path) -> dict[str, int]:
                 or report.get("example_id") != entry["id"]
             ):
                 raise ValueError(f"{family} report/manifest identity mismatch")
-            _validate_safe(report)
+            _validate_safe(report, reject_artifact_files=family == "asr")
             if family == "tts":
                 _validate_tts(report)
             else:
                 _validate_asr_or_speech(report, family=family)
                 if family == "asr":
+                    phone_metadata = report["payload"]["metadata"]["phone_signature"]
+                    phone_provenance = lens_provenance["phone_signature"]
+                    if (
+                        phone_metadata["signature_top_k"]
+                        != phone_provenance["signature_top_k"]
+                        or phone_metadata["phone_inventory_size"]
+                        != phone_provenance["phone_inventory_size"]
+                        or phone_metadata["prototype_fit_split"]
+                        != phone_provenance["training_split"]
+                        or phone_metadata["prototype_fit_rows"]
+                        != phone_provenance["training_rows"]
+                        or phone_metadata["prototype_fit_opened_eval_splits"]
+                        != phone_provenance[
+                            "development_or_test_opened_for_fit"
+                        ]
+                    ):
+                        raise ValueError(
+                            "ASR report phone metadata disagrees with provenance"
+                        )
                     if (
                         report["payload"]["encoder"]["layers"]
                         != lens_provenance["encoder_source_layers"]

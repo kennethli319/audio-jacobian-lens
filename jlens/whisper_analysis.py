@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from jlens.cross_lens import CrossJacobianLens
+from jlens.phonetic_signatures import PhoneSignaturePrototypes
 from jlens.whisper import HFWhisperLensModel, WhisperLensInputs
 from jlens.whisper_lens import (
     LensTopK,
@@ -629,6 +630,7 @@ def analyze_whisper_run(
     time_bin_seconds: float = 0.2,
     time_bin_overlap_seconds: float = 0.02,
     max_time_bins: int = 80,
+    phone_signature_prototypes: PhoneSignaturePrototypes | None = None,
 ) -> dict[str, Any]:
     """Compute actual-output diagnostics and both lens grids for one clip."""
     lens.validate_model(model)
@@ -647,6 +649,13 @@ def analyze_whisper_run(
     duration = inputs.duration_seconds
     if duration is None:
         raise ValueError("inputs.duration_seconds is required for audio analysis")
+    if phone_signature_prototypes is not None:
+        if lens.encoder is None:
+            raise ValueError("phone signatures require an encoder lens")
+        phone_signature_prototypes.validate(
+            model=model,
+            encoder_lens=lens.encoder,
+        )
 
     encoder_layers = [] if lens.encoder is None else lens.encoder.source_layers
     decoder_layers = [] if lens.decoder is None else lens.decoder.source_layers
@@ -766,6 +775,31 @@ def analyze_whisper_run(
             )
             for layer in encoder_layers
         ]
+        if phone_signature_prototypes is not None:
+            for layer_index, layer in enumerate(encoder_layers):
+                phone_rows = phone_signature_prototypes.score_layer(
+                    model,
+                    lens.encoder,
+                    pooled_by_layer[layer].residuals,
+                    layer=layer,
+                    top_n=top_k,
+                )
+                layer_cells = encoder_payload["cells"][layer_index]
+                if len(phone_rows) != len(layer_cells):
+                    raise ValueError(
+                        "phone-signature rows and encoder cells must align"
+                    )
+                for cell, candidates in zip(
+                    layer_cells, phone_rows, strict=True
+                ):
+                    cell["phone_signatures"] = candidates
+                    cell["phone_signature_usable"] = bool(candidates)
+                    cell["phone_signature_margin"] = (
+                        None
+                        if len(candidates) < 2
+                        else candidates[0]["similarity"]
+                        - candidates[1]["similarity"]
+                    )
         for layer_cells in encoder_payload["cells"]:
             if encoder_realized_alignment:
                 for cell, alignment in zip(
@@ -892,6 +926,19 @@ def analyze_whisper_run(
                 "maximum_available_length": int(token_lengths.max()),
                 "character_count_ignores_surrounding_whitespace": True,
             },
+            "phone_signature": (
+                {"available": False}
+                if phone_signature_prototypes is None
+                else {
+                    **phone_signature_prototypes.public_metadata(),
+                    "effective_display_window_seconds": encoder_payload.get(
+                        "pooling", {}
+                    ).get("effective_window_seconds"),
+                    "effective_display_hop_seconds": encoder_payload.get(
+                        "pooling", {}
+                    ).get("effective_hop_seconds"),
+                }
+            ),
             "decoder_token_length_filter": {
                 "policy": "exact_decoded_character_length_buckets",
                 "eligible_source_layers": [
@@ -911,6 +958,13 @@ def analyze_whisper_run(
                 "Encoder-to-decoder J-lens is an experimental extension not validated by the source paper.",
                 "The optional encoder token-length filter reranks over lexical tokens up to a user-selected decoded character count. It is a phoneme-oriented exploration aid, not a phoneme classifier, and is not part of the source J-lens method.",
                 "The optional decoder token-length filter reranks the lexical display vocabulary for decoder L0 and L1 only. Decoder L2 remains character-length-unfiltered but still uses the lexical display vocabulary; the output head is fully unfiltered.",
+                *(
+                    [
+                        "The optional phone-signature view ranks frozen training-phone prototypes by sparse top-100 J-signature cosine similarity. It is not probability, model confidence, a literal phone head, or causal attribution; pooled display windows can contain multiple phones and there is no fitted silence/unknown class."
+                    ]
+                    if phone_signature_prototypes is not None
+                    else []
+                ),
             ],
         },
     }

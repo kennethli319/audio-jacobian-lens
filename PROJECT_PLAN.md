@@ -132,6 +132,17 @@ Status: **in progress**
   Apple M2 Pro (16 GB). Runtime and size are recorded; memory/convergence remain.
 - [x] Compare decoder J-lens, encoder variants, direct-unembedding baselines,
   and the actual output distribution.
+- [x] Run a private, speaker-disjoint natural-speech phonetic pilot with
+  independent forced alignment, two disjoint lens fits, strict unseen-word and
+  temporal controls, spectrum-matched random transports, and matched ABX. Keep
+  the locked test speakers untouched.
+- [x] Add an opt-in local-only interactive report for that pilot, backed by a
+  deterministic scrubbed aggregate snapshot under the ignored private artifact
+  tree. Do not add it to public navigation, package data, or static exports.
+- [x] Add an opt-in encoder phone-signature display to the live ASR explorer.
+  It must use frozen train-only top-100 prototypes from the exact matching A1
+  encoder lens, keep lexical tokens as the default, and label cosine similarity
+  as neither probability nor confidence.
 - [ ] Run silence/noise and transcript-prefix controls.
 - [ ] Add clip-level aggregation, bootstrap uncertainty, and external or known
   alignment boundaries.
@@ -497,6 +508,11 @@ Status: **in progress**
   position and timed encoder window. Pair encoder windows to model-derived DTW
   token intervals by maximum temporal overlap, label that mapping approximate
   and non-causal, and recompute the rank exactly under character filtering.
+- [x] Add a publication-safe ASR phone-signature toggle to the ten-example
+  static explorer. Use the speaker-held-out A2 encoder lens and frozen
+  train-only A2 prototypes; publish only five ranked phone labels and cosine
+  similarities per encoder cell, keep decoder cells lexical, and expose five
+  local candidates on pointer hover, keyboard focus, and click-pinned detail.
 - [ ] Package the Chatterbox bridge baseline/steered pair after completing the
   conversion/S3/derived-output review.
 - [x] Package the three attributed LibriSpeech inputs with immutable hashes and
@@ -579,6 +595,29 @@ decision log.
   score/rank; sidecars add a compact rank-or-excluded value for every maximum
   character length. Encoder cells also retain their aligned output-token index
   and overlap provenance so selection, badge, tooltip, and inspector agree.
+- The public ASR replay may switch only its encoder labels to a bounded fitted
+  phone-prototype view. Each cell shows the nearest of 34 frozen ARPAbet
+  prototypes; local detail exposes five candidates and cosine similarities.
+  Decoder cells continue to show their top lexical candidate plus the realized
+  output token's exact rank, with five lexical candidates in local detail. The
+  ten public clips all use speaker 1272, excluded from the A2 encoder fit, and
+  the A2 prototypes use 3,400 train-only aligned states. Prototype tensors,
+  occurrence rows, private paths, and the private experiment report remain
+  unpublished.
+- Private research results use a separate opt-in microsite contract. Aggregate
+  browser data, HTML, CSS, and JavaScript stay below the ignored
+  `artifacts/private/` tree and are mounted only when the local server receives
+  the explicit experiment-directory option. The mount is loopback-only and is
+  absent from package data, public navigation, the GitHub Pages exporter, and
+  deployed builds until a separate publication decision passes.
+- The live encoder phone-signature mode interprets each cell's complete top-100
+  J-readout pattern; it does not relabel the top vocabulary token. Prototype
+  artifacts must match the active model and exact encoder-lens content
+  fingerprint. The UI remains token-first and pauses the encoder character
+  filter only while the phone view is active. Phone ranks are among the frozen
+  34-phone inventory, and the score is sparse-signature cosine similarity—not
+  a softmax, calibrated confidence, causal effect, literal encoder head, or a
+  single-phone assertion for a pooled window.
 - Static speech-to-speech pages distribute the cleared input waveform and
   generated text but not generated response audio. Long generated-text
   timelines wrap into aligned position bands: each band repeats the layer
@@ -1081,6 +1120,32 @@ share the same columns, layer labels repeat, and every original layer × positio
 cell remains individually selectable with its saved top candidate, rank, score,
 and alternatives. This is a layout transformation only; it does not pool,
 truncate, or recompute the cached evidence.
+
+### 2026-07-12 — Keep phonetic experiment reports opt-in and local
+
+The natural-speech phonetic pilot is useful to review visually, but its locked
+test, sparse-dictionary, and causal gates remain open. Its interactive page is
+therefore not another public Showcase route. The browser receives only a
+deterministically exported aggregate snapshot with identities, local paths,
+triplet manifests, raw features, fitted artifacts, and test identities removed.
+The page lives under the ignored private artifact tree and is mounted at
+`/experiments/phonetic-signatures/` only when the local server receives an
+explicit directory. The CLI refuses that private mount on a non-loopback host.
+Public navigation, package data, static-site manifests, GitHub Pages, and hosted
+deployments remain unchanged until an explicit publication decision.
+
+### 2026-07-12 — Publish only the bounded A2 phone readout
+
+The private phonetic experiment report remains local-only. The public ASR
+explorer now receives a narrower, fail-closed derivative: five ranked phone
+prototype labels and cosine similarities per encoder cell, plus aggregate fit
+semantics and rights provenance. Public clips use speaker 1272, which is held
+out from the A2 encoder lens; the frozen A2 prototypes are derived from 3,400
+train-only aligned states without opening development or test rows for the
+prototype fit. No prototype vectors, row identities, alignment files, private
+paths, or raw experiment tables are serialized. This view is labeled as an
+exploratory fitted readout—not probability, confidence, a causal effect, or a
+claim that each pooled 200 ms window contains exactly one phone.
 
 ## Work log
 
@@ -1714,3 +1779,58 @@ truncate, or recompute the cached evidence.
 - Final ASR hierarchy gate: 328 tests passed with three optional skips; Ruff,
   JavaScript syntax, whitespace, all 10/10/10 report checks, and top-level site
   hashes passed.
+
+### 2026-07-12
+
+- Completed the private natural-speech phonetic encoder pilot on speaker-
+  disjoint LibriSpeech partitions with independent MFA boundaries. Residual
+  34-phone macro-F1 rises from 31.9% for central log-Mel features to 91.0% at
+  L3; the locked test split remains untouched.
+- Fitted two centered encoder-to-decoder lenses on disjoint five-speaker halves.
+  At L2, top-100 phone macro-F1 is 81.1%/80.5%, remains 79.8%/79.6% on strict
+  unseen-word rows, and improves by about 17 points over top-1. Ranks 51–100
+  alone retain about 79.5%, supporting a distributed readout pattern.
+- Built 330 row-disjoint, cross-speaker, cross-word matched ABX triplets. L2/L3
+  top-100 ABX reaches roughly 90–92% and exceeds five singular-spectrum-matched
+  random transports by 15–24 points with positive crossed-speaker intervals in
+  both independent lens fits. L0/L1 do not show the same reliable advantage.
+- Added a deterministic, fail-closed exporter that reduces the private results
+  to aggregate browser metrics and recursively rejects local paths, identities,
+  raw occurrence data, fitted artifacts, and touched-test results.
+- Added an opt-in, local-only interactive experiment notebook with residual,
+  top-k, rank-removal, matched-ABX, temporal, replication, and qualitative
+  coordinate views. The private microsite is unlinked, `noindex`, absent from
+  package/static exports, and can only be enabled on a loopback server.
+- Derived a private train-only A1 prototype artifact from 3,400 aligned,
+  non-silence phone states. Each layer stores 34 normalized vocabulary-space
+  prototypes built from rank-thresholded top-100 J-signatures; the artifact is
+  accepted only when its model, vocabulary, layers, and semantic encoder-lens
+  fingerprint match the running explorer.
+- Added an off-by-default `Phone signature view` control to the live Whisper
+  explorer. It replaces only encoder cell labels/details with ARPAbet prototype
+  ranks and cosine similarities, updates hover and pinned inspectors, and
+  temporarily pauses the encoder character-length filter. Decoder and HEAD
+  views are unchanged. A real `question.flac` smoke returned all 48 expected
+  phone-signature cells (4 layers × 12 pooled windows), finite similarities,
+  34-way denominators, the unchanged three decoder layers, and the transcript
+  `Where is my brother now?`.
+- Final phone-view gate: 340 tests passed with three optional skips; Ruff, all
+  JavaScript syntax checks, whitespace checks, live status, page markup, and
+  model-backed API smoke passed. Port 8000 remains ready with the compatible A1
+  encoder lens, existing decoder lens, and private phone prototypes loaded.
+- Promoted the cleared LibriSpeech `buzzer.flac` clip to the first prepared
+  sample with a `PHONE SIGNATURE EXAMPLE` badge. Its consonant-rich sequence
+  produces an especially readable L2 progression including B, Z, ER, W, G, N,
+  K, SH, and T prototype peaks. This changes only the local live sample picker;
+  no private prototype data or new media entered the public static bundle.
+- Refit the public ASR cache around the speaker-held-out A2 encoder lens and
+  frozen train-only A2 phone prototypes, then regenerated all ten ASR reports
+  and character-filter sidecars. The public schema keeps exactly five bounded
+  phone candidates per encoder layer/window and rejects prototype tensors,
+  raw rows, private paths, and unapproved metadata.
+- Added the fitted phone-signature toggle to the public static ASR explorer.
+  In phone mode, the nearest prototype occupies the same compact encoder cell
+  used by lexical mode; pointer hover, keyboard focus, and click-pinned detail
+  show all five cached phone candidates. Decoder cells retain the large top
+  lexical candidate and small realized-rank badge, with five lexical candidates
+  in the same local-detail workflow. The buzzer sample is visibly featured.

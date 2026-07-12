@@ -138,6 +138,58 @@ def test_showcase_is_static_evidence_with_all_three_model_paths():
     assert "/api/" not in script
 
 
+def test_private_phonetic_experiment_requires_explicit_local_mount(tmp_path):
+    web_dir = tmp_path / "web"
+    web_dir.mkdir()
+    (web_dir / "index.html").write_text("main explorer", encoding="utf-8")
+
+    experiment_dir = tmp_path / "phonetic-site"
+    experiment_dir.mkdir()
+    experiment_markup = (
+        '<meta name="robots" content="noindex,nofollow">'
+        '<body data-experiment="phonetic-signatures">Private results</body>'
+    )
+    (experiment_dir / "index.html").write_text(
+        experiment_markup, encoding="utf-8"
+    )
+    (experiment_dir / "data.json").write_text(
+        '{"status":"private_development"}\n', encoding="utf-8"
+    )
+
+    hidden_client = TestClient(create_app(None, web_dir=web_dir))
+    assert hidden_client.get("/experiments/phonetic-signatures/").status_code == 404
+
+    mounted_client = TestClient(
+        create_app(
+            None,
+            web_dir=web_dir,
+            phonetic_experiment_dir=experiment_dir,
+        )
+    )
+    redirect = mounted_client.get(
+        "/experiments/phonetic-signatures",
+        follow_redirects=False,
+    )
+    page = mounted_client.get("/experiments/phonetic-signatures/")
+    payload = mounted_client.get("/experiments/phonetic-signatures/data.json")
+
+    assert redirect.status_code == 307
+    assert redirect.headers["location"] == "/experiments/phonetic-signatures/"
+    assert page.status_code == 200
+    assert page.text == experiment_markup
+    assert 'content="noindex,nofollow"' in page.text
+    assert payload.status_code == 200
+    assert payload.json() == {"status": "private_development"}
+
+
+def test_private_phonetic_experiment_mount_validates_index(tmp_path):
+    experiment_dir = tmp_path / "phonetic-site"
+    experiment_dir.mkdir()
+
+    with pytest.raises(ValueError, match="must contain index.html"):
+        create_app(None, phonetic_experiment_dir=experiment_dir)
+
+
 def test_app_serves_the_separate_chatterbox_trace_page():
     web_dir = Path(__file__).resolve().parents[1] / "web"
     client = TestClient(create_app(None, web_dir=web_dir))
@@ -987,6 +1039,19 @@ def test_app_lists_and_serves_bundled_samples(tmp_path):
     assert audio.headers["content-type"] == "audio/wav"
     assert audio.headers["cache-control"] == "public, max-age=3600"
     assert audio.content == (directory / "hello.wav").read_bytes()
+
+
+def test_real_sample_catalog_recommends_the_phone_signature_example():
+    root = Path(__file__).resolve().parents[1]
+    client = TestClient(
+        create_app(None, web_dir=root / "web", samples_dir=root / "samples")
+    )
+
+    samples = client.get("/api/samples").json()["samples"]
+    assert samples[0]["id"] == "buzzer-whirr"
+    assert samples[0]["badge"] == "PHONE SIGNATURE EXAMPLE"
+    assert samples[0]["recommended_for"] == "phone-signature"
+    assert "recommended for Phone signature view" in samples[0]["description"]
 
 
 def test_app_returns_404_for_missing_and_traversal_sample_ids(tmp_path):
