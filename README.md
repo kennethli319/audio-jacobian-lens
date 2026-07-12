@@ -615,7 +615,10 @@ The canonical static pages are the detailed explorers at the site root,
 `/explorer/asr/`, `/explorer/speech/`, and `/explorer/tts/` preserve older
 links and query-selected samples. The speech-to-speech explorer keeps every
 saved top-token cell, but groups long responses into readable, aligned position
-bands so token text does not have to fit inside a compressed matrix cell.
+bands so token text does not have to fit inside a compressed matrix cell. Its
+large cell label is the layer's top candidate; the smaller `realized #N` label
+is the generated token's exact competition rank from the complete saved
+readout, even when that token is outside the five displayed candidates.
 
 Before publishing, run the static-only integrity gate:
 

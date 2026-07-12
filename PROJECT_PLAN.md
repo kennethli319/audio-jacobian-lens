@@ -483,6 +483,9 @@ Status: **in progress**
 - [x] Keep every cached speech-to-speech layer × output-position top-token cell
   while dividing long response timelines into aligned, readable position bands
   with full token text available locally.
+- [x] Retain the realized generated token's exact full-logit score and scoped
+  competition rank at every cached LFM layer/position cell, and show that rank
+  as a small secondary label without replacing the layer's top candidate.
 - [ ] Package the Chatterbox bridge baseline/steered pair after completing the
   conversion/S3/derived-output review.
 - [x] Package the three attributed LibriSpeech inputs with immutable hashes and
@@ -565,9 +568,12 @@ decision log.
   generated text but not generated response audio. Long generated-text
   timelines wrap into aligned position bands: each band repeats the layer
   labels and preserves one individually selectable top-token cell per original
-  layer/position coordinate. Static TTS pages distribute speech-code/readout/
-  trace values and the recorded bridge intervention, but no generated waveform,
-  audio URI, or ephemeral server analysis handle.
+  layer/position coordinate. Each LFM cell also retains the realized token's
+  exact score and competition rank from the complete logits: lexical-display
+  rank when that token is eligible, otherwise full-vocabulary rank. The orange
+  HEAD uses the complete 65,536-token vocabulary. Static TTS pages distribute
+  speech-code/readout/trace values and the recorded bridge intervention, but no
+  generated waveform, audio URI, or ephemeral server analysis handle.
 - Pilot lens: at least 10 clips for a plumbing/quality gate. A one-clip lens may
   be used only as an explicitly labeled smoke test.
 - The first hosted target is a Hugging Face Docker Space on port 7860. It is
@@ -1625,3 +1631,16 @@ truncate, or recompute the cached evidence.
   Extended the static validation contract and focused tests to enforce the
   canonical explorers, secondary findings pages, functional aliases, renderer
   separation, `noindex` policy, and query-selection support.
+- Added exact realized-token provenance to every LFM layer/position cell and
+  output HEAD token. The rank is computed against the complete relevant
+  competition rather than inferred from the visible top five; eligible lexical
+  targets use the 61,690-entry display vocabulary, ineligible targets and HEAD
+  use the full 65,536-token vocabulary, and both rank spaces remain serialized.
+  The static speech matrix keeps its large top-candidate label and adds a small
+  `realized #N` badge with matching hover/pinned details.
+- Regenerated all three speech-to-speech reports in a staging copy. Generated
+  token IDs/text, saved layers, and visible top-five candidates were unchanged;
+  the new reports add 395 exact intermediate ranks plus 79 exact HEAD ranks.
+  The allowlist exporter, static integrity validator, report hashes, and site
+  manifest now enforce the realized-token ID/rank alignment and continue to
+  exclude generated audio, embedded audio, and ephemeral analysis IDs.

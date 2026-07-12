@@ -328,6 +328,25 @@ class LensTopK:
     display_vocabulary_denominator: int
     full_vocabulary_ranks: torch.Tensor
     full_vocabulary_denominator: int
+    selected_readouts: LensSelectedReadouts | None = None
+
+
+@dataclass(frozen=True)
+class LensSelectedReadouts:
+    """Exact readouts for caller-selected token IDs at each position.
+
+    ``display_vocabulary_ranks`` uses zero only as an internal sentinel when a
+    selected token is outside ``token_mask``.  Callers must consult
+    ``display_vocabulary_eligible`` before serializing that rank.
+    """
+
+    token_ids: torch.Tensor
+    scores: torch.Tensor
+    display_vocabulary_ranks: torch.Tensor
+    display_vocabulary_eligible: torch.Tensor
+    display_vocabulary_denominator: int
+    full_vocabulary_ranks: torch.Tensor
+    full_vocabulary_denominator: int
 
 
 @dataclass(frozen=True)
@@ -389,6 +408,7 @@ def lens_topk(
     top_k: int = 10,
     position_chunk_size: int = 64,
     token_mask: torch.Tensor | None = None,
+    selected_token_ids: torch.Tensor | None = None,
     subtract_target_baseline: bool = False,
 ) -> LensTopK:
     """Apply a cross-stream lens without retaining full-vocabulary logits.
@@ -409,6 +429,20 @@ def lens_topk(
         token_mask.ndim != 1 or token_mask.numel() != model.vocab_size
     ):
         raise ValueError("token_mask must have shape [vocab_size]")
+    if selected_token_ids is not None:
+        if (
+            selected_token_ids.ndim != 1
+            or selected_token_ids.shape[0] != residuals.shape[0]
+        ):
+            raise ValueError("selected_token_ids must have shape [positions]")
+        if selected_token_ids.dtype == torch.bool or torch.is_floating_point(
+            selected_token_ids
+        ):
+            raise TypeError("selected_token_ids must be an integer tensor")
+        if bool(
+            ((selected_token_ids < 0) | (selected_token_ids >= model.vocab_size)).any()
+        ):
+            raise ValueError("selected_token_ids contains an out-of-range token ID")
     if subtract_target_baseline and lens.target_mean is None:
         raise ValueError("target-baseline subtraction needs a centered lens")
 
@@ -420,10 +454,15 @@ def lens_topk(
         ).unsqueeze(0)
         baseline_logits = model.unembed(target_mean).float()
 
+    token_mask_cpu = (
+        None
+        if token_mask is None
+        else token_mask.detach().to(device="cpu", dtype=torch.bool)
+    )
     eligible_cpu_ids = (
         torch.arange(model.vocab_size)
-        if token_mask is None
-        else token_mask.nonzero(as_tuple=True)[0]
+        if token_mask_cpu is None
+        else token_mask_cpu.nonzero(as_tuple=True)[0]
     )
     if eligible_cpu_ids.numel() == 0:
         raise ValueError("token_mask selects no vocabulary entries")
@@ -432,6 +471,11 @@ def lens_topk(
     scores: list[torch.Tensor] = []
     ranks: list[torch.Tensor] = []
     full_ranks: list[torch.Tensor] = []
+    selected_ids: list[torch.Tensor] = []
+    selected_scores: list[torch.Tensor] = []
+    selected_display_ranks: list[torch.Tensor] = []
+    selected_display_eligible: list[torch.Tensor] = []
+    selected_full_ranks: list[torch.Tensor] = []
     for start in range(0, residuals.shape[0], position_chunk_size):
         source = residuals[start : start + position_chunk_size].float()
         transported = lens.transport(source, layer)
@@ -440,14 +484,37 @@ def lens_topk(
             logits = logits - baseline_logits.to(logits.device)
         eligible_ids = eligible_cpu_ids.to(logits.device)
         eligible_logits = logits.index_select(1, eligible_ids)
-        values, local_indices = eligible_logits.topk(
-            resolved_top_k, dim=-1
-        )
+        values, local_indices = eligible_logits.topk(resolved_top_k, dim=-1)
         indices = eligible_ids[local_indices]
         ids.append(indices.cpu())
         scores.append(values.cpu())
         ranks.append(_strict_score_ranks(eligible_logits, values).cpu())
         full_ranks.append(_strict_score_ranks(logits, values).cpu())
+        if selected_token_ids is not None:
+            chunk_selected_ids = selected_token_ids[start : start + source.shape[0]].to(
+                logits.device, dtype=torch.long
+            )
+            chunk_selected_scores = logits.gather(1, chunk_selected_ids.unsqueeze(1))
+            chunk_selected_eligible = (
+                token_mask_cpu[chunk_selected_ids.cpu()]
+                if token_mask_cpu is not None
+                else torch.ones(chunk_selected_ids.shape[0], dtype=torch.bool)
+            )
+            chunk_display_ranks = _strict_score_ranks(
+                eligible_logits, chunk_selected_scores
+            ).squeeze(1)
+            chunk_display_ranks = torch.where(
+                chunk_selected_eligible.to(chunk_display_ranks.device),
+                chunk_display_ranks,
+                torch.zeros_like(chunk_display_ranks),
+            )
+            selected_ids.append(chunk_selected_ids.cpu())
+            selected_scores.append(chunk_selected_scores.squeeze(1).cpu())
+            selected_display_ranks.append(chunk_display_ranks.cpu())
+            selected_display_eligible.append(chunk_selected_eligible.cpu())
+            selected_full_ranks.append(
+                _strict_score_ranks(logits, chunk_selected_scores).squeeze(1).cpu()
+            )
     active_ranks = torch.cat(ranks)
     denominator = int(eligible_cpu_ids.numel())
     return LensTopK(
@@ -459,6 +526,19 @@ def lens_topk(
         display_vocabulary_denominator=denominator,
         full_vocabulary_ranks=torch.cat(full_ranks),
         full_vocabulary_denominator=model.vocab_size,
+        selected_readouts=(
+            None
+            if selected_token_ids is None
+            else LensSelectedReadouts(
+                token_ids=torch.cat(selected_ids),
+                scores=torch.cat(selected_scores),
+                display_vocabulary_ranks=torch.cat(selected_display_ranks),
+                display_vocabulary_eligible=torch.cat(selected_display_eligible),
+                display_vocabulary_denominator=denominator,
+                full_vocabulary_ranks=torch.cat(selected_full_ranks),
+                full_vocabulary_denominator=model.vocab_size,
+            )
+        ),
     )
 
 

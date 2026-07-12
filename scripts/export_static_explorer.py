@@ -183,6 +183,9 @@ def _cell(source: Mapping[str, Any]) -> dict[str, Any]:
     result["top_tokens"] = [
         _candidate(item) for item in source.get("top_tokens", [])
     ]
+    realized = source.get("realized_token")
+    if isinstance(realized, Mapping):
+        result["realized_token"] = _candidate(realized)
     return result
 
 
@@ -362,8 +365,48 @@ def _validate_safe(value: Any, *, path: str = "$") -> None:
         raise ValueError(f"embedded audio URI at {path}")
 
 
+def _validate_exact_rank_candidate(
+    candidate: Mapping[str, Any] | None,
+    *,
+    label: str,
+    expected_id: Any | None = None,
+    require_score: bool = False,
+) -> None:
+    if not isinstance(candidate, Mapping):
+        raise ValueError(f"{label} has no exact realized-token provenance")
+    required = {
+        "id",
+        "text",
+        "rank",
+        "rank_denominator",
+        "rank_space",
+        "rank_tie_policy",
+        "score_kind",
+    }
+    if require_score:
+        required.add("score")
+    missing = sorted(required - candidate.keys())
+    if missing:
+        raise ValueError(f"{label} realized-token provenance lacks {', '.join(missing)}")
+    if expected_id is not None and candidate["id"] != expected_id:
+        raise ValueError(f"{label} realized-token ID does not match the output token")
+    try:
+        rank = int(candidate["rank"])
+        denominator = int(candidate["rank_denominator"])
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{label} realized-token rank is invalid") from error
+    if rank < 1 or denominator < rank:
+        raise ValueError(f"{label} realized-token rank is outside its rank space")
+    if not str(candidate["rank_space"]).strip():
+        raise ValueError(f"{label} realized-token rank space is empty")
+    if candidate["rank_tie_policy"] != "1_plus_count_strictly_greater":
+        raise ValueError(f"{label} realized-token tie policy is unsupported")
+
+
 def _validate_matrix(report: Mapping[str, Any]) -> None:
     payload = report["payload"]
+    family = report.get("family")
+    transcription_tokens = payload.get("transcription", {}).get("tokens", [])
     for stream_name in ("encoder", "decoder"):
         stream = payload[stream_name]
         layers = stream.get("layers", [])
@@ -371,14 +414,38 @@ def _validate_matrix(report: Mapping[str, Any]) -> None:
         if len(cells) != len(layers):
             raise ValueError(f"{stream_name} layer/cell matrix mismatch")
         if not cells:
+            if family == "speech" and stream_name == "decoder":
+                raise ValueError("speech decoder matrix is empty")
             continue
         widths = {len(row) for row in cells}
         if len(widths) != 1:
             raise ValueError(f"{stream_name} matrix is ragged")
-        for row in cells:
-            for cell in row:
+        if (
+            family == "speech"
+            and stream_name == "decoder"
+            and widths != {len(transcription_tokens)}
+        ):
+            raise ValueError("speech decoder/output-token width mismatch")
+        for layer_index, row in enumerate(cells):
+            for position, cell in enumerate(row):
                 if not cell.get("top_tokens"):
                     raise ValueError(f"{stream_name} cell has no candidates")
+                if family == "speech" and stream_name == "decoder":
+                    if position >= len(transcription_tokens):
+                        raise ValueError("speech decoder is wider than its output tokens")
+                    _validate_exact_rank_candidate(
+                        cell.get("realized_token"),
+                        label=f"speech decoder layer {layer_index}, position {position}",
+                        expected_id=transcription_tokens[position].get("id"),
+                        require_score=True,
+                    )
+    if family == "speech":
+        for position, token in enumerate(transcription_tokens):
+            _validate_exact_rank_candidate(
+                token,
+                label=f"speech HEAD position {position}",
+                expected_id=token.get("id"),
+            )
 
 
 def _validate_filter_cache(

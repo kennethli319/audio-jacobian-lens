@@ -132,3 +132,52 @@ def test_route_contract_rejects_findings_with_detailed_renderer(
 
     with pytest.raises(ValueError, match="asr findings"):
         validator._validate_route_contract(tmp_path)
+
+
+def _ranked_token(token_id: int, *, rank: int, score: float | None = None) -> dict:
+    token = {
+        "id": token_id,
+        "text": " the",
+        "rank": rank,
+        "rank_denominator": 61_690,
+        "rank_space": "lexical_display_vocabulary",
+        "rank_tie_policy": "1_plus_count_strictly_greater",
+        "score_kind": "raw_readout_logit" if score is not None else "raw_head_probability",
+    }
+    if score is not None:
+        token["score"] = score
+    return token
+
+
+def _speech_report() -> dict:
+    head = {
+        **_ranked_token(42, rank=2),
+        "probability": 0.2,
+        "log_probability": -1.609,
+        "top_tokens": [{"id": 99, "text": " a", "probability": 0.4}],
+    }
+    cell = {
+        "top_tokens": [{"id": 99, "text": " a", "score": 0.8}],
+        "realized_token": _ranked_token(42, rank=15, score=0.25),
+    }
+    return {
+        "source": {"rights_status": "cleared_with_attribution"},
+        "payload": {
+            "audio": {"waveform_preview": {"values": [0.0, 0.1]}},
+            "transcription": {"tokens": [head]},
+            "encoder": {"layers": [], "cells": []},
+            "decoder": {"layers": [0, 1], "cells": [[cell], [dict(cell)]]},
+        },
+    }
+
+
+def test_speech_site_validation_accepts_exact_realized_rank_provenance() -> None:
+    validator._validate_asr_or_speech(_speech_report(), family="speech")
+
+
+def test_speech_site_validation_rejects_missing_layer_realized_rank() -> None:
+    report = _speech_report()
+    del report["payload"]["decoder"]["cells"][1][0]["realized_token"]
+
+    with pytest.raises(ValueError, match="no exact realized-token provenance"):
+        validator._validate_asr_or_speech(report, family="speech")

@@ -181,6 +181,67 @@ def _top_tokens(
     return output
 
 
+def _realized_token_payloads(
+    result: LensTopK,
+    tokenizer: Any,
+    *,
+    score_kind: str,
+    token_lengths: torch.Tensor | None,
+) -> list[dict[str, Any]]:
+    """Serialize exact selected-token readouts computed from full logits."""
+    selected = result.selected_readouts
+    if selected is None:
+        return []
+    payloads: list[dict[str, Any]] = []
+    for token_id, score, display_rank, display_eligible, full_rank in zip(
+        selected.token_ids.tolist(),
+        selected.scores.tolist(),
+        selected.display_vocabulary_ranks.tolist(),
+        selected.display_vocabulary_eligible.tolist(),
+        selected.full_vocabulary_ranks.tolist(),
+        strict=True,
+    ):
+        eligible = bool(display_eligible)
+        primary_rank = int(display_rank) if eligible else int(full_rank)
+        primary_denominator = (
+            selected.display_vocabulary_denominator
+            if eligible
+            else selected.full_vocabulary_denominator
+        )
+        primary_space = _LEXICAL_RANK_SPACE if eligible else _FULL_VOCABULARY_RANK_SPACE
+        text = _decode_token(tokenizer, int(token_id))
+        payloads.append(
+            {
+                "id": int(token_id),
+                "text": text,
+                "score": float(score),
+                "rank": primary_rank,
+                "rank_denominator": primary_denominator,
+                "rank_space": primary_space,
+                "display_vocabulary_rank": (int(display_rank) if eligible else None),
+                "display_vocabulary_denominator": (
+                    selected.display_vocabulary_denominator
+                ),
+                "full_vocabulary_rank": int(full_rank),
+                "full_vocabulary_denominator": (selected.full_vocabulary_denominator),
+                "rank_tie_policy": _RANK_TIE_POLICY,
+                "score_kind": score_kind,
+                "vocabulary_filter": {
+                    "display_lexical_filter_applied": eligible,
+                    "display_lexical_eligible": eligible,
+                    "character_length_filter_applied": False,
+                    "decoded_character_length": (
+                        int(token_lengths[token_id])
+                        if eligible and token_lengths is not None
+                        else len(text.strip())
+                    ),
+                    "character_length_constraint": None,
+                },
+            }
+        )
+    return payloads
+
+
 def _cells_for_layer(
     model: HFWhisperLensModel,
     lens: CrossJacobianLens,
@@ -190,11 +251,16 @@ def _cells_for_layer(
     top_k: int,
     token_mask: torch.Tensor,
     token_lengths: torch.Tensor | None = None,
+    realized_token_ids: torch.Tensor | None = None,
     subtract_target_baseline: bool = False,
     score_kind: str = "raw_readout_logit",
 ) -> list[dict[str, Any]]:
     grouped_top = None
     if token_lengths is not None:
+        if realized_token_ids is not None:
+            raise ValueError(
+                "realized_token_ids are not supported with grouped token lengths"
+            )
         length_masks = {
             int(length): token_lengths == length
             for length in torch.unique(token_lengths[token_lengths > 0]).tolist()
@@ -218,6 +284,7 @@ def _cells_for_layer(
             layer=layer,
             top_k=top_k,
             token_mask=token_mask,
+            selected_token_ids=realized_token_ids,
             subtract_target_baseline=subtract_target_baseline,
         )
     if token_lengths is None:
@@ -236,6 +303,17 @@ def _cells_for_layer(
         }
         for tokens in decoded
     ]
+    if realized_token_ids is not None:
+        realized = _realized_token_payloads(
+            top,
+            model.tokenizer,
+            score_kind=score_kind,
+            token_lengths=token_lengths,
+        )
+        if len(realized) != len(cells):
+            raise ValueError("realized readouts and lens cells must align")
+        for cell, realized_token in zip(cells, realized, strict=True):
+            cell["realized_token"] = realized_token
     if grouped_top is not None:
         decoded_groups = {
             str(length): _top_tokens(

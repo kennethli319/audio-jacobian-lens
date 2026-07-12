@@ -355,6 +355,54 @@ def test_topk_reports_exact_active_display_and_full_competition_ranks():
     assert result.full_vocabulary_denominator == 4
 
 
+def test_topk_reports_exact_selected_readouts_even_outside_topk_and_mask():
+    lens = CrossJacobianLens(
+        {0: torch.eye(5)},
+        n_examples=1,
+        source_dim=5,
+        target_dim=5,
+        source_stream="encoder",
+        target_stream="decoder",
+    )
+
+    class _IdentityReadout:
+        vocab_size = 5
+
+        @staticmethod
+        def unembed(residual):
+            return residual
+
+    result = lens_topk(
+        _IdentityReadout(),
+        lens,
+        torch.tensor(
+            [
+                [1.0, 3.0, 1.0, 2.0, 0.0],
+                [2.0, 2.0, 1.0, 0.0, 0.0],
+            ]
+        ),
+        layer=0,
+        top_k=1,
+        token_mask=torch.tensor([True, True, True, False, True]),
+        selected_token_ids=torch.tensor([0, 3]),
+        position_chunk_size=1,
+    )
+
+    assert result.token_ids[0].tolist() == [1]
+    assert all(3 not in row for row in result.token_ids.tolist())
+    selected = result.selected_readouts
+    assert selected is not None
+    assert selected.token_ids.tolist() == [0, 3]
+    torch.testing.assert_close(selected.scores, torch.tensor([1.0, 0.0]))
+    # Token 0 ties token 2, so both receive lexical-display rank 2. Token 3 is
+    # outside the display mask, and zero is the documented internal sentinel.
+    assert selected.display_vocabulary_ranks.tolist() == [2, 0]
+    assert selected.display_vocabulary_eligible.tolist() == [True, False]
+    assert selected.display_vocabulary_denominator == 4
+    assert selected.full_vocabulary_ranks.tolist() == [3, 4]
+    assert selected.full_vocabulary_denominator == 5
+
+
 def test_grouped_topk_reports_bucket_display_and_full_denominators():
     lens = CrossJacobianLens(
         {0: torch.eye(4)},

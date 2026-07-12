@@ -92,6 +92,44 @@ def _validate_stream(
                 raise ValueError(f"{label} cell has no cached candidates")
 
 
+def _validate_exact_realized_rank(
+    candidate: Any,
+    *,
+    label: str,
+    expected_id: Any,
+    require_score: bool,
+) -> None:
+    if not isinstance(candidate, Mapping):
+        raise ValueError(f"{label} has no exact realized-token provenance")
+    required = {
+        "id",
+        "text",
+        "rank",
+        "rank_denominator",
+        "rank_space",
+        "rank_tie_policy",
+        "score_kind",
+    }
+    if require_score:
+        required.add("score")
+    missing = sorted(required - candidate.keys())
+    if missing:
+        raise ValueError(f"{label} realized-token provenance lacks {', '.join(missing)}")
+    if candidate["id"] != expected_id:
+        raise ValueError(f"{label} realized-token ID does not match the output token")
+    try:
+        rank = int(candidate["rank"])
+        denominator = int(candidate["rank_denominator"])
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{label} realized-token rank is invalid") from error
+    if rank < 1 or denominator < rank:
+        raise ValueError(f"{label} realized-token rank is outside its rank space")
+    if not str(candidate["rank_space"]).strip():
+        raise ValueError(f"{label} realized-token rank space is empty")
+    if candidate["rank_tie_policy"] != "1_plus_count_strictly_greater":
+        raise ValueError(f"{label} realized-token tie policy is unsupported")
+
+
 def _validate_asr_or_speech(
     report: Mapping[str, Any], *, family: str
 ) -> None:
@@ -104,6 +142,24 @@ def _validate_asr_or_speech(
     )
     if len(payload["decoder"]["cells"][0]) != len(tokens):
         raise ValueError(f"{family} decoder/token width mismatch")
+    if family == "speech":
+        for position, token in enumerate(tokens):
+            _validate_exact_realized_rank(
+                token,
+                label=f"speech HEAD position {position}",
+                expected_id=token.get("id"),
+                require_score=False,
+            )
+        for layer_index, row in enumerate(payload["decoder"]["cells"]):
+            for position, cell in enumerate(row):
+                _validate_exact_realized_rank(
+                    cell.get("realized_token"),
+                    label=(
+                        f"speech decoder layer {layer_index}, position {position}"
+                    ),
+                    expected_id=tokens[position].get("id"),
+                    require_score=True,
+                )
     _validate_stream(
         payload["encoder"], label=f"{family} encoder", allow_empty=family == "speech"
     )
@@ -330,6 +386,8 @@ def validate_site(site_root: Path) -> dict[str, int]:
         "const windowSize = 8",
         'class="speech-matrix-window"',
         'family === "speech" ? renderSpeechRows()',
+        "cell?.realized_token",
+        'class="realized-rank-badge"',
     ):
         if marker not in explorer_script:
             raise ValueError(
@@ -343,6 +401,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         ".position-timeline.speech-readable",
         ".speech-matrix-window",
         ".speech-matrix-grid",
+        ".realized-rank-badge",
     ):
         if marker not in explorer_css:
             raise ValueError(

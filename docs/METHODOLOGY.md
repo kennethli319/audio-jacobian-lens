@@ -343,7 +343,8 @@ Separately, each encoder or decoder lens cell should display:
 
 - top token strings and ranks;
 - raw or normalized lens scores;
-- optional tracked-token rank curves (planned); and
+- the realized output token's exact score/rank when that path retains it (now
+  implemented for the LFM speech-to-speech matrix); and
 - lens artifact provenance and corpus size.
 
 The J-lens softmax can be useful for ranking but is not calibrated output
@@ -400,6 +401,14 @@ vocabulary that removes control/timestamp, empty, replacement-character, and
 punctuation-only tokens. Scores remain raw readout logits. The held-out rank
 evaluator uses the full vocabulary; browser ranks must therefore be described
 as display-filtered lexical ranks, not global vocabulary ranks.
+
+The LFM speech-to-speech matrix computes its realized-token diagnostic from the
+complete logits in the same pass as its bounded top-k. An eligible lexical
+target uses its exact lexical-display competition rank; an ineligible control
+or punctuation-only target uses its exact full-vocabulary rank instead. Both
+rank spaces and denominators are retained in the payload. The actual output
+HEAD always uses the full-vocabulary rank. No rank is inferred from whether the
+target happens to appear in the visible top five.
 
 Optional decoded-character filters are computed before top-k selection. The
 server stores a vocabulary-wide top-k within every exact trimmed token length,

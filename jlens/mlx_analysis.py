@@ -14,6 +14,7 @@ from jlens.projected_lens import ProjectedCrossJacobianLens
 from jlens.whisper_analysis import (
     _cells_for_layer,
     _decode_token,
+    _head_candidate_provenance,
     display_token_mask,
     waveform_envelope,
     waveform_wav_data_url,
@@ -30,19 +31,26 @@ def _text_output_payload(
     targets = torch.tensor(inputs.target_token_ids, dtype=torch.long)
     tokens: list[dict[str, Any]] = []
     for position, target_id in enumerate(targets.tolist()):
-        log_probs = actual_logits[position].float().log_softmax(dim=-1)
+        position_logits = actual_logits[position].float()
+        log_probs = position_logits.log_softmax(dim=-1)
         probabilities = log_probs.exp()
         values, ids = probabilities.topk(top_k)
         entropy = float(-(probabilities * log_probs).sum())
+        target_rank = int((position_logits > position_logits[target_id]).sum()) + 1
+        text = _decode_token(model.tokenizer, target_id)
         tokens.append(
             {
-                "id": target_id,
-                "text": _decode_token(model.tokenizer, target_id),
+                **_head_candidate_provenance(
+                    token_id=target_id,
+                    text=text,
+                    probability=float(probabilities[target_id]),
+                    log_probability=float(log_probs[target_id]),
+                    rank=target_rank,
+                    vocab_size=int(position_logits.shape[-1]),
+                ),
                 "is_special": False,
                 "start_seconds": None,
                 "end_seconds": None,
-                "probability": float(probabilities[target_id]),
-                "log_probability": float(log_probs[target_id]),
                 "entropy": entropy,
                 "top_tokens": [
                     {
@@ -113,6 +121,7 @@ def analyze_mlx_lfm_run(
                 layer=layer,
                 top_k=top_k,
                 token_mask=token_mask,
+                realized_token_ids=captured.target_token_ids,
             )
         )
 
@@ -173,6 +182,12 @@ def analyze_mlx_lfm_run(
                 "policy": "alphanumeric_lexical_tokens",
                 "full_vocabulary_size": model.vocab_size,
                 "display_vocabulary_size": int(token_mask.sum()),
+            },
+            "candidate_rank_semantics": {
+                "method": "1_plus_count_strictly_greater",
+                "ties": "equal scores share the same competition rank",
+                "lens_primary_space": "lexical_display_vocabulary_when_eligible_otherwise_full_model_vocabulary",
+                "output_head_primary_space": "full_model_vocabulary",
             },
             "decoder_token_length_filter": {
                 "policy": "unavailable_for_projected_lfm_pilot",

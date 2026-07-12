@@ -98,8 +98,18 @@ analysis. The response contains:
 
 - the exact mono 16 kHz model input and its waveform;
 - the model's generated text and raw teacher-forced text-token diagnostics;
-- projected language-layer J-lens readouts at generated text positions; and
+- projected language-layer J-lens readouts at generated text positions,
+  including the realized token's exact raw score and competition rank even when
+  it is outside the retained top-k; and
 - the model's decoded 24 kHz speech response, when audio frames were generated.
+
+The large token in each layer cell is that readout's top candidate. The smaller
+`realized #N` label tracks the token that generation actually produced. For an
+eligible lexical token, `N` is its exact rank among the 61,690-token lexical
+display vocabulary; control or punctuation-only targets fall back to their
+exact rank in the full 65,536-token vocabulary. The orange HEAD rank always
+uses the full vocabulary. All ranks use one plus the count of strictly greater
+scores, so tied scores share a competition rank.
 
 There is no audio-time encoder grid or generated-token timing in this slice.
 The explorer's reused "decoder" region means the causal LFM language backbone,

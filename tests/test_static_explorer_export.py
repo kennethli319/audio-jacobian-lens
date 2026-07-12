@@ -16,6 +16,25 @@ def _candidate(token_id: int, score: float) -> dict[str, object]:
         "rank": 1,
         "rank_denominator": 10,
         "rank_space": "lexical_display_vocabulary",
+        "rank_tie_policy": "1_plus_count_strictly_greater",
+    }
+
+
+def _realized_candidate(
+    token_id: int, text: str, score: float, rank: int
+) -> dict[str, object]:
+    return {
+        "id": token_id,
+        "text": text,
+        "score": score,
+        "score_kind": "raw_readout_logit",
+        "rank": rank,
+        "rank_denominator": 61_690,
+        "rank_space": "lexical_display_vocabulary",
+        "rank_tie_policy": "1_plus_count_strictly_greater",
+        "full_vocabulary_rank": rank + 3,
+        "full_vocabulary_denominator": 65_536,
+        "server_only_debug": "must not be published",
     }
 
 
@@ -88,6 +107,65 @@ def test_reduced_payload_keeps_bounded_views_and_drops_generated_audio() -> None
     assert preview["source_sample_count"] == 2048
     assert len(preview["values"]) == exporter.WAVEFORM_PREVIEW_POINTS
     assert "top_tokens_by_length" not in reduced["encoder"]["cells"][0][0]
+
+
+def test_reduced_payload_preserves_allowlisted_realized_token_rank() -> None:
+    raw = _raw_payload()
+    raw["decoder"]["cells"][0][0]["realized_token"] = _realized_candidate(
+        42, " the", 0.125, 15
+    )
+
+    reduced = exporter._reduce_payload(raw)
+    realized = reduced["decoder"]["cells"][0][0]["realized_token"]
+
+    assert realized["id"] == 42
+    assert realized["text"] == " the"
+    assert realized["rank"] == 15
+    assert realized["rank_denominator"] == 61_690
+    assert realized["full_vocabulary_rank"] == 18
+    assert realized["rank_tie_policy"] == "1_plus_count_strictly_greater"
+    assert "server_only_debug" not in realized
+
+
+def _speech_report() -> dict[str, object]:
+    token = {
+        **_realized_candidate(42, " the", 0.25, 2),
+        "probability": 0.2,
+        "log_probability": -1.609,
+        "top_tokens": [_candidate(99, 0.8)],
+    }
+    cell = {
+        "position_index": 0,
+        "selected_score": 0.8,
+        "top_tokens": [_candidate(99, 0.8)],
+        "realized_token": _realized_candidate(42, " the", 0.25, 15),
+    }
+    return {
+        "family": "speech",
+        "payload": {
+            "transcription": {"tokens": [token]},
+            "encoder": {"layers": [], "cells": []},
+            "decoder": {"layers": [0, 1], "cells": [[cell], [dict(cell)]]},
+        },
+    }
+
+
+def test_speech_matrix_requires_exact_realized_rank_for_layers_and_head() -> None:
+    report = _speech_report()
+
+    exporter._validate_matrix(report)
+
+    del report["payload"]["decoder"]["cells"][1][0]["realized_token"]
+    with pytest.raises(ValueError, match="no exact realized-token provenance"):
+        exporter._validate_matrix(report)
+
+
+def test_speech_matrix_rejects_realized_token_id_mismatch() -> None:
+    report = _speech_report()
+    report["payload"]["decoder"]["cells"][0][0]["realized_token"]["id"] = 7
+
+    with pytest.raises(ValueError, match="does not match the output token"):
+        exporter._validate_matrix(report)
 
 
 def test_filter_cache_is_separate_and_aligned_with_base_report() -> None:
