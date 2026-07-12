@@ -15,7 +15,7 @@ SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260711-11"
+EXPLORER_ASSET_VERSION = "20260712-12"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -43,6 +43,18 @@ SPEECH_TERMINATION_SCRIPT_MARKERS = (
     "response may be truncated",
 )
 SPEECH_TERMINATION_CSS_MARKERS = (".generation-status.capped",)
+ASR_DECODER_HIERARCHY_SCRIPT_MARKERS = (
+    'const asrDecoderCell = family === "asr" && kind === "decoder";',
+    'data-value-role="top-candidate"',
+    'realizedBadge = asrDecoderCell ? "realized out" : "out";',
+    'const cellWidth = family === "asr" ? 92 : 82;',
+    "renderSpeechRows(),",
+    "Decoder boxes show each layer's top candidate",
+)
+ASR_DECODER_HIERARCHY_CSS_MARKERS = (
+    '[data-family="asr"] .speech-matrix-grid .matrix-cell .matrix-cell-label',
+    '[data-family="asr"] .speech-matrix-grid .matrix-cell .realized-rank-badge',
+)
 
 
 def _sha256(path: Path) -> str:
@@ -748,7 +760,6 @@ def validate_site(site_root: Path) -> dict[str, int]:
         "function renderSpeechRows()",
         "const windowSize = 8",
         'class="speech-matrix-window"',
-        'family === "speech" ? renderSpeechRows()',
         "cell?.realized_token",
         'class="realized-rank-badge"',
         "showASRRealizedRank",
@@ -758,6 +769,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         'id="sample-search"',
         'class="sample-button-grid"',
         *SPEECH_TERMINATION_SCRIPT_MARKERS,
+        *ASR_DECODER_HIERARCHY_SCRIPT_MARKERS,
     ):
         if marker not in explorer_script:
             raise ValueError(
@@ -775,6 +787,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         ".sample-button-grid",
         "overflow-x: hidden",
         *SPEECH_TERMINATION_CSS_MARKERS,
+        *ASR_DECODER_HIERARCHY_CSS_MARKERS,
     ):
         if marker not in explorer_css:
             raise ValueError(

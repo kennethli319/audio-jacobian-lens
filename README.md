@@ -632,13 +632,14 @@ Each speech report also shows whether generation ended at a natural audio EOS
 or exhausted its emergency step cap. A capped response is visibly marked as
 possibly truncated and must not be read as a naturally completed answer.
 
-The ASR explorer uses the same distinction in a denser form: large text is the
-top candidate and the small `#N` is the exact rank of the realized token. A
-decoder column tracks its generated token directly; an encoder window tracks
-the output token with greatest overlap under Whisper's model-derived DTW
-timing. That encoder pairing is approximate and non-causal. When the optional
-character filter excludes the realized token, the badge says `out`; otherwise
-it shows the exact rank within the filtered `≤N` vocabulary.
+The ASR decoder uses the same readable eight-token bands: large text is each
+layer's active top candidate and the smaller `realized #N` badge is the exact
+rank of that column's emitted token. A decoder column tracks its generated
+token directly; an encoder window tracks the output token with greatest overlap
+under Whisper's model-derived DTW timing. That encoder pairing is approximate
+and non-causal. When the optional character filter is active, both the top
+candidate and realized rank are recomputed in the filtered vocabulary; an
+excluded realized token is labeled `realized out`.
 
 Before publishing, run the static-only integrity gate:
 

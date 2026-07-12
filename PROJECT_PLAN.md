@@ -1,6 +1,6 @@
 # Audio Jacobian Lens: Project Plan
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 This is the continuity document for the project. Read it before making changes,
 update it when a milestone or design decision changes, and append a short entry
@@ -1705,3 +1705,12 @@ truncate, or recompute the cached evidence.
   Ruff, JavaScript syntax, whitespace, local HTTP route/media smokes, and the
   strict static validator all passed. The validator reports 10 ASR, 10
   speech-to-speech, and 10 TTS reports while the findings bundle remains 3×3.
+- Reworked the static ASR “As each token resolves” matrix into the same readable
+  eight-token bands used by speech-to-speech. Every decoder cell now keeps its
+  active top candidate as the large label and the emitted token's exact rank as
+  a smaller `realized #N` badge, including `realized out` when the optional
+  character-length filter excludes that token. HEAD semantics, filtering,
+  tooltips, synchronized selection, and keyboard navigation remain unchanged.
+- Final ASR hierarchy gate: 328 tests passed with three optional skips; Ruff,
+  JavaScript syntax, whitespace, all 10/10/10 report checks, and top-level site
+  hashes passed.

@@ -161,6 +161,21 @@ def test_renderer_contract_requires_honest_speech_cap_warning() -> None:
     assert validator.SPEECH_TERMINATION_CSS_MARKERS == (".generation-status.capped",)
 
 
+def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:
+    assert validator.ASR_DECODER_HIERARCHY_SCRIPT_MARKERS == (
+        'const asrDecoderCell = family === "asr" && kind === "decoder";',
+        'data-value-role="top-candidate"',
+        'realizedBadge = asrDecoderCell ? "realized out" : "out";',
+        'const cellWidth = family === "asr" ? 92 : 82;',
+        "renderSpeechRows(),",
+        "Decoder boxes show each layer's top candidate",
+    )
+    assert validator.ASR_DECODER_HIERARCHY_CSS_MARKERS == (
+        '[data-family="asr"] .speech-matrix-grid .matrix-cell .matrix-cell-label',
+        '[data-family="asr"] .speech-matrix-grid .matrix-cell .realized-rank-badge',
+    )
+
+
 def _ten_report_manifest(family: str) -> dict:
     reports = []
     for index in range(validator.EXPECTED_REPORT_COUNT):
