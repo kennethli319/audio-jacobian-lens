@@ -143,6 +143,10 @@ def _ranked_token(token_id: int, *, rank: int, score: float | None = None) -> di
         "rank_space": "lexical_display_vocabulary",
         "rank_tie_policy": "1_plus_count_strictly_greater",
         "score_kind": "raw_readout_logit" if score is not None else "raw_head_probability",
+        "vocabulary_filter": {
+            "decoded_character_length": 3,
+            "display_lexical_eligible": True,
+        },
     }
     if score is not None:
         token["score"] = score
@@ -181,3 +185,125 @@ def test_speech_site_validation_rejects_missing_layer_realized_rank() -> None:
 
     with pytest.raises(ValueError, match="no exact realized-token provenance"):
         validator._validate_asr_or_speech(report, family="speech")
+
+
+def _asr_report() -> dict:
+    head = {
+        **_ranked_token(42, rank=2),
+        "probability": 0.2,
+        "log_probability": -1.609,
+        "start_seconds": 0.0,
+        "end_seconds": 0.2,
+        "top_tokens": [{"id": 99, "text": " a", "probability": 0.4}],
+    }
+    decoder_cell = {
+        "top_tokens": [{"id": 99, "text": " a", "score": 0.8}],
+        "realized_token": _ranked_token(42, rank=15, score=0.25),
+    }
+    encoder_cell = {
+        **decoder_cell,
+        "time_window": {"start_seconds": 0.0, "end_seconds": 0.2},
+        "realized_token_position": 0,
+        "realized_token_alignment": {
+            "match": "overlapping",
+            "window_midpoint_seconds": 0.1,
+            "token_start_seconds": 0.0,
+            "token_end_seconds": 0.2,
+            "overlap_seconds": 0.2,
+            "overlap_fraction_of_window": 1.0,
+        },
+    }
+    return {
+        "example_id": "asr-example",
+        "source": {"rights_status": "cleared_with_attribution"},
+        "payload": {
+            "metadata": {
+                "display_vocabulary": {
+                    "maximum_decoded_character_length_counts": {
+                        "1": 10,
+                        "2": 20,
+                        "3": 30,
+                    }
+                }
+            },
+            "audio": {"waveform_preview": {"values": [0.0, 0.1]}},
+            "transcription": {"tokens": [head]},
+            "encoder": {
+                "layers": [0],
+                "realized_token_alignment": {
+                    "method": "maximum_token_interval_overlap",
+                    "tie_break": (
+                        "closest_interval_midpoint_then_lower_token_position"
+                    ),
+                },
+                "cells": [[encoder_cell]],
+            },
+            "decoder": {"layers": [0], "cells": [[decoder_cell]]},
+        },
+    }
+
+
+def test_asr_site_validation_accepts_exact_realized_rank_provenance() -> None:
+    validator._validate_asr_or_speech(_asr_report(), family="asr")
+
+
+def test_asr_site_validation_rejects_shifted_encoder_token_mapping() -> None:
+    report = _asr_report()
+    report["payload"]["encoder"]["cells"][0][0][
+        "realized_token_position"
+    ] = 1
+
+    with pytest.raises(ValueError, match="overlap-first"):
+        validator._validate_asr_or_speech(report, family="asr")
+
+
+def test_asr_filter_cache_requires_exact_compact_realized_ranks(
+    tmp_path: Path,
+) -> None:
+    report = _asr_report()
+    cache = {
+        "example_id": "asr-example",
+        "streams": {
+            "encoder": {
+                "layers": [0],
+                "cells": [[{
+                    "top_tokens_by_length": {"1": [{"id": 99}]},
+                    "realized_rank_by_max_length": {
+                        "1": None,
+                        "2": None,
+                        "3": 7,
+                    },
+                }]],
+            },
+            "decoder": {
+                "layers": [0],
+                "cells": [[{
+                    "top_tokens_by_length": {"1": [{"id": 99}]},
+                    "realized_rank_by_max_length": {
+                        "1": None,
+                        "2": None,
+                        "3": 8,
+                    },
+                }]],
+            },
+        },
+    }
+    cache_path = tmp_path / "filters.json"
+    cache_path.write_text(json.dumps(cache), encoding="utf-8")
+    entry = {
+        "character_length_filter_cache": {
+            "url": "/audio-jacobian-lens/filters.json",
+            "sha256": validator._sha256(cache_path),
+        }
+    }
+    validator._validate_filter_cache(tmp_path, report, entry)
+
+    del cache["streams"]["encoder"]["cells"][0][0][
+        "realized_rank_by_max_length"
+    ]
+    cache_path.write_text(json.dumps(cache), encoding="utf-8")
+    entry["character_length_filter_cache"]["sha256"] = validator._sha256(
+        cache_path
+    )
+    with pytest.raises(ValueError, match="no exact realized ranks"):
+        validator._validate_filter_cache(tmp_path, report, entry)

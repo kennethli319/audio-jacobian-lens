@@ -336,8 +336,10 @@ class LensSelectedReadouts:
     """Exact readouts for caller-selected token IDs at each position.
 
     ``display_vocabulary_ranks`` uses zero only as an internal sentinel when a
-    selected token is outside ``token_mask``.  Callers must consult
-    ``display_vocabulary_eligible`` before serializing that rank.
+    selected token is outside ``token_mask``. Callers must consult
+    ``display_vocabulary_eligible`` before serializing that rank. Grouped
+    readouts additionally expose per-group strictly-greater counts, allowing
+    exact ranks over unions of disjoint groups without retaining logits.
     """
 
     token_ids: torch.Tensor
@@ -347,6 +349,8 @@ class LensSelectedReadouts:
     display_vocabulary_denominator: int
     full_vocabulary_ranks: torch.Tensor
     full_vocabulary_denominator: int
+    group_strictly_greater_counts: dict[int, torch.Tensor] | None = None
+    group_denominators: dict[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -553,6 +557,7 @@ def lens_topk_grouped(
     token_groups: dict[int, torch.Tensor],
     top_k: int = 10,
     position_chunk_size: int = 64,
+    selected_token_ids: torch.Tensor | None = None,
     subtract_target_baseline: bool = False,
 ) -> GroupedLensTopK:
     """Compute an overall and grouped top-k from one unembedding pass.
@@ -560,6 +565,8 @@ def lens_topk_grouped(
     Each group is ranked only over its supplied vocabulary mask. Returning the
     top-k for every exact token length is sufficient to reconstruct the exact
     top-k for any maximum length by merging the eligible groups and reranking.
+    If ``selected_token_ids`` is supplied, the overall result also retains its
+    exact score, display/full ranks, and strictly-greater count in each group.
     """
     if residuals.ndim != 2:
         raise ValueError("residuals must have shape [positions, source_dim]")
@@ -567,6 +574,20 @@ def lens_topk_grouped(
         raise ValueError(f"top_k must be in [1, {model.vocab_size}]")
     if position_chunk_size <= 0:
         raise ValueError("position_chunk_size must be positive")
+    if selected_token_ids is not None:
+        if (
+            selected_token_ids.ndim != 1
+            or selected_token_ids.shape[0] != residuals.shape[0]
+        ):
+            raise ValueError("selected_token_ids must have shape [positions]")
+        if selected_token_ids.dtype == torch.bool or torch.is_floating_point(
+            selected_token_ids
+        ):
+            raise TypeError("selected_token_ids must be an integer tensor")
+        if bool(
+            ((selected_token_ids < 0) | (selected_token_ids >= model.vocab_size)).any()
+        ):
+            raise ValueError("selected_token_ids contains an out-of-range token ID")
     masks = {"overall": token_mask, **token_groups}
     if any(mask.ndim != 1 or mask.numel() != model.vocab_size for mask in masks.values()):
         raise ValueError("all token masks must have shape [vocab_size]")
@@ -603,6 +624,14 @@ def lens_topk_grouped(
     collected_full_ranks: dict[int | str, list[torch.Tensor]] = {
         group: [] for group in group_token_ids
     }
+    selected_ids: list[torch.Tensor] = []
+    selected_scores: list[torch.Tensor] = []
+    selected_display_ranks: list[torch.Tensor] = []
+    selected_display_eligible: list[torch.Tensor] = []
+    selected_full_ranks: list[torch.Tensor] = []
+    selected_group_greater_counts: dict[int, list[torch.Tensor]] = {
+        int(group): [] for group in group_token_ids if group != "overall"
+    }
     display_cpu_ids = group_token_ids["overall"]
     display_local_by_vocab = torch.full(
         (model.vocab_size,), -1, dtype=torch.long
@@ -624,6 +653,39 @@ def lens_topk_grouped(
         display_rank_map = _competition_rank_map(
             cpu_logits.index_select(1, display_cpu_ids)
         )
+        if selected_token_ids is not None:
+            chunk_selected_ids = selected_token_ids[start : start + source.shape[0]].to(
+                device="cpu", dtype=torch.long
+            )
+            chunk_selected_scores = cpu_logits.gather(
+                1, chunk_selected_ids.unsqueeze(1)
+            ).squeeze(1)
+            chunk_display_indices = display_local_by_vocab[chunk_selected_ids]
+            chunk_display_eligible = chunk_display_indices >= 0
+            chunk_display_ranks = display_rank_map.gather(
+                1, chunk_display_indices.clamp_min(0).unsqueeze(1)
+            ).squeeze(1)
+            chunk_display_ranks = torch.where(
+                chunk_display_eligible,
+                chunk_display_ranks,
+                torch.zeros_like(chunk_display_ranks),
+            )
+            selected_ids.append(chunk_selected_ids)
+            selected_scores.append(chunk_selected_scores)
+            selected_display_ranks.append(chunk_display_ranks)
+            selected_display_eligible.append(chunk_display_eligible)
+            selected_full_ranks.append(
+                full_rank_map.gather(1, chunk_selected_ids.unsqueeze(1)).squeeze(1)
+            )
+            for group, cpu_ids in group_token_ids.items():
+                if group == "overall":
+                    continue
+                selected_group_greater_counts[int(group)].append(
+                    (
+                        cpu_logits.index_select(1, cpu_ids)
+                        > chunk_selected_scores.unsqueeze(1)
+                    ).sum(dim=1)
+                )
         for group, cpu_ids in group_token_ids.items():
             eligible_ids = cpu_ids.to(logits.device)
             eligible_logits = logits.index_select(1, eligible_ids)
@@ -645,6 +707,28 @@ def lens_topk_grouped(
                 full_rank_map.gather(1, selected_cpu_ids).cpu()
             )
 
+    selected_readouts = (
+        None
+        if selected_token_ids is None
+        else LensSelectedReadouts(
+            token_ids=torch.cat(selected_ids),
+            scores=torch.cat(selected_scores),
+            display_vocabulary_ranks=torch.cat(selected_display_ranks),
+            display_vocabulary_eligible=torch.cat(selected_display_eligible),
+            display_vocabulary_denominator=int(display_cpu_ids.numel()),
+            full_vocabulary_ranks=torch.cat(selected_full_ranks),
+            full_vocabulary_denominator=model.vocab_size,
+            group_strictly_greater_counts={
+                group: torch.cat(chunks)
+                for group, chunks in selected_group_greater_counts.items()
+            },
+            group_denominators={
+                int(group): int(ids.numel())
+                for group, ids in group_token_ids.items()
+                if group != "overall"
+            },
+        )
+    )
     results = {
         group: LensTopK(
             token_ids=torch.cat(collected_ids[group]),
@@ -659,6 +743,9 @@ def lens_topk_grouped(
             ),
             full_vocabulary_ranks=torch.cat(collected_full_ranks[group]),
             full_vocabulary_denominator=model.vocab_size,
+            selected_readouts=(
+                selected_readouts if group == "overall" else None
+            ),
         )
         for group in group_token_ids
     }

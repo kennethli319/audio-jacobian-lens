@@ -439,3 +439,54 @@ def test_grouped_topk_reports_bucket_display_and_full_denominators():
     assert bucket.rank_denominator == 2
     assert bucket.display_vocabulary_denominator == 3
     assert bucket.full_vocabulary_denominator == 4
+
+
+def test_grouped_topk_reports_selected_readout_and_exact_group_counts():
+    lens = CrossJacobianLens(
+        {0: torch.eye(5)},
+        n_examples=1,
+        source_dim=5,
+        target_dim=5,
+        source_stream="encoder",
+        target_stream="decoder",
+    )
+
+    class _IdentityReadout:
+        vocab_size = 5
+
+        @staticmethod
+        def unembed(residual):
+            return residual
+
+    result = lens_topk_grouped(
+        _IdentityReadout(),
+        lens,
+        torch.tensor(
+            [
+                [5.0, 4.0, 3.0, 2.0, 1.0],
+                [1.0, 3.0, 2.0, 5.0, 4.0],
+            ]
+        ),
+        layer=0,
+        top_k=1,
+        token_mask=torch.tensor([False, True, True, True, True]),
+        token_groups={
+            1: torch.tensor([False, True, True, False, False]),
+            2: torch.tensor([False, False, False, True, True]),
+        },
+        selected_token_ids=torch.tensor([3, 0]),
+        position_chunk_size=1,
+    )
+
+    selected = result.overall.selected_readouts
+    assert selected is not None
+    assert selected.token_ids.tolist() == [3, 0]
+    torch.testing.assert_close(selected.scores, torch.tensor([2.0, 1.0]))
+    assert selected.display_vocabulary_ranks.tolist() == [3, 0]
+    assert selected.display_vocabulary_eligible.tolist() == [True, False]
+    assert selected.full_vocabulary_ranks.tolist() == [4, 5]
+    assert selected.group_denominators == {1: 2, 2: 2}
+    assert selected.group_strictly_greater_counts is not None
+    assert selected.group_strictly_greater_counts[1].tolist() == [2, 2]
+    assert selected.group_strictly_greater_counts[2].tolist() == [0, 2]
+    assert all(group.selected_readouts is None for group in result.groups.values())

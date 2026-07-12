@@ -61,6 +61,7 @@ _DECODER_TOKEN_LENGTH_FILTER_LAYERS = frozenset({0, 1})
 _RANK_TIE_POLICY = "1_plus_count_strictly_greater"
 _LEXICAL_RANK_SPACE = "lexical_display_vocabulary"
 _LENGTH_BUCKET_RANK_SPACE = "exact_decoded_character_length_bucket"
+_MAX_LENGTH_RANK_SPACE = "maximum_decoded_character_length_vocabulary"
 _FULL_VOCABULARY_RANK_SPACE = "full_model_vocabulary"
 
 
@@ -242,6 +243,42 @@ def _realized_token_payloads(
     return payloads
 
 
+def _realized_ranks_by_max_length(
+    result: LensTopK,
+    *,
+    token_lengths: torch.Tensor,
+) -> list[dict[str, int | None]]:
+    """Return exact selected-token ranks for every cumulative length filter.
+
+    A null value means the selected token is outside that filtered vocabulary,
+    not that its score or rank was unavailable.
+    """
+    selected = result.selected_readouts
+    if (
+        selected is None
+        or selected.group_strictly_greater_counts is None
+        or selected.group_denominators is None
+    ):
+        return []
+    positions = int(selected.token_ids.shape[0])
+    greater_counts = torch.zeros(positions, dtype=torch.long)
+    output: list[dict[str, int | None]] = [{} for _ in range(positions)]
+    maximum_length = int(token_lengths.max())
+    for maximum in range(1, maximum_length + 1):
+        group_counts = selected.group_strictly_greater_counts.get(maximum)
+        if group_counts is not None:
+            greater_counts += group_counts.to(dtype=torch.long)
+        for position, token_id_tensor in enumerate(selected.token_ids):
+            token_id = int(token_id_tensor)
+            eligible = bool(selected.display_vocabulary_eligible[position])
+            decoded_length = int(token_lengths[token_id]) if eligible else 0
+            if not eligible or decoded_length > maximum:
+                output[position][str(maximum)] = None
+                continue
+            output[position][str(maximum)] = int(greater_counts[position]) + 1
+    return output
+
+
 def _cells_for_layer(
     model: HFWhisperLensModel,
     lens: CrossJacobianLens,
@@ -257,10 +294,6 @@ def _cells_for_layer(
 ) -> list[dict[str, Any]]:
     grouped_top = None
     if token_lengths is not None:
-        if realized_token_ids is not None:
-            raise ValueError(
-                "realized_token_ids are not supported with grouped token lengths"
-            )
         length_masks = {
             int(length): token_lengths == length
             for length in torch.unique(token_lengths[token_lengths > 0]).tolist()
@@ -273,6 +306,7 @@ def _cells_for_layer(
             top_k=top_k,
             token_mask=token_mask,
             token_groups=length_masks,
+            selected_token_ids=realized_token_ids,
             subtract_target_baseline=subtract_target_baseline,
         )
         top = grouped_top.overall
@@ -314,6 +348,15 @@ def _cells_for_layer(
             raise ValueError("realized readouts and lens cells must align")
         for cell, realized_token in zip(cells, realized, strict=True):
             cell["realized_token"] = realized_token
+        if grouped_top is not None:
+            filtered_realized = _realized_ranks_by_max_length(
+                top,
+                token_lengths=token_lengths,
+            )
+            if len(filtered_realized) != len(cells):
+                raise ValueError("filtered realized readouts and lens cells must align")
+            for cell, by_maximum in zip(cells, filtered_realized, strict=True):
+                cell["realized_rank_by_max_length"] = by_maximum
     if grouped_top is not None:
         decoded_groups = {
             str(length): _top_tokens(
@@ -510,6 +553,70 @@ def _transcript_and_confidence(
     }, positions
 
 
+def _encoder_realized_token_alignment(
+    time_bins: list[dict[str, Any]],
+    transcript_tokens: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Map each encoder window to its greatest-overlap approximate output token.
+
+    Ties prefer the token whose interval midpoint is closest to the encoder
+    window midpoint, then the lower transcript position. The mapping uses
+    Whisper's cross-attention/DTW timestamps and is therefore explicitly
+    approximate rather than a word boundary or causal attribution.
+    """
+    timed_tokens: list[tuple[int, float, float]] = []
+    for token_position, token in enumerate(transcript_tokens):
+        start = token.get("start_seconds")
+        end = token.get("end_seconds")
+        if not isinstance(start, (int, float)) or not isinstance(end, (int, float)):
+            continue
+        if not math.isfinite(float(start)) or not math.isfinite(float(end)):
+            continue
+        if float(end) < float(start):
+            continue
+        timed_tokens.append((token_position, float(start), float(end)))
+    if not timed_tokens:
+        return []
+
+    alignments: list[dict[str, Any]] = []
+    for time_bin in time_bins:
+        start = float(time_bin["start_seconds"])
+        end = float(time_bin["end_seconds"])
+        midpoint = (start + end) / 2
+        scored_tokens = [
+            (
+                max(0.0, min(end, token_end) - max(start, token_start)),
+                token_position,
+                token_start,
+                token_end,
+            )
+            for token_position, token_start, token_end in timed_tokens
+        ]
+        overlap, token_position, token_start, token_end = min(
+            scored_tokens,
+            key=lambda candidate: (
+                -candidate[0],
+                abs(midpoint - (candidate[2] + candidate[3]) / 2),
+                candidate[1],
+            ),
+        )
+        window_duration = max(0.0, end - start)
+        alignments.append(
+            {
+                "token_position": token_position,
+                "match": "overlapping" if overlap > 0 else "nearest",
+                "window_midpoint_seconds": midpoint,
+                "token_start_seconds": token_start,
+                "token_end_seconds": token_end,
+                "overlap_seconds": overlap,
+                "overlap_fraction_of_window": (
+                    overlap / window_duration if window_duration > 0 else 0.0
+                ),
+            }
+        )
+    return alignments
+
+
 @torch.no_grad()
 def analyze_whisper_run(
     model: HFWhisperLensModel,
@@ -575,6 +682,13 @@ def analyze_whisper_run(
         "time_bins": [],
         "cells": [],
         "score_kind": "target_mean_relative_logit_delta",
+        "realized_token_alignment": {
+            "method": "maximum_token_interval_overlap",
+            "tie_break": "closest_interval_midpoint_then_lower_token_position",
+            "timing_source": transcription["timing_source"],
+            "timing_quality": transcription["timing_quality"],
+            "interpretation": "approximate_non_causal_synchronization",
+        },
     }
     if lens.encoder is not None:
         valid_positions = int(inputs.encoder_position_mask[0].sum())
@@ -623,6 +737,20 @@ def analyze_whisper_run(
             "adaptive_for_max_bins": positions_per_bin > requested_positions,
             "max_time_bins": max_time_bins,
         }
+        encoder_realized_alignment = _encoder_realized_token_alignment(
+            encoder_payload["time_bins"], transcription["tokens"]
+        )
+        encoder_realized_ids = (
+            None
+            if not encoder_realized_alignment
+            else torch.tensor(
+                [
+                    transcription["tokens"][alignment["token_position"]]["id"]
+                    for alignment in encoder_realized_alignment
+                ],
+                dtype=torch.long,
+            )
+        )
         encoder_payload["cells"] = [
             _cells_for_layer(
                 model,
@@ -632,12 +760,23 @@ def analyze_whisper_run(
                 top_k=top_k,
                 token_mask=token_mask,
                 token_lengths=token_lengths,
+                realized_token_ids=encoder_realized_ids,
                 subtract_target_baseline=True,
                 score_kind="target_mean_relative_logit_delta",
             )
             for layer in encoder_layers
         ]
         for layer_cells in encoder_payload["cells"]:
+            if encoder_realized_alignment:
+                for cell, alignment in zip(
+                    layer_cells, encoder_realized_alignment, strict=True
+                ):
+                    cell["realized_token_position"] = alignment["token_position"]
+                    cell["realized_token_alignment"] = {
+                        key: value
+                        for key, value in alignment.items()
+                        if key != "token_position"
+                    }
             _attach_cell_context(
                 layer_cells,
                 encoder_payload["time_bins"],
@@ -675,6 +814,9 @@ def analyze_whisper_run(
                     if layer in _DECODER_TOKEN_LENGTH_FILTER_LAYERS
                     else None
                 ),
+                realized_token_ids=inputs.decoder_target_ids[
+                    0, decoder_positions
+                ].detach().cpu(),
                 score_kind="raw_readout_logit",
             )
             for layer in decoder_layers
@@ -740,6 +882,10 @@ def analyze_whisper_run(
                     "merge disjoint exact-length buckets, sort by score, and "
                     "rank by strictly greater scores"
                 ),
+                "realized_maximum_length_space": _MAX_LENGTH_RANK_SPACE,
+                "realized_maximum_length_denominator_source": (
+                    "display_vocabulary.maximum_decoded_character_length_counts"
+                ),
             },
             "encoder_token_length_filter": {
                 "policy": "exact_decoded_character_length_buckets",
@@ -761,6 +907,7 @@ def analyze_whisper_run(
                 "Encoder grid scores are target-mean-relative readout-logit changes; decoder grid scores are raw readout logits. Neither is a calibrated causal effect or probability.",
                 "The interactive grids use lexical-display rank as their primary lens rank; each serialized candidate also carries exact display and full-vocabulary rank provenance. Held-out evaluation still ranks the full vocabulary.",
                 "Encoder states are bidirectional and may contain information from later audio in the same 30-second window.",
+                "An encoder cell's realized-token rank uses the model-derived Whisper cross-attention/DTW token interval with greatest temporal overlap (ties use closest interval midpoint, then lower token position). This is approximate synchronization, not a phoneme/word boundary or causal attribution.",
                 "Encoder-to-decoder J-lens is an experimental extension not validated by the source paper.",
                 "The optional encoder token-length filter reranks over lexical tokens up to a user-selected decoded character count. It is a phoneme-oriented exploration aid, not a phoneme classifier, and is not part of the source J-lens method.",
                 "The optional decoder token-length filter reranks the lexical display vocabulary for decoder L0 and L1 only. Decoder L2 remains character-length-unfiltered but still uses the lexical display vocabulary; the output head is fully unfiltered.",

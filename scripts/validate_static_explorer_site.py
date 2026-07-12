@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -130,6 +131,94 @@ def _validate_exact_realized_rank(
         raise ValueError(f"{label} realized-token tie policy is unsupported")
 
 
+def _aligned_transcription_token(
+    tokens: list[Mapping[str, Any]], time_window: Mapping[str, Any]
+) -> tuple[int, Mapping[str, Any]]:
+    """Match the backend's overlap-first encoder/token synchronization."""
+    try:
+        window_start = float(time_window["start_seconds"])
+        window_end = float(time_window["end_seconds"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("ASR encoder cell has no usable time window") from error
+    if not math.isfinite(window_start) or not math.isfinite(window_end):
+        raise ValueError("ASR encoder cell has a non-finite time window")
+    if window_end < window_start:
+        raise ValueError("ASR encoder cell has a reversed time window")
+    midpoint = (window_start + window_end) / 2
+    choices: list[tuple[tuple[float, float, int], int, Mapping[str, Any]]] = []
+    for index, token in enumerate(tokens):
+        start = token.get("start_seconds")
+        end = token.get("end_seconds")
+        if start is None or end is None:
+            continue
+        try:
+            token_start = float(start)
+            token_end = float(end)
+        except (TypeError, ValueError):
+            continue
+        if (
+            not math.isfinite(token_start)
+            or not math.isfinite(token_end)
+            or token_end < token_start
+        ):
+            continue
+        overlap = max(
+            0.0,
+            min(window_end, token_end) - max(window_start, token_start),
+        )
+        midpoint_distance = abs(midpoint - (token_start + token_end) / 2)
+        choices.append(((-overlap, midpoint_distance, index), index, token))
+    if not choices:
+        raise ValueError("ASR encoder cells cannot be aligned to untimed output tokens")
+    _, best_index, best_token = min(choices, key=lambda choice: choice[0])
+    return best_index, best_token
+
+
+def _validate_encoder_alignment_provenance(
+    alignment: Any,
+    *,
+    time_window: Mapping[str, Any],
+    token: Mapping[str, Any],
+) -> None:
+    if not isinstance(alignment, Mapping):
+        raise ValueError("ASR encoder cell has no realized-token alignment provenance")
+    required = {
+        "match",
+        "window_midpoint_seconds",
+        "token_start_seconds",
+        "token_end_seconds",
+        "overlap_seconds",
+        "overlap_fraction_of_window",
+    }
+    if required - alignment.keys():
+        raise ValueError("ASR encoder cell has incomplete alignment provenance")
+    window_start = float(time_window["start_seconds"])
+    window_end = float(time_window["end_seconds"])
+    token_start = float(token["start_seconds"])
+    token_end = float(token["end_seconds"])
+    overlap = max(
+        0.0,
+        min(window_end, token_end) - max(window_start, token_start),
+    )
+    duration = max(0.0, window_end - window_start)
+    expected = {
+        "window_midpoint_seconds": (window_start + window_end) / 2,
+        "token_start_seconds": token_start,
+        "token_end_seconds": token_end,
+        "overlap_seconds": overlap,
+        "overlap_fraction_of_window": overlap / duration if duration > 0 else 0.0,
+    }
+    if alignment.get("match") != ("overlapping" if overlap > 0 else "nearest"):
+        raise ValueError("ASR encoder cell has an invalid alignment match kind")
+    for field, value in expected.items():
+        try:
+            recorded = float(alignment[field])
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"ASR encoder alignment {field} is invalid") from error
+        if not math.isclose(recorded, value, rel_tol=1e-7, abs_tol=1e-7):
+            raise ValueError(f"ASR encoder alignment {field} does not match timing")
+
+
 def _validate_asr_or_speech(
     report: Mapping[str, Any], *, family: str
 ) -> None:
@@ -142,11 +231,11 @@ def _validate_asr_or_speech(
     )
     if len(payload["decoder"]["cells"][0]) != len(tokens):
         raise ValueError(f"{family} decoder/token width mismatch")
-    if family == "speech":
+    if family in {"asr", "speech"}:
         for position, token in enumerate(tokens):
             _validate_exact_realized_rank(
                 token,
-                label=f"speech HEAD position {position}",
+                label=f"{family} HEAD position {position}",
                 expected_id=token.get("id"),
                 require_score=False,
             )
@@ -155,7 +244,7 @@ def _validate_asr_or_speech(
                 _validate_exact_realized_rank(
                     cell.get("realized_token"),
                     label=(
-                        f"speech decoder layer {layer_index}, position {position}"
+                        f"{family} decoder layer {layer_index}, position {position}"
                     ),
                     expected_id=tokens[position].get("id"),
                     require_score=True,
@@ -163,6 +252,36 @@ def _validate_asr_or_speech(
     _validate_stream(
         payload["encoder"], label=f"{family} encoder", allow_empty=family == "speech"
     )
+    if family == "asr":
+        alignment_metadata = payload["encoder"].get("realized_token_alignment")
+        if not isinstance(alignment_metadata, Mapping) or alignment_metadata.get(
+            "method"
+        ) != "maximum_token_interval_overlap":
+            raise ValueError("ASR encoder stream has no alignment-method provenance")
+        for layer_index, row in enumerate(payload["encoder"]["cells"]):
+            for position, cell in enumerate(row):
+                token_index, token = _aligned_transcription_token(
+                    tokens, cell.get("time_window") or {}
+                )
+                if cell.get("realized_token_position") != token_index:
+                    raise ValueError(
+                        "ASR encoder realized-token position does not match "
+                        "overlap-first output-token synchronization"
+                    )
+                _validate_encoder_alignment_provenance(
+                    cell.get("realized_token_alignment"),
+                    time_window=cell.get("time_window") or {},
+                    token=token,
+                )
+                _validate_exact_realized_rank(
+                    cell.get("realized_token"),
+                    label=(
+                        f"asr encoder layer {layer_index}, position {position} "
+                        f"(aligned output token {token_index})"
+                    ),
+                    expected_id=token.get("id"),
+                    require_score=True,
+                )
     preview = payload.get("audio", {}).get("waveform_preview", {})
     values = preview.get("values")
     if not isinstance(values, list) or not 0 < len(values) <= 1024:
@@ -209,6 +328,14 @@ def _validate_filter_cache(
     cache = _load(path)
     if cache.get("example_id") != report.get("example_id"):
         raise ValueError("ASR filter cache/report ID mismatch")
+    denominators_by_length = (
+        report.get("payload", {})
+        .get("metadata", {})
+        .get("display_vocabulary", {})
+        .get("maximum_decoded_character_length_counts", {})
+    )
+    if not isinstance(denominators_by_length, Mapping) or not denominators_by_length:
+        raise ValueError("ASR report has no character-filter denominators")
     for stream_name in ("encoder", "decoder"):
         filtered = cache["streams"][stream_name]
         base = report["payload"][stream_name]
@@ -217,9 +344,70 @@ def _validate_filter_cache(
         width = len(base["cells"][0])
         if any(len(row) != width for row in filtered["cells"]):
             raise ValueError(f"ASR {stream_name} filter width mismatch")
-        for row in filtered["cells"]:
-            if any(not cell.get("top_tokens_by_length") for cell in row):
-                raise ValueError(f"ASR {stream_name} filter cell is empty")
+        for layer, row in zip(
+            filtered["layers"], filtered["cells"], strict=True
+        ):
+            report_layer_index = base["layers"].index(layer)
+            for position, cell in enumerate(row):
+                if not cell.get("top_tokens_by_length"):
+                    raise ValueError(f"ASR {stream_name} filter cell is empty")
+                realized_rank_by_length = cell.get("realized_rank_by_max_length")
+                if (
+                    not isinstance(realized_rank_by_length, Mapping)
+                    or not realized_rank_by_length
+                ):
+                    raise ValueError(
+                        f"ASR {stream_name} filter cell has no exact realized ranks"
+                    )
+                base_cell = base["cells"][report_layer_index][position]
+                target_filter = base_cell.get("realized_token", {}).get(
+                    "vocabulary_filter", {}
+                )
+                target_length = target_filter.get("decoded_character_length")
+                target_eligible = target_filter.get("display_lexical_eligible")
+                if not isinstance(target_eligible, bool):
+                    raise ValueError(
+                        f"ASR {stream_name} realized token has no lexical eligibility"
+                    )
+                if set(realized_rank_by_length) != set(denominators_by_length):
+                    raise ValueError(
+                        f"ASR {stream_name} filtered ranks do not cover every limit"
+                    )
+                for limit, rank in realized_rank_by_length.items():
+                    try:
+                        numeric_limit = int(limit)
+                        denominator = int(denominators_by_length[str(limit)])
+                    except (TypeError, ValueError) as error:
+                        raise ValueError(
+                            f"ASR {stream_name} filter limit is invalid"
+                        ) from error
+                    if rank is None:
+                        if (
+                            target_eligible
+                            and target_length is not None
+                            and int(target_length) <= numeric_limit
+                        ):
+                            raise ValueError(
+                                f"ASR {stream_name} eligible realized rank is missing"
+                            )
+                        continue
+                    try:
+                        numeric_rank = int(rank)
+                    except (TypeError, ValueError) as error:
+                        raise ValueError(
+                            f"ASR {stream_name} filtered realized rank is invalid"
+                        ) from error
+                    if numeric_rank != rank or not 1 <= numeric_rank <= denominator:
+                        raise ValueError(
+                            f"ASR {stream_name} filtered realized rank is out of bounds"
+                        )
+                    if not target_eligible or (
+                        target_length is not None
+                        and int(target_length) > numeric_limit
+                    ):
+                        raise ValueError(
+                            f"ASR {stream_name} excluded realized token has a rank"
+                        )
     _validate_safe(cache)
 
 
@@ -388,6 +576,8 @@ def validate_site(site_root: Path) -> dict[str, int]:
         'family === "speech" ? renderSpeechRows()',
         "cell?.realized_token",
         'class="realized-rank-badge"',
+        "showASRRealizedRank",
+        "realized_rank_by_max_length",
     ):
         if marker not in explorer_script:
             raise ValueError(
@@ -402,6 +592,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         ".speech-matrix-window",
         ".speech-matrix-grid",
         ".realized-rank-badge",
+        '[data-family="asr"] .matrix-cell .realized-rank-badge',
     ):
         if marker not in explorer_css:
             raise ValueError(
@@ -426,6 +617,14 @@ def validate_site(site_root: Path) -> dict[str, int]:
             raise ValueError(f"{family} must publish exactly three reports")
         if not manifest.get("provenance", {}).get("lens"):
             raise ValueError(f"{family} manifest has no pinned lens provenance")
+        lens_provenance = manifest["provenance"]["lens"]
+        if family == "asr":
+            if "source_layers" in lens_provenance:
+                raise ValueError("ASR lens provenance has an ambiguous source_layers field")
+            if not isinstance(lens_provenance.get("encoder_source_layers"), list):
+                raise ValueError("ASR lens provenance has no encoder source layers")
+            if not isinstance(lens_provenance.get("decoder_source_layers"), list):
+                raise ValueError("ASR lens provenance has no decoder source layers")
 
         for entry in reports:
             report_path = _site_path(site_root, str(entry["report_url"]))
@@ -441,6 +640,15 @@ def validate_site(site_root: Path) -> dict[str, int]:
                 _validate_tts(report)
             else:
                 _validate_asr_or_speech(report, family=family)
+                if family == "asr":
+                    if report["payload"]["encoder"]["layers"] != lens_provenance[
+                        "encoder_source_layers"
+                    ]:
+                        raise ValueError("ASR encoder layers disagree with provenance")
+                    if report["payload"]["decoder"]["layers"] != lens_provenance[
+                        "decoder_source_layers"
+                    ]:
+                        raise ValueError("ASR decoder layers disagree with provenance")
                 audio_path = _site_path(site_root, str(entry["audio_url"]))
                 if not audio_path.is_file():
                     raise ValueError(f"missing cleared input audio: {audio_path}")

@@ -344,7 +344,7 @@ Separately, each encoder or decoder lens cell should display:
 - top token strings and ranks;
 - raw or normalized lens scores;
 - the realized output token's exact score/rank when that path retains it (now
-  implemented for the LFM speech-to-speech matrix); and
+  implemented for the Whisper ASR and LFM speech-to-speech matrices); and
 - lens artifact provenance and corpus size.
 
 The J-lens softmax can be useful for ranking but is not calibrated output
@@ -410,6 +410,15 @@ rank spaces and denominators are retained in the payload. The actual output
 HEAD always uses the full-vocabulary rank. No rank is inferred from whether the
 target happens to appear in the visible top five.
 
+Whisper decoder cells use the realized output token at the same generated
+position. Whisper encoder cells require an approximate cross-stream pairing:
+each pooled audio window selects the model-derived cross-attention/DTW token
+interval with greatest temporal overlap, breaking ties by closest interval
+midpoint and then earlier output position. The payload records that output
+position plus overlap seconds/fraction. This is a display synchronization rule,
+not an independent word boundary, causal attribution, or real-time belief
+trace; Whisper's encoder is bidirectional.
+
 Optional decoded-character filters are computed before top-k selection. The
 server stores a vocabulary-wide top-k within every exact trimmed token length,
 and the browser merges lengths `1…N` for the selected limit. This is equivalent
@@ -419,6 +428,10 @@ The encoder can use this view at every displayed layer as a phoneme-oriented
 exploration aid. The decoder exposes it only for L0 and L1; L2 and the output
 head remain unfiltered late-readout and actual-probability controls. Neither
 filter changes Whisper generation or creates a probability distribution.
+For Whisper's realized-token badge, the server additionally retains the exact
+rank for every cumulative `≤N` vocabulary. A lexical target longer than `N`, or
+a nonlexical target excluded from the display vocabulary, has no filtered rank
+and is shown as `out`; the unfiltered exact rank remains available in details.
 
 ## 7. Cross-page metric glossary
 

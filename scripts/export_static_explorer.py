@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import mimetypes
 import urllib.error
 import urllib.request
@@ -108,6 +109,8 @@ TOKEN_FIELDS = CANDIDATE_FIELDS | {
 CELL_FIELDS = {
     "candidate_space",
     "position_index",
+    "realized_token_alignment",
+    "realized_token_position",
     "selected_score",
     "time_window",
 }
@@ -117,6 +120,7 @@ STREAM_FIELDS = {
     "pooling",
     "positions",
     "projection_rank",
+    "realized_token_alignment",
     "score_kind",
     "stream_kind",
     "target_layer",
@@ -264,6 +268,11 @@ def _filter_stream(source: Mapping[str, Any] | None) -> dict[str, Any]:
             buckets = cell.get("top_tokens_by_length")
             if not isinstance(buckets, dict):
                 raise ValueError(f"layer {layer} has a partial filter cache")
+            realized_rank_by_length = cell.get("realized_rank_by_max_length")
+            if not isinstance(realized_rank_by_length, dict) or not realized_rank_by_length:
+                raise ValueError(
+                    f"layer {layer} has no exact filtered realized-token ranks"
+                )
             cells.append(
                 {
                     "position_index": cell.get("position_index"),
@@ -273,6 +282,10 @@ def _filter_stream(source: Mapping[str, Any] | None) -> dict[str, Any]:
                             _candidate(item) for item in candidates
                         ]
                         for length, candidates in buckets.items()
+                    },
+                    "realized_rank_by_max_length": {
+                        str(length): (None if rank is None else int(rank))
+                        for length, rank in realized_rank_by_length.items()
                     },
                 }
             )
@@ -403,10 +416,106 @@ def _validate_exact_rank_candidate(
         raise ValueError(f"{label} realized-token tie policy is unsupported")
 
 
+def _aligned_transcription_token(
+    tokens: list[Mapping[str, Any]], time_window: Mapping[str, Any]
+) -> tuple[int, Mapping[str, Any]]:
+    """Match the backend's overlap-first encoder/token synchronization."""
+    try:
+        window_start = float(time_window["start_seconds"])
+        window_end = float(time_window["end_seconds"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("ASR encoder cell has no usable time window") from error
+    if not math.isfinite(window_start) or not math.isfinite(window_end):
+        raise ValueError("ASR encoder cell has a non-finite time window")
+    if window_end < window_start:
+        raise ValueError("ASR encoder cell has a reversed time window")
+    midpoint = (window_start + window_end) / 2
+    choices: list[tuple[tuple[float, float, int], int, Mapping[str, Any]]] = []
+    for index, token in enumerate(tokens):
+        start = token.get("start_seconds")
+        end = token.get("end_seconds")
+        if start is None or end is None:
+            continue
+        try:
+            token_start = float(start)
+            token_end = float(end)
+        except (TypeError, ValueError):
+            continue
+        if (
+            not math.isfinite(token_start)
+            or not math.isfinite(token_end)
+            or token_end < token_start
+        ):
+            continue
+        overlap = max(
+            0.0,
+            min(window_end, token_end) - max(window_start, token_start),
+        )
+        midpoint_distance = abs(midpoint - (token_start + token_end) / 2)
+        choices.append(((-overlap, midpoint_distance, index), index, token))
+    if not choices:
+        raise ValueError("ASR encoder cells cannot be aligned to untimed output tokens")
+    _, best_index, best_token = min(choices, key=lambda choice: choice[0])
+    return best_index, best_token
+
+
+def _validate_encoder_alignment_provenance(
+    alignment: Any,
+    *,
+    time_window: Mapping[str, Any],
+    token: Mapping[str, Any],
+) -> None:
+    if not isinstance(alignment, Mapping):
+        raise ValueError("asr encoder cell has no realized-token alignment provenance")
+    required = {
+        "match",
+        "window_midpoint_seconds",
+        "token_start_seconds",
+        "token_end_seconds",
+        "overlap_seconds",
+        "overlap_fraction_of_window",
+    }
+    if required - alignment.keys():
+        raise ValueError("asr encoder cell has incomplete alignment provenance")
+    window_start = float(time_window["start_seconds"])
+    window_end = float(time_window["end_seconds"])
+    token_start = float(token["start_seconds"])
+    token_end = float(token["end_seconds"])
+    overlap = max(
+        0.0,
+        min(window_end, token_end) - max(window_start, token_start),
+    )
+    duration = max(0.0, window_end - window_start)
+    expected = {
+        "window_midpoint_seconds": (window_start + window_end) / 2,
+        "token_start_seconds": token_start,
+        "token_end_seconds": token_end,
+        "overlap_seconds": overlap,
+        "overlap_fraction_of_window": overlap / duration if duration > 0 else 0.0,
+    }
+    if alignment.get("match") != ("overlapping" if overlap > 0 else "nearest"):
+        raise ValueError("asr encoder cell has an invalid alignment match kind")
+    for field, value in expected.items():
+        try:
+            recorded = float(alignment[field])
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"asr encoder alignment {field} is invalid") from error
+        if not math.isclose(recorded, value, rel_tol=1e-7, abs_tol=1e-7):
+            raise ValueError(f"asr encoder alignment {field} does not match timing")
+
+
 def _validate_matrix(report: Mapping[str, Any]) -> None:
     payload = report["payload"]
     family = report.get("family")
     transcription_tokens = payload.get("transcription", {}).get("tokens", [])
+    if family == "asr":
+        alignment_metadata = payload.get("encoder", {}).get(
+            "realized_token_alignment"
+        )
+        if not isinstance(alignment_metadata, Mapping) or alignment_metadata.get(
+            "method"
+        ) != "maximum_token_interval_overlap":
+            raise ValueError("asr encoder stream has no alignment-method provenance")
     for stream_name in ("encoder", "decoder"):
         stream = payload[stream_name]
         layers = stream.get("layers", [])
@@ -420,30 +529,55 @@ def _validate_matrix(report: Mapping[str, Any]) -> None:
         widths = {len(row) for row in cells}
         if len(widths) != 1:
             raise ValueError(f"{stream_name} matrix is ragged")
-        if (
-            family == "speech"
-            and stream_name == "decoder"
-            and widths != {len(transcription_tokens)}
-        ):
-            raise ValueError("speech decoder/output-token width mismatch")
+        if stream_name == "decoder" and family in {"asr", "speech"}:
+            if widths != {len(transcription_tokens)}:
+                raise ValueError(f"{family} decoder/output-token width mismatch")
         for layer_index, row in enumerate(cells):
             for position, cell in enumerate(row):
                 if not cell.get("top_tokens"):
                     raise ValueError(f"{stream_name} cell has no candidates")
-                if family == "speech" and stream_name == "decoder":
+                if family in {"asr", "speech"} and stream_name == "decoder":
                     if position >= len(transcription_tokens):
-                        raise ValueError("speech decoder is wider than its output tokens")
+                        raise ValueError(
+                            f"{family} decoder is wider than its output tokens"
+                        )
                     _validate_exact_rank_candidate(
                         cell.get("realized_token"),
-                        label=f"speech decoder layer {layer_index}, position {position}",
+                        label=(
+                            f"{family} decoder layer {layer_index}, "
+                            f"position {position}"
+                        ),
                         expected_id=transcription_tokens[position].get("id"),
                         require_score=True,
                     )
-    if family == "speech":
+                if family == "asr" and stream_name == "encoder":
+                    token_index, token = _aligned_transcription_token(
+                        transcription_tokens, cell.get("time_window") or {}
+                    )
+                    if cell.get("realized_token_position") != token_index:
+                        raise ValueError(
+                            "asr encoder realized-token position does not match "
+                            "overlap-first output-token synchronization"
+                        )
+                    _validate_encoder_alignment_provenance(
+                        cell.get("realized_token_alignment"),
+                        time_window=cell.get("time_window") or {},
+                        token=token,
+                    )
+                    _validate_exact_rank_candidate(
+                        cell.get("realized_token"),
+                        label=(
+                            f"asr encoder layer {layer_index}, position {position} "
+                            f"(aligned output token {token_index})"
+                        ),
+                        expected_id=token.get("id"),
+                        require_score=True,
+                    )
+    if family in {"asr", "speech"}:
         for position, token in enumerate(transcription_tokens):
             _validate_exact_rank_candidate(
                 token,
-                label=f"speech HEAD position {position}",
+                label=f"{family} HEAD position {position}",
                 expected_id=token.get("id"),
             )
 
@@ -454,6 +588,13 @@ def _validate_filter_cache(
     if cache["example_id"] != report["example_id"]:
         raise ValueError("filter cache/report example mismatch")
     payload = report["payload"]
+    denominators_by_length = (
+        payload.get("metadata", {})
+        .get("display_vocabulary", {})
+        .get("maximum_decoded_character_length_counts", {})
+    )
+    if not isinstance(denominators_by_length, Mapping) or not denominators_by_length:
+        raise ValueError("report has no cumulative character-filter denominators")
     for stream_name in ("encoder", "decoder"):
         cache_stream = cache["streams"][stream_name]
         report_stream = payload[stream_name]
@@ -471,6 +612,64 @@ def _validate_filter_cache(
                     raise ValueError(f"filter cell coordinate mismatch in {stream_name}")
                 if not cell["top_tokens_by_length"]:
                     raise ValueError(f"empty filter buckets in {stream_name}")
+                realized_rank_by_length = cell.get("realized_rank_by_max_length")
+                if (
+                    not isinstance(realized_rank_by_length, Mapping)
+                    or not realized_rank_by_length
+                ):
+                    raise ValueError(
+                        f"missing exact filtered realized ranks in {stream_name}"
+                    )
+                report_layer_index = report_layers.index(layer)
+                base_cell = report_stream["cells"][report_layer_index][position]
+                target_filter = base_cell.get("realized_token", {}).get(
+                    "vocabulary_filter", {}
+                )
+                target_length = target_filter.get("decoded_character_length")
+                target_eligible = target_filter.get("display_lexical_eligible")
+                if not isinstance(target_eligible, bool):
+                    raise ValueError(
+                        f"realized token has no lexical eligibility in {stream_name}"
+                    )
+                if set(realized_rank_by_length) != set(denominators_by_length):
+                    raise ValueError(
+                        f"filtered realized ranks do not cover every limit in {stream_name}"
+                    )
+                for limit, rank in realized_rank_by_length.items():
+                    try:
+                        numeric_limit = int(limit)
+                        denominator = int(denominators_by_length[str(limit)])
+                    except (TypeError, ValueError) as error:
+                        raise ValueError(
+                            f"invalid realized-rank filter limit in {stream_name}"
+                        ) from error
+                    if rank is None:
+                        if (
+                            target_eligible
+                            and target_length is not None
+                            and int(target_length) <= numeric_limit
+                        ):
+                            raise ValueError(
+                                f"eligible realized token is missing in {stream_name}"
+                            )
+                        continue
+                    try:
+                        numeric_rank = int(rank)
+                    except (TypeError, ValueError) as error:
+                        raise ValueError(
+                            f"invalid filtered realized rank in {stream_name}"
+                        ) from error
+                    if numeric_rank != rank or not 1 <= numeric_rank <= denominator:
+                        raise ValueError(
+                            f"filtered realized rank is out of bounds in {stream_name}"
+                        )
+                    if not target_eligible or (
+                        target_length is not None
+                        and int(target_length) > numeric_limit
+                    ):
+                        raise ValueError(
+                            f"excluded realized token has a rank in {stream_name}"
+                        )
 
 
 def _write_json(

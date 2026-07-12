@@ -620,6 +620,14 @@ large cell label is the layer's top candidate; the smaller `realized #N` label
 is the generated token's exact competition rank from the complete saved
 readout, even when that token is outside the five displayed candidates.
 
+The ASR explorer uses the same distinction in a denser form: large text is the
+top candidate and the small `#N` is the exact rank of the realized token. A
+decoder column tracks its generated token directly; an encoder window tracks
+the output token with greatest overlap under Whisper's model-derived DTW
+timing. That encoder pairing is approximate and non-causal. When the optional
+character filter excludes the realized token, the badge says `out`; otherwise
+it shows the exact rank within the filtered `≤N` vocabulary.
+
 Before publishing, run the static-only integrity gate:
 
 ```bash

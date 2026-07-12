@@ -486,6 +486,10 @@ Status: **in progress**
 - [x] Retain the realized generated token's exact full-logit score and scoped
   competition rank at every cached LFM layer/position cell, and show that rank
   as a small secondary label without replacing the layer's top candidate.
+- [x] Retain exact realized-token ranks across every cached Whisper decoder
+  position and timed encoder window. Pair encoder windows to model-derived DTW
+  token intervals by maximum temporal overlap, label that mapping approximate
+  and non-causal, and recompute the rank exactly under character filtering.
 - [ ] Package the Chatterbox bridge baseline/steered pair after completing the
   conversion/S3/derived-output review.
 - [x] Package the three attributed LibriSpeech inputs with immutable hashes and
@@ -563,7 +567,10 @@ decision log.
   shared static renderer. Base reports retain the full saved layer × position
   matrices and bounded candidates. ASR exact-length buckets live in separate,
   compact, hash-pinned sidecars and load only when the visitor enables the
-  character filter.
+  character filter. Base ASR cells retain the realized token's exact unfiltered
+  score/rank; sidecars add a compact rank-or-excluded value for every maximum
+  character length. Encoder cells also retain their aligned output-token index
+  and overlap provenance so selection, badge, tooltip, and inspector agree.
 - Static speech-to-speech pages distribute the cleared input waveform and
   generated text but not generated response audio. Long generated-text
   timelines wrap into aligned position bands: each band repeats the layer
@@ -1644,3 +1651,16 @@ truncate, or recompute the cached evidence.
   The allowlist exporter, static integrity validator, report hashes, and site
   manifest now enforce the realized-token ID/rank alignment and continue to
   exclude generated audio, embedded audio, and ephemeral analysis IDs.
+- Added exact realized-token provenance to all three cached Whisper ASR
+  examples: 264 encoder cells, 87 decoder cells, and 29 HEAD positions. Large
+  cell text remains the layer's top candidate; a compact `#N` tracks the
+  realized token even outside top five. Encoder targets use maximum temporal
+  overlap with the model-derived DTW token intervals, with closest-midpoint and
+  earlier-token tie breakers; this is approximate synchronization, not causal
+  localization, and the encoder remains bidirectional.
+- Character-filter sidecars now carry compact exact realized ranks for every
+  `≤N` vocabulary. Longer or nonlexical realized tokens show `out` rather than
+  borrowing an unfiltered rank. Regeneration preserved transcript IDs/text,
+  audio windows, layers, and every saved top-five candidate while adding about
+  0.65 MB across the complete three-example ASR cache. Static provenance now
+  correctly separates encoder source layers L0–L3 from decoder L0–L2.

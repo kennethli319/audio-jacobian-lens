@@ -21,6 +21,11 @@ def test_static_public_report_bundle_is_complete_and_rights_scoped():
     assert payload["family_order"] == ["asr", "speech", "tts"]
 
     families = payload["families"]
+    asr_lens = families["asr"]["provenance"]["lens"]
+    assert "source_layers" not in asr_lens
+    assert asr_lens["encoder_source_layers"] == [0, 1, 2, 3]
+    assert asr_lens["decoder_source_layers"] == [0, 1, 2]
+    assert asr_lens["target_layer"] == 3
     expected_ids = {
         "asr": {
             "asr-question-late-emergence",

@@ -34,11 +34,22 @@ def _realized_candidate(
         "rank_tie_policy": "1_plus_count_strictly_greater",
         "full_vocabulary_rank": rank + 3,
         "full_vocabulary_denominator": 65_536,
+        "vocabulary_filter": {
+            "decoded_character_length": len(text.strip()),
+            "display_lexical_filter_applied": True,
+            "display_lexical_eligible": True,
+        },
         "server_only_debug": "must not be published",
     }
 
 
-def _cell(position: int, *, with_filter: bool) -> dict[str, object]:
+def _cell(
+    position: int,
+    *,
+    with_filter: bool,
+    realized_id: int,
+    realized_text: str,
+) -> dict[str, object]:
     result: dict[str, object] = {
         "position_index": position,
         "time_window": {
@@ -46,12 +57,41 @@ def _cell(position: int, *, with_filter: bool) -> dict[str, object]:
             "end_seconds": (position + 1) * 0.2,
         },
         "top_tokens": [_candidate(100 + position, 1.0 - position)],
+        "realized_token": _realized_candidate(
+            realized_id, realized_text, 0.25 - position * 0.05, 15 + position
+        ),
     }
     if with_filter:
         result["top_tokens_by_length"] = {
             "1": [_candidate(10 + position, 0.9 - position)],
             "2": [_candidate(20 + position, 0.8 - position)],
         }
+        target_length = len(realized_text.strip())
+        result["realized_rank_by_max_length"] = {
+            str(limit): None if target_length > limit else 4 + position + limit
+            for limit in range(1, 4)
+        }
+    return result
+
+
+def _encoder_cell(
+    position: int, *, realized_id: int, realized_text: str
+) -> dict[str, object]:
+    result = _cell(
+        position,
+        with_filter=True,
+        realized_id=realized_id,
+        realized_text=realized_text,
+    )
+    result["realized_token_position"] = position
+    result["realized_token_alignment"] = {
+        "match": "overlapping",
+        "window_midpoint_seconds": position * 0.2 + 0.1,
+        "token_start_seconds": position * 0.2,
+        "token_end_seconds": (position + 1) * 0.2,
+        "overlap_seconds": 0.2,
+        "overlap_fraction_of_window": 1.0,
+    }
     return result
 
 
@@ -63,6 +103,13 @@ def _raw_payload() -> dict[str, object]:
                 "generated_text": True,
                 "generated_audio": True,
             },
+            "display_vocabulary": {
+                "maximum_decoded_character_length_counts": {
+                    "1": 10,
+                    "2": 20,
+                    "3": 30,
+                }
+            },
         },
         "audio": {
             "duration_seconds": 0.4,
@@ -70,28 +117,68 @@ def _raw_payload() -> dict[str, object]:
             "waveform": [float(index) for index in range(2048)],
         },
         "transcription": {
-            "text": " token",
+            "text": " a the",
             "tokens": [
                 {
-                    **_candidate(42, 0.5),
+                    **_realized_candidate(42, " a", 0.5, 1),
                     "probability": 0.25,
+                    "start_seconds": 0.0,
+                    "end_seconds": 0.2,
                     "top_tokens": [_candidate(42, 0.5)],
-                }
+                },
+                {
+                    **_realized_candidate(43, " the", 0.4, 2),
+                    "probability": 0.2,
+                    "start_seconds": 0.2,
+                    "end_seconds": 0.4,
+                    "top_tokens": [_candidate(43, 0.4)],
+                },
             ],
         },
         "encoder": {
             "layers": [0, 1],
+            "realized_token_alignment": {
+                "method": "maximum_token_interval_overlap",
+                "tie_break": "closest_interval_midpoint_then_lower_token_position",
+            },
             "cells": [
-                [_cell(0, with_filter=True), _cell(1, with_filter=True)],
-                [_cell(0, with_filter=True), _cell(1, with_filter=True)],
+                [
+                    _encoder_cell(0, realized_id=42, realized_text=" a"),
+                    _encoder_cell(1, realized_id=43, realized_text=" the"),
+                ],
+                [
+                    _encoder_cell(0, realized_id=42, realized_text=" a"),
+                    _encoder_cell(1, realized_id=43, realized_text=" the"),
+                ],
             ],
         },
         "decoder": {
             "layers": [0, 1, 2],
             "cells": [
-                [_cell(0, with_filter=True), _cell(1, with_filter=True)],
-                [_cell(0, with_filter=True), _cell(1, with_filter=True)],
-                [_cell(0, with_filter=False), _cell(1, with_filter=False)],
+                [
+                    _cell(
+                        0, with_filter=True, realized_id=42, realized_text=" a"
+                    ),
+                    _cell(
+                        1, with_filter=True, realized_id=43, realized_text=" the"
+                    ),
+                ],
+                [
+                    _cell(
+                        0, with_filter=True, realized_id=42, realized_text=" a"
+                    ),
+                    _cell(
+                        1, with_filter=True, realized_id=43, realized_text=" the"
+                    ),
+                ],
+                [
+                    _cell(
+                        0, with_filter=False, realized_id=42, realized_text=" a"
+                    ),
+                    _cell(
+                        1, with_filter=False, realized_id=43, realized_text=" the"
+                    ),
+                ],
             ],
         },
     }
@@ -171,6 +258,7 @@ def test_speech_matrix_rejects_realized_token_id_mismatch() -> None:
 def test_filter_cache_is_separate_and_aligned_with_base_report() -> None:
     raw = _raw_payload()
     report = {
+        "family": "asr",
         "example_id": "asr-example",
         "payload": exporter._reduce_payload(raw),
     }
@@ -184,11 +272,18 @@ def test_filter_cache_is_separate_and_aligned_with_base_report() -> None:
     assert cache["streams"]["decoder"]["cells"][0][0][
         "top_tokens_by_length"
     ]["2"][0]["id"] == 20
+    assert cache["streams"]["decoder"]["cells"][0][0][
+        "realized_rank_by_max_length"
+    ] == {"1": 5, "2": 6, "3": 7}
+    assert cache["streams"]["decoder"]["cells"][0][1][
+        "realized_rank_by_max_length"
+    ] == {"1": None, "2": None, "3": 8}
 
 
 def test_filter_cache_validation_rejects_shifted_coordinates() -> None:
     raw = _raw_payload()
     report = {
+        "family": "asr",
         "example_id": "asr-example",
         "payload": exporter._reduce_payload(raw),
     }
@@ -197,6 +292,26 @@ def test_filter_cache_validation_rejects_shifted_coordinates() -> None:
 
     with pytest.raises(ValueError, match="coordinate mismatch"):
         exporter._validate_filter_cache(cache, report)
+
+
+def test_filter_cache_allows_nonlexical_realized_token_to_remain_excluded() -> None:
+    raw = _raw_payload()
+    cell = raw["decoder"]["cells"][0][0]
+    cell["realized_token"]["rank_space"] = "full_model_vocabulary"
+    cell["realized_token"]["vocabulary_filter"] = {
+        "decoded_character_length": 1,
+        "display_lexical_filter_applied": False,
+        "display_lexical_eligible": False,
+    }
+    cell["realized_rank_by_max_length"] = {"1": None, "2": None, "3": None}
+    report = {
+        "family": "asr",
+        "example_id": "asr-example",
+        "payload": exporter._reduce_payload(raw),
+    }
+    cache = exporter._filter_cache(raw, example_id="asr-example")
+
+    exporter._validate_filter_cache(cache, report)
 
 
 @pytest.mark.parametrize(

@@ -13,6 +13,7 @@ from jlens.whisper import (
     prediction_mask_from_targets,
 )
 from jlens.whisper_analysis import (
+    _encoder_realized_token_alignment,
     _transcript_and_confidence,
     analyze_whisper_run,
     display_token_lengths,
@@ -179,10 +180,10 @@ def test_decoder_length_buckets_apply_only_to_l0_and_l1():
     )
     inputs = WhisperLensInputs(
         input_features=torch.zeros(1, 2, 2),
-        decoder_input_ids=torch.tensor([[0, 1]]),
-        decoder_target_ids=torch.tensor([[1, 2]]),
+        decoder_input_ids=torch.tensor([[0, 1, 2]]),
+        decoder_target_ids=torch.tensor([[1, 2, 4]]),
         encoder_position_mask=torch.tensor([[True, True]]),
-        decoder_position_mask=torch.tensor([[True, True]]),
+        decoder_position_mask=torch.tensor([[True, True, True]]),
         duration_seconds=0.04,
     )
 
@@ -222,6 +223,12 @@ def test_decoder_length_buckets_apply_only_to_l0_and_l1():
         "character_filter_merge": (
             "merge disjoint exact-length buckets, sort by score, and rank by "
             "strictly greater scores"
+        ),
+        "realized_maximum_length_space": (
+            "maximum_decoded_character_length_vocabulary"
+        ),
+        "realized_maximum_length_denominator_source": (
+            "display_vocabulary.maximum_decoded_character_length_counts"
         ),
     }
     for layer_index in (0, 1):
@@ -299,6 +306,57 @@ def test_decoder_length_buckets_apply_only_to_l0_and_l1():
             assert candidate["vocabulary_filter"][
                 "character_length_filter_applied"
             ] is False
+            realized_token = cell["realized_token"]
+            expected_id = payload["decoder"]["positions"][position_index]["token_id"]
+            assert realized_token["id"] == expected_id
+            assert realized_token["score_kind"] == "raw_readout_logit"
+            assert realized_token["rank_space"] == (
+                "full_model_vocabulary"
+                if expected_id == 4
+                else "lexical_display_vocabulary"
+            )
+            if layer_index in (0, 1):
+                by_maximum = cell["realized_rank_by_max_length"]
+                assert set(by_maximum) == {"1", "2", "3", "4", "5"}
+                target_length = len(realized_token["text"].strip())
+                assert all(
+                    by_maximum[str(limit)] is None
+                    for limit in range(1, target_length)
+                )
+                filtered_rank = by_maximum[str(target_length)]
+                if expected_id == 4:
+                    assert filtered_rank is None
+                else:
+                    assert isinstance(filtered_rank, int)
+                    denominator = payload["metadata"]["display_vocabulary"][
+                        "maximum_decoded_character_length_counts"
+                    ][str(target_length)]
+                    assert 1 <= filtered_rank <= denominator
+            else:
+                assert "realized_rank_by_max_length" not in cell
+
+    for layer_index in (0, 1):
+        first, second, punctuation = payload["decoder"]["cells"][layer_index]
+        assert first["realized_rank_by_max_length"] == {
+            "1": None,
+            "2": None,
+            "3": None,
+            "4": None,
+            "5": 6,
+        }
+        assert second["realized_rank_by_max_length"] == {
+            "1": None,
+            "2": 4,
+            "3": 5,
+            "4": 5,
+            "5": 5,
+        }
+        assert punctuation["realized_token"]["rank_space"] == (
+            "full_model_vocabulary"
+        )
+        assert punctuation["realized_rank_by_max_length"] == {
+            str(length): None for length in range(1, 6)
+        }
 
     realized = payload["transcription"]["tokens"][0]
     assert realized["rank"] == 1
@@ -410,6 +468,144 @@ def test_encoder_length_buckets_and_waveform_windows_apply_to_every_layer():
         assert cell["top_tokens"][0]["score_kind"] == (
             "target_mean_relative_logit_delta"
         )
+        assert "realized_token" not in cell
+
+
+def test_encoder_realized_rank_uses_maximum_overlap_output_token():
+    tokenizer = _DisplayTokenizer()
+    vocab_size = len(tokenizer._tokens)
+    residual = torch.arange(vocab_size, dtype=torch.float32)
+
+    class _Model:
+        model_id = "encoder-realized-rank-test"
+        fingerprint = "encoder-realized-rank-test-v1"
+
+        def __init__(self):
+            self.tokenizer = tokenizer
+            self.vocab_size = vocab_size
+
+        @staticmethod
+        def unembed(hidden):
+            return hidden
+
+        @staticmethod
+        def capture(inputs, *, encoder_layers, decoder_layers):
+            assert encoder_layers == [0]
+            assert decoder_layers == []
+            activations = {
+                0: residual.repeat(inputs.encoder_position_mask.shape[1], 1)[None]
+            }
+            actual_logits = torch.zeros(
+                1, inputs.decoder_input_ids.shape[1], vocab_size
+            )
+            return activations, {}, actual_logits
+
+    encoder_lens = CrossJacobianLens(
+        {0: torch.eye(vocab_size)},
+        n_examples=1,
+        source_dim=vocab_size,
+        target_dim=vocab_size,
+        source_stream="encoder",
+        target_stream="decoder",
+        source_means={0: torch.zeros(vocab_size)},
+        target_mean=torch.zeros(vocab_size),
+        metadata={"estimator_name": "test"},
+    )
+    lens = WhisperJacobianLens(
+        encoder=encoder_lens,
+        model_metadata={"model_fingerprint": _Model.fingerprint},
+        estimator_metadata={},
+    )
+    inputs = WhisperLensInputs(
+        input_features=torch.zeros(1, 2, 8),
+        decoder_input_ids=torch.tensor([[0, 1]]),
+        decoder_target_ids=torch.tensor([[1, 2]]),
+        encoder_position_mask=torch.tensor([[True, True, True, True]]),
+        decoder_position_mask=torch.tensor([[True, True]]),
+        duration_seconds=0.08,
+    )
+
+    payload = analyze_whisper_run(
+        _Model(),
+        lens,
+        inputs,
+        np.zeros(1280, dtype=np.float32),
+        token_timestamps=torch.tensor([[0.0, 0.0, 0.04]]),
+        top_k=2,
+        time_bin_seconds=0.02,
+        time_bin_overlap_seconds=0.0,
+    )
+
+    assert payload["encoder"]["realized_token_alignment"] == {
+        "method": "maximum_token_interval_overlap",
+        "tie_break": "closest_interval_midpoint_then_lower_token_position",
+        "timing_source": "whisper_cross_attention_dtw",
+        "timing_quality": "model_derived",
+        "interpretation": "approximate_non_causal_synchronization",
+    }
+    cells = payload["encoder"]["cells"][0]
+    assert [cell["realized_token_position"] for cell in cells] == [0, 0, 1, 1]
+    assert [cell["realized_token"]["id"] for cell in cells] == [1, 1, 2, 2]
+    assert [cell["realized_token_alignment"]["match"] for cell in cells] == [
+        "overlapping",
+        "overlapping",
+        "overlapping",
+        "overlapping",
+    ]
+    assert [
+        cell["realized_token_alignment"]["overlap_fraction_of_window"]
+        for cell in cells
+    ] == pytest.approx([1.0, 1.0, 1.0, 1.0])
+    for cell in cells:
+        realized = cell["realized_token"]
+        assert realized["score_kind"] == "target_mean_relative_logit_delta"
+        assert realized["rank_space"] == "lexical_display_vocabulary"
+        filtered_rank = cell["realized_rank_by_max_length"][
+            str(len(realized["text"].strip()))
+        ]
+        assert isinstance(filtered_rank, int)
+
+
+def test_encoder_realized_alignment_prefers_overlap_then_midpoint_then_position():
+    tokens = [
+        {"start_seconds": 4.9, "end_seconds": 5.1},
+        {"start_seconds": 0.0, "end_seconds": 4.95},
+        {"start_seconds": 6.0, "end_seconds": 7.0},
+    ]
+    maximum_overlap = _encoder_realized_token_alignment(
+        [{"start_seconds": 0.0, "end_seconds": 10.0}], tokens
+    )[0]
+    assert maximum_overlap["token_position"] == 1
+    assert maximum_overlap["overlap_seconds"] == pytest.approx(4.95)
+
+    closest_midpoint = _encoder_realized_token_alignment(
+        [{"start_seconds": 0.0, "end_seconds": 4.0}],
+        [
+            {"start_seconds": 0.0, "end_seconds": 1.0},
+            {"start_seconds": 1.5, "end_seconds": 2.5},
+        ],
+    )[0]
+    assert closest_midpoint["token_position"] == 1
+
+    lower_position = _encoder_realized_token_alignment(
+        [{"start_seconds": 0.0, "end_seconds": 2.0}],
+        [
+            {"start_seconds": 0.0, "end_seconds": 1.0},
+            {"start_seconds": 1.0, "end_seconds": 2.0},
+        ],
+    )[0]
+    assert lower_position["token_position"] == 0
+
+    nearest = _encoder_realized_token_alignment(
+        [{"start_seconds": 3.8, "end_seconds": 4.0}],
+        [
+            {"start_seconds": 0.0, "end_seconds": 1.0},
+            {"start_seconds": 5.0, "end_seconds": 6.0},
+        ],
+    )[0]
+    assert nearest["token_position"] == 1
+    assert nearest["match"] == "nearest"
+    assert nearest["overlap_seconds"] == 0.0
 
 
 def _analysis_inputs() -> WhisperLensInputs:
