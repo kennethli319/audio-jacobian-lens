@@ -19,7 +19,7 @@ PUBLIC_CATALOG_URL = (
 )
 FAMILIES = ("asr", "speech")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260713-21"
+EXPLORER_ASSET_VERSION = "20260713-22"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -90,9 +90,12 @@ CROSS_FAMILY_SYNCHRONIZED_SCROLL_CSS_MARKERS = (
     "overflow-x: auto",
 )
 ASR_PHONE_SIGNATURE_SCRIPT_MARKERS = (
-    "phoneSignatureEnabled: false,",
+    'phoneSignatureEnabled: family === "asr"',
+    '!["0", "false", "off"].includes(String(queryParams.get("phone")).toLowerCase())',
     "function validatePhoneSignatureReport(payload)",
     "function renderPhoneSignatureControl()",
+    "On by default · turn off for normal token J-Lens readouts",
+    'queryParams.set("phone", phoneQueryValue);',
     "const phoneCell = encoderPhoneMode(kind);",
     "label: phoneMode ? compactText(top?.phone)",
     "descriptor.candidates.slice(0, 5)",
@@ -120,8 +123,11 @@ ASR_RECORDED_REPLAY_SCRIPT_MARKERS = (
     "audio-jacobian-lens.recorded-asr-intervention-replay",
     "function composeReplayReport(",
     "function activateReplayCondition(",
+    "controls: `${renderReplayControl()}${renderPhoneSignatureControl()}`",
     'url.searchParams.set("condition", condition.id);',
-    "Cached analyses · never live inference",
+    "Updates encoder · decoder · HEAD",
+    'entry.id === "asr-laurel-yanny"',
+    '<em class="sample-tag">steering exp</em>',
     "function effectiveProvenance()",
     "Original Laurel/Yanny post",
 )
@@ -130,6 +136,7 @@ ASR_RECORDED_REPLAY_CSS_MARKERS = (
     ".replay-condition-buttons",
     ".replay-active-summary",
     ".replay-attribution",
+    ".sample-tag",
 )
 STEERING_SCRIPT_MARKERS = (
     'data.mode !== "static_recorded_checkpoints"',

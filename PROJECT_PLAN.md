@@ -2138,3 +2138,11 @@ the article and primary explorers now carry the relevant interpretation.
   immediately runs `publish_static_asr_replay.py`, publishes the separate
   checkpoint replay, and passes the static validator before deployment. The
   exporter emits the required follow-up when the integrated report is absent.
+- Moved the Original / Yanny / Laurel recorded-state controls into the ASR
+  encoder panel, immediately above the phone-signature control and saved layer
+  matrix, so visitors can compare the changed encoder cells without shifting
+  their attention to a separate pre-timeline card.
+- Made the fitted phone-signature encoder view the default for all public ASR
+  examples while retaining a URL-persistent off switch for the normal
+  vocabulary-token J-Lens view. Audio 10 now carries a compact `steering exp`
+  badge so visitors can find the Laurel/Yanny intervention replay directly.

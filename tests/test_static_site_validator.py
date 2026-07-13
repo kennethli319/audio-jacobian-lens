@@ -313,9 +313,12 @@ def test_renderer_contract_requires_synchronized_cross_family_scrolling() -> Non
 
 def test_renderer_contract_requires_asr_phone_signature_hybrid() -> None:
     assert validator.ASR_PHONE_SIGNATURE_SCRIPT_MARKERS == (
-        "phoneSignatureEnabled: false,",
+        'phoneSignatureEnabled: family === "asr"',
+        '!["0", "false", "off"].includes(String(queryParams.get("phone")).toLowerCase())',
         "function validatePhoneSignatureReport(payload)",
         "function renderPhoneSignatureControl()",
+        "On by default · turn off for normal token J-Lens readouts",
+        'queryParams.set("phone", phoneQueryValue);',
         "const phoneCell = encoderPhoneMode(kind);",
         "label: phoneMode ? compactText(top?.phone)",
         "descriptor.candidates.slice(0, 5)",
@@ -349,8 +352,11 @@ def test_renderer_contract_requires_recorded_asr_intervention_replay() -> None:
         "audio-jacobian-lens.recorded-asr-intervention-replay",
         "function composeReplayReport(",
         "function activateReplayCondition(",
+        "controls: `${renderReplayControl()}${renderPhoneSignatureControl()}`",
         'url.searchParams.set("condition", condition.id);',
-        "Cached analyses · never live inference",
+        "Updates encoder · decoder · HEAD",
+        'entry.id === "asr-laurel-yanny"',
+        '<em class="sample-tag">steering exp</em>',
         "function effectiveProvenance()",
         "Original Laurel/Yanny post",
     )
@@ -359,6 +365,7 @@ def test_renderer_contract_requires_recorded_asr_intervention_replay() -> None:
         ".replay-condition-buttons",
         ".replay-active-summary",
         ".replay-attribution",
+        ".sample-tag",
     )
 
 
