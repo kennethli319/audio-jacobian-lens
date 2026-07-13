@@ -11,7 +11,8 @@ def test_phone_signature_view_is_opt_in_and_explains_score_semantics():
     assert 'id="encoder-phone-signature-toggle"' in HTML
     assert 'aria-pressed="false" disabled' in HTML
     assert "ranked by cosine similarity" in HTML
-    assert "not model probabilities, phoneme confidence, or causal effects" in HTML
+    assert "not probability, a framewise vote, a phoneme boundary" in HTML
+    assert "local-only receptive field" in HTML
 
 
 def test_phone_signature_view_requires_matching_metadata_and_complete_cells():
@@ -41,7 +42,8 @@ def test_phone_signature_view_labels_similarity_without_probability_language():
         SCRIPT.index("function inspectOutputHeadPosition")
     ]
     assert '"Cosine similarity to frozen phone prototype"' in inspector
-    assert "It is not a model probability, phoneme confidence, or causal effect" in inspector
+    assert "It is not a model probability, phoneme confidence, framewise vote" in inspector
+    assert "pooled 100 ms window" in inspector
     assert "renderPhoneSignatures(phoneSignatures, denominator)" in inspector
 
 

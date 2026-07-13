@@ -65,27 +65,29 @@ def test_pool_sequence_residuals_tracks_boundaries():
     assert pooled.end_positions == [2, 4, 5]
 
 
-def test_pool_sequence_residuals_supports_default_200ms_windows():
+def test_pool_sequence_residuals_supports_default_100ms_windows():
     residuals = torch.arange(80, dtype=torch.float32).reshape(20, 4)
     mask = torch.ones(20, dtype=torch.bool)
     pooled = pool_sequence_residuals(
         residuals,
         mask,
-        positions_per_bin=10,
-        stride_positions=9,
+        positions_per_bin=5,
+        stride_positions=4,
     )
     torch.testing.assert_close(
         pooled.residuals,
         torch.stack(
             [
-                residuals[0:10].mean(0),
-                residuals[9:19].mean(0),
-                residuals[18:20].mean(0),
+                residuals[0:5].mean(0),
+                residuals[4:9].mean(0),
+                residuals[8:13].mean(0),
+                residuals[12:17].mean(0),
+                residuals[16:20].mean(0),
             ]
         ),
     )
-    assert pooled.start_positions == [0, 9, 18]
-    assert pooled.end_positions == [10, 19, 20]
+    assert pooled.start_positions == [0, 4, 8, 12, 16]
+    assert pooled.end_positions == [5, 9, 13, 17, 20]
 
 
 def test_pool_rejects_stride_larger_than_window():
@@ -502,7 +504,16 @@ def test_encoder_length_buckets_and_waveform_windows_apply_to_every_layer():
     assert payload["metadata"]["phone_signature"]["phone_inventory_size"] == 2
     assert payload["metadata"]["phone_signature"][
         "effective_display_window_seconds"
-    ] == 0.2
+    ] == 0.1
+    assert payload["encoder"]["pooling"] == {
+        "requested_window_seconds": 0.1,
+        "requested_overlap_seconds": 0.02,
+        "effective_window_seconds": 0.1,
+        "effective_overlap_seconds": 0.02,
+        "effective_hop_seconds": 0.08,
+        "adaptive_for_max_bins": False,
+        "max_time_bins": 100,
+    }
 
 
 def test_encoder_realized_rank_uses_maximum_overlap_output_token():

@@ -627,9 +627,9 @@ def analyze_whisper_run(
     *,
     token_timestamps: torch.Tensor | None = None,
     top_k: int = 5,
-    time_bin_seconds: float = 0.2,
+    time_bin_seconds: float = 0.1,
     time_bin_overlap_seconds: float = 0.02,
-    max_time_bins: int = 80,
+    max_time_bins: int = 100,
     phone_signature_prototypes: PhoneSignaturePrototypes | None = None,
 ) -> dict[str, Any]:
     """Compute actual-output diagnostics and both lens grids for one clip."""

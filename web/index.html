@@ -76,7 +76,7 @@
             <h3>How it is applied</h3>
             <div class="reading-guide-methods">
               <p><strong id="mode-guide-primary-title">Decoder J-lens</strong><span id="mode-guide-primary">A fitted average Jacobian carries each decoder residual toward a later decoder state, which is read through Whisper’s text head.</span></p>
-              <p id="mode-guide-secondary-row"><strong id="mode-guide-secondary-title">Encoder-to-decoder extension</strong><span id="mode-guide-secondary">A separately fitted cross-modal Jacobian maps a pooled 200 ms audio window into the final decoder’s vocabulary space.</span></p>
+              <p id="mode-guide-secondary-row"><strong id="mode-guide-secondary-title">Encoder-to-decoder extension</strong><span id="mode-guide-secondary">A separately fitted cross-modal Jacobian maps a pooled 100 ms audio window into the final decoder’s vocabulary space.</span></p>
             </div>
           </article>
           <article>
@@ -175,8 +175,8 @@
         <div class="analysis-settings" id="encoder-analysis-settings" aria-labelledby="encoder-window-title">
           <div class="analysis-settings-copy">
             <p class="overline" id="encoder-window-title">Encoder time windows</p>
-            <strong>200 ms readout window</strong>
-            <span>Overlap changes the residual pooling used during analysis. Long clips may use wider windows to stay within the display limit.</span>
+            <strong>100 ms readout window</strong>
+            <span>Each window mean-pools five native encoder positions. Overlap changes the residual pooling used during analysis; long clips may widen only at the 100-bin safety limit.</span>
           </div>
           <label class="analysis-setting-control" for="encoder-overlap-seconds">
             <span>Window overlap</span>
@@ -185,7 +185,7 @@
               <option value="0">None</option>
             </select>
           </label>
-          <div class="analysis-setting-summary" id="encoder-hop-summary">180 ms hop</div>
+          <div class="analysis-setting-summary" id="encoder-hop-summary">80 ms hop</div>
         </div>
 
         <div class="selected-source" id="selected-source" hidden>
@@ -274,7 +274,7 @@
                   <i aria-hidden="true">Off</i>
                 </button>
                 <p id="encoder-phone-signature-status">Run an analysis with matching fitted phone prototypes to enable this view.</p>
-                <details class="filter-explainer"><summary>What does this show?</summary><p>The nearest frozen phone prototypes for each pooled encoder J-signature, ranked by cosine similarity. These labels are an exploratory fitted readout—not model probabilities, phoneme confidence, or causal effects. A 200 ms window can contain more than one phone.</p></details>
+                <details class="filter-explainer"><summary>What does this show?</summary><p>The nearest frozen phone prototypes for each pooled encoder J-signature, ranked by cosine similarity. Each 100 ms cell pools five native 20 ms states and shares one state with its neighbor. The label is an exploratory fitted readout—not probability, a framewise vote, a phoneme boundary, causal attribution, or a local-only receptive field.</p></details>
               </div>
               <div class="encoder-filter-note">
                 <label class="encoder-filter-control" for="encoder-token-length-filter">

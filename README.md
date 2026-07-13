@@ -542,8 +542,9 @@ The dependency-free frontend provides:
   and alternatives;
 - a proportional encoder waveform-slice navigator plus a wrapping decoder-token
   navigator, both without horizontal matrix scrolling;
-- 200 ms encoder pooling with a selectable 20 ms or zero overlap, exact range
-  reporting, and effective geometry provenance for adaptively widened long clips;
+- 100 ms encoder pooling with a selectable 20 ms or zero overlap (80 ms default
+  hop), exact range reporting, and effective geometry provenance for clips that
+  exceed the 100-bin safety limit;
 - shared selection across the LM/output token, encoder slice, decoder position,
   dual waveform overlays, and audio seek position;
 - a distinct decoder output-head card after L0–L2;

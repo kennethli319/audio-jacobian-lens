@@ -63,7 +63,7 @@
         "timing_semantics": {
           "source": "whisper_cross_attention_dtw",
           "quality": "model_derived",
-          "warning": "Token times are Whisper-derived and are not independent alignment evidence. Phone prototypes were validated on native aligned 20 ms midpoint states, while the explorer displays pooled 200 ms windows that may contain multiple phones."
+          "warning": "Token times are Whisper-derived and are not independent alignment evidence. Each explorer cell mean-pools five native 20 ms encoder states over 100 ms; adjacent cells share one state. Phone prototypes were validated on aligned native midpoint states, so the displayed nearest prototype is not a probability, framewise vote, phoneme boundary, causal attribution, or local-only receptive field."
         },
         "rights": {
           "source_collection": "LibriSpeech dev-clean (OpenSLR SLR12)",

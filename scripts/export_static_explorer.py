@@ -269,6 +269,31 @@ def _validate_phone_signature_view(report: Mapping[str, Any]) -> None:
         raise ValueError("ASR report has no fitted phone-signature metadata")
     if metadata.get("score_kind") != "phone_prototype_cosine_similarity":
         raise ValueError("ASR phone-signature metadata has the wrong score kind")
+    pooling = payload.get("encoder", {}).get("pooling")
+    expected_pooling = {
+        "requested_window_seconds": 0.1,
+        "requested_overlap_seconds": 0.02,
+        "effective_window_seconds": 0.1,
+        "effective_overlap_seconds": 0.02,
+        "effective_hop_seconds": 0.08,
+    }
+    if not isinstance(pooling, Mapping):
+        raise ValueError("ASR encoder pooling geometry is missing")
+    try:
+        pooling_matches = all(
+            math.isclose(
+                float(pooling.get(field)), expected, rel_tol=0, abs_tol=1e-9
+            )
+            for field, expected in expected_pooling.items()
+        )
+    except (TypeError, ValueError):
+        pooling_matches = False
+    if (
+        not pooling_matches
+        or pooling.get("adaptive_for_max_bins") is not False
+        or pooling.get("max_time_bins") != 100
+    ):
+        raise ValueError("ASR encoder pooling must be exact 100/20/80 ms geometry")
     if (
         metadata.get("signature_top_k") != 100
         or metadata.get("display_unit") != "pooled_encoder_window"
@@ -279,13 +304,13 @@ def _validate_phone_signature_view(report: Mapping[str, Any]) -> None:
         or not str(metadata.get("interpretation") or "").strip()
         or not math.isclose(
             float(metadata.get("effective_display_window_seconds") or 0),
-            0.2,
+            0.1,
             rel_tol=0,
             abs_tol=1e-9,
         )
         or not math.isclose(
             float(metadata.get("effective_display_hop_seconds") or 0),
-            0.18,
+            0.08,
             rel_tol=0,
             abs_tol=1e-9,
         )
@@ -330,6 +355,8 @@ def _validate_phone_signature_view(report: Mapping[str, Any]) -> None:
         raise ValueError("ASR phone-signature fit provenance is invalid")
 
     encoder = payload.get("encoder", {})
+    if any(len(row) > 100 for row in encoder.get("cells", [])):
+        raise ValueError("ASR encoder matrix exceeds the 100-bin release limit")
     for row in encoder.get("cells", []):
         for cell in row:
             candidates = cell.get("phone_signatures")

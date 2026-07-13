@@ -92,8 +92,8 @@ the synthetic fixture in `app.js`. Cell arrays use `[layer][position]` ordering.
   head remain unchanged as late-readout and actual-probability controls. This
   display adaptation does not alter Whisper generation.
 - `encoder.pooling` records requested and effective window, overlap, and hop.
-  The default is a 200 ms window with 20 ms overlap (180 ms hop). Long clips may
-  use wider windows to cap the display at 80 bins. Overlapping bins are
+  The default is a 100 ms window with 20 ms overlap (80 ms hop). Long clips may
+  use wider windows to cap the display at 100 bins. Overlapping bins are
   correlated and must not be read as independent evidence.
 - Recognized stream score kinds are
   `target_mean_relative_logit_delta` for the encoder and `raw_readout_logit`

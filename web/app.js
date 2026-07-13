@@ -8,7 +8,7 @@ const API = Object.freeze({
 
 const MAX_RECORD_SECONDS = 30;
 const RECORD_AUTO_STOP_SECONDS = 29;
-const ENCODER_WINDOW_SECONDS = 0.2;
+const ENCODER_WINDOW_SECONDS = 0.1;
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -164,7 +164,7 @@ const MODE_GUIDES = Object.freeze({
     primaryTitle: "Decoder J-lens",
     primary: "A fitted, corpus-averaged Jacobian carries an intermediate decoder residual toward a later decoder state, which is then read through Whisper’s text head.",
     secondaryTitle: "Encoder-to-decoder extension",
-    secondary: "A separately fitted cross-modal Jacobian maps a pooled 200 ms audio window into the final decoder’s vocabulary space.",
+    secondary: "A separately fitted cross-modal Jacobian maps a pooled 100 ms audio window into the final decoder’s vocabulary space.",
     implication: "A token becoming readable in later decoder layers can show when its lexical direction becomes accessible. An encoder peak can associate an audio location with a downstream lexical direction.",
     boundary: "Emission probability, a phoneme probability, a streaming belief, conscious consideration, or causal use. Whisper’s bidirectional encoder can use surrounding and later audio.",
     steps: [
@@ -2043,7 +2043,7 @@ function inspectTimelineCell(kind, layerIndex, columnIndex, { pin = false, annou
     elements.scoreKicker.textContent = "Cosine similarity to frozen phone prototype";
     elements.selectedScore.textContent = formatScore(topSignature.similarity);
     elements.rankKeyLabel.textContent = "Rank among fitted phone prototypes";
-    elements.scoreDescription.textContent = `The nearest fitted phone label is ${topSignature.phone}. Similarity is computed against frozen training prototypes from the matching encoder J-lens. It is not a model probability, phoneme confidence, or causal effect; this pooled 200 ms window may contain more than one phone.`;
+    elements.scoreDescription.textContent = `The nearest fitted phone label is ${topSignature.phone}. Similarity is computed against frozen training prototypes from the matching encoder J-lens. It is not a model probability, phoneme confidence, framewise vote, boundary, or causal effect; this pooled 100 ms window may still contain more than one phone.`;
     elements.topkMetricLabel.textContent = "Phone-prototype rank · ARPAbet label · cosine similarity. The character-length token filter is paused in this view. Blue intensity is a within-layer display percentile, not probability.";
     renderPhoneSignatures(phoneSignatures, denominator);
     if (pin) {
@@ -2777,7 +2777,7 @@ function buildDemoData() {
       pooling: {
         requested_window_seconds: windowSeconds, requested_overlap_seconds: overlapSeconds,
         effective_window_seconds: windowSeconds, effective_overlap_seconds: overlapSeconds,
-        effective_hop_seconds: hopSeconds, adaptive_for_max_bins: false, max_time_bins: 80,
+        effective_hop_seconds: hopSeconds, adaptive_for_max_bins: false, max_time_bins: 100,
       },
     },
     decoder: { score_kind: "raw_readout_logit", layers: decoderLayers, positions, cells: decoderCells },

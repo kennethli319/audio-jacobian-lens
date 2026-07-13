@@ -306,10 +306,10 @@ Decoder masks exclude:
 - optionally timestamp/special tokens in semantic-only ablations.
 
 Whisper's encoder position spacing is 20 ms, but late encoder states have a wide
-receptive field and bidirectional attention. The site defaults to ten-position
-(200 ms) display windows with one-position (20 ms) overlap, giving a 180 ms
+receptive field and bidirectional attention. The site defaults to five-position
+(100 ms) display windows with one-position (20 ms) overlap, giving an 80 ms
 hop. A zero-overlap control is available at analysis time. For long clips the
-window is widened enough to retain full coverage within 80 display bins; the
+window is widened enough to retain full coverage within 100 display bins; the
 response records requested and effective window, overlap, and hop values.
 Overlap makes boundary transitions smoother but does not create new temporal
 resolution: adjacent readouts share residual positions and are correlated. The

@@ -186,6 +186,7 @@ def test_renderer_contract_requires_asr_phone_signature_hybrid() -> None:
         "descriptor.candidates.slice(0, 5)",
         "PHONE SIGNATURE EXAMPLE",
         "Audio and alignment attribution",
+        "exact 100/20/80 ms encoder pooling",
     )
     assert validator.ASR_PHONE_SIGNATURE_CSS_MARKERS == (
         ".sample-button.phone-example",
@@ -472,14 +473,14 @@ def _asr_report() -> dict:
             {"phone": "EH", "similarity": 0.3, "rank": 4},
             {"phone": "F", "similarity": 0.2, "rank": 5},
         ],
-        "time_window": {"start_seconds": 0.0, "end_seconds": 0.2},
+        "time_window": {"start_seconds": 0.0, "end_seconds": 0.1},
         "realized_token_position": 0,
         "realized_token_alignment": {
             "match": "overlapping",
-            "window_midpoint_seconds": 0.1,
+            "window_midpoint_seconds": 0.05,
             "token_start_seconds": 0.0,
             "token_end_seconds": 0.2,
-            "overlap_seconds": 0.2,
+            "overlap_seconds": 0.1,
             "overlap_fraction_of_window": 1.0,
         },
     }
@@ -498,8 +499,8 @@ def _asr_report() -> dict:
                 "phone_signature": {
                     "available": True,
                     "display_unit": "pooled_encoder_window",
-                    "effective_display_hop_seconds": 0.18,
-                    "effective_display_window_seconds": 0.2,
+                    "effective_display_hop_seconds": 0.08,
+                    "effective_display_window_seconds": 0.1,
                     "interpretation": "prototype cosine, not probability",
                     "method": "nearest_frozen_top_k_j_signature_phone_prototype",
                     "phone_inventory": list(validator.PUBLIC_PHONE_INVENTORY),
@@ -519,6 +520,15 @@ def _asr_report() -> dict:
             "transcription": {"tokens": [head]},
             "encoder": {
                 "layers": [0],
+                "pooling": {
+                    "requested_window_seconds": 0.1,
+                    "requested_overlap_seconds": 0.02,
+                    "effective_window_seconds": 0.1,
+                    "effective_overlap_seconds": 0.02,
+                    "effective_hop_seconds": 0.08,
+                    "adaptive_for_max_bins": False,
+                    "max_time_bins": 100,
+                },
                 "realized_token_alignment": {
                     "method": "maximum_token_interval_overlap",
                     "tie_break": (
@@ -549,6 +559,14 @@ def test_asr_site_validation_rejects_missing_phone_candidate() -> None:
     report["payload"]["encoder"]["cells"][0][0]["phone_signatures"].pop()
 
     with pytest.raises(ValueError, match="no usable phone signature"):
+        validator._validate_asr_or_speech(report, family="asr")
+
+
+def test_asr_site_validation_rejects_adaptive_or_stale_pooling() -> None:
+    report = _asr_report()
+    report["payload"]["encoder"]["pooling"]["effective_hop_seconds"] = 0.18
+
+    with pytest.raises(ValueError, match="exact 100/20/80 ms"):
         validator._validate_asr_or_speech(report, family="asr")
 
 

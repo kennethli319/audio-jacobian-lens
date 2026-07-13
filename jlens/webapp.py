@@ -312,7 +312,7 @@ class WhisperAnalysisBackend:
         *,
         device: torch.device,
         top_k: int = 5,
-        time_bin_seconds: float = 0.2,
+        time_bin_seconds: float = 0.1,
         time_bin_overlap_seconds: float = 0.02,
         phone_signature_prototypes: PhoneSignaturePrototypes | None = None,
     ) -> None:
@@ -358,7 +358,7 @@ class WhisperAnalysisBackend:
         revision: str | None,
         device: torch.device,
         top_k: int = 5,
-        time_bin_seconds: float = 0.2,
+        time_bin_seconds: float = 0.1,
         time_bin_overlap_seconds: float = 0.02,
         phone_signatures_path: str | None = None,
     ) -> WhisperAnalysisBackend:
@@ -979,7 +979,7 @@ def _parser() -> argparse.ArgumentParser:
             "audio EOS"
         ),
     )
-    parser.add_argument("--time-bin-seconds", type=float, default=0.2)
+    parser.add_argument("--time-bin-seconds", type=float, default=0.1)
     parser.add_argument("--time-bin-overlap-seconds", type=float, default=0.02)
     parser.add_argument("--web-dir")
     parser.add_argument(

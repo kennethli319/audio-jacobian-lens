@@ -60,8 +60,8 @@ def _cell(
     result: dict[str, object] = {
         "position_index": position,
         "time_window": {
-            "start_seconds": position * 0.2,
-            "end_seconds": (position + 1) * 0.2,
+            "start_seconds": position * 0.1,
+            "end_seconds": (position + 1) * 0.1,
         },
         "top_tokens": [_candidate(100 + position, 1.0 - position)],
         "realized_token": _realized_candidate(
@@ -93,10 +93,10 @@ def _encoder_cell(
     result["realized_token_position"] = position
     result["realized_token_alignment"] = {
         "match": "overlapping",
-        "window_midpoint_seconds": position * 0.2 + 0.1,
-        "token_start_seconds": position * 0.2,
-        "token_end_seconds": (position + 1) * 0.2,
-        "overlap_seconds": 0.2,
+        "window_midpoint_seconds": position * 0.1 + 0.05,
+        "token_start_seconds": position * 0.1,
+        "token_end_seconds": (position + 1) * 0.1,
+        "overlap_seconds": 0.1,
         "overlap_fraction_of_window": 1.0,
     }
     result["phone_signatures"] = [
@@ -143,8 +143,8 @@ def _raw_payload() -> dict[str, object]:
                 "display_unit": "pooled_encoder_window",
                 "silence_or_unknown_class_available": False,
                 "interpretation": "prototype similarity, not probability",
-                "effective_display_window_seconds": 0.2,
-                "effective_display_hop_seconds": 0.18,
+                "effective_display_window_seconds": 0.1,
+                "effective_display_hop_seconds": 0.08,
                 "prototype_source": {
                     "split": "train",
                     "development_or_test_opened": False,
@@ -155,7 +155,7 @@ def _raw_payload() -> dict[str, object]:
             },
         },
         "audio": {
-            "duration_seconds": 0.4,
+            "duration_seconds": 0.2,
             "model_input_format": "mono_16khz",
             "waveform": [float(index) for index in range(2048)],
         },
@@ -166,20 +166,29 @@ def _raw_payload() -> dict[str, object]:
                     **_realized_candidate(42, " a", 0.5, 1),
                     "probability": 0.25,
                     "start_seconds": 0.0,
-                    "end_seconds": 0.2,
+                    "end_seconds": 0.1,
                     "top_tokens": [_candidate(42, 0.5)],
                 },
                 {
                     **_realized_candidate(43, " the", 0.4, 2),
                     "probability": 0.2,
-                    "start_seconds": 0.2,
-                    "end_seconds": 0.4,
+                    "start_seconds": 0.1,
+                    "end_seconds": 0.2,
                     "top_tokens": [_candidate(43, 0.4)],
                 },
             ],
         },
         "encoder": {
             "layers": [0, 1],
+            "pooling": {
+                "requested_window_seconds": 0.1,
+                "requested_overlap_seconds": 0.02,
+                "effective_window_seconds": 0.1,
+                "effective_overlap_seconds": 0.02,
+                "effective_hop_seconds": 0.08,
+                "adaptive_for_max_bins": False,
+                "max_time_bins": 100,
+            },
             "realized_token_alignment": {
                 "method": "maximum_token_interval_overlap",
                 "tie_break": "closest_interval_midpoint_then_lower_token_position",
@@ -387,7 +396,7 @@ def _mini_catalog(audio_values: list[bytes]) -> StaticExplorerCatalog:
             description=f"Description {index}",
             utterance_id=f"1-2-{index:04d}",
             reference_transcript=f"Reference {index}.",
-            duration_seconds=0.4,
+            duration_seconds=0.2,
             sha256=sha256(value).hexdigest(),
             lfm_fit_relationship=(
                 "in_sample_integration" if index == 0 else "held_out_from_one_clip_fit"

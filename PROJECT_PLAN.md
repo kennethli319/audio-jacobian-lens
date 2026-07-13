@@ -192,9 +192,9 @@ Status: **in progress**
   token IDs with exact scoped ranks/denominators and raw lens scores; HEAD uses
   actual probability and log probability. Keep the full right inspector pinned
   until the user explicitly selects a different coordinate.
-- [x] Add real encoder pooling overlap: 200 ms windows with a default 20 ms
+- [x] Add real encoder pooling overlap: 100 ms windows with a default 20 ms
   overlap, a zero-overlap control, exact range metadata, and adaptive widening
-  for the 80-bin display limit.
+  only beyond the 100-bin display safety limit.
 - [x] Add visible model-path-specific guides explaining how the lens is applied,
   what its evidence can and cannot imply, and how to use the actual controls for
   Whisper ASR, MLX speech-to-speech, and Chatterbox TTS.
@@ -562,9 +562,9 @@ decision log.
 - The default encoder estimator samples one generated token per clip and its
   cross-attention/DTW-aligned audio window. The global all-output estimator is
   retained as a comparison.
-- Encoder readouts default to 200 ms windows with 20 ms overlap (180 ms hop)
+- Encoder readouts default to 100 ms windows with 20 ms overlap (80 ms hop)
   before unembedding. The site offers zero overlap as an analysis-time control;
-  long clips widen the window as needed to remain within 80 display bins.
+  long clips widen the window only as needed to remain within 100 display bins.
 - The encoder grid ranks target-mean-relative logit changes; its absolute affine
   readout is retained for evaluation but is dominated by the corpus language
   prior in the 10-clip pilot.
@@ -1145,7 +1145,19 @@ train-only aligned states without opening development or test rows for the
 prototype fit. No prototype vectors, row identities, alignment files, private
 paths, or raw experiment tables are serialized. This view is labeled as an
 exploratory fitted readout—not probability, confidence, a causal effect, or a
-claim that each pooled 200 ms window contains exactly one phone.
+claim that each pooled 100 ms window contains exactly one phone.
+
+### 2026-07-12 — Return the encoder display grid to 100 ms
+
+The encoder explorer now mean-pools five native 20 ms states per 100 ms cell,
+with one shared state between adjacent cells and an 80 ms hop. The display
+safety limit increases from 80 to 100 bins so all ten public clips retain this
+exact geometry; longer uploads may still widen and must report their effective
+geometry. The existing A2 encoder lens and frozen native-state phone prototypes
+remain fixed for comparability. Shorter pooling is expected to reduce phone
+mixing but may increase boundary noise. A phone label remains the nearest
+prototype after pooling—not a framewise vote, phoneme boundary, local-only
+receptive field, calibrated probability, or causal attribution.
 
 ## Work log
 
@@ -1834,3 +1846,22 @@ claim that each pooled 200 ms window contains exactly one phone.
   show all five cached phone candidates. Decoder cells retain the large top
   lexical candidate and small realized-rank badge, with five lexical candidates
   in the same local-detail workflow. The buzzer sample is visibly featured.
+- Changed the actual encoder analysis geometry from 200 ms / 180 ms hop to
+  100 ms windows with 20 ms overlap / 80 ms hop. The safety cap is now 100 bins,
+  which keeps all ten public clips at exact five-state windows without adaptive
+  widening. The A2 lens and frozen phone prototypes remain unchanged; every
+  encoder readout, phone similarity, aligned realized rank, and character-filter
+  cache is regenerated at the new resolution.
+- Verified the regenerated cache against the prior 200 ms release. Transcripts,
+  audio payloads, decoder/HEAD matrices, and decoder filter streams are
+  canonically identical for all ten examples; encoder reports and encoder
+  filter streams changed as intended. Each report now has 23–92 exact 100 ms
+  cells, 80 ms starts, and only a clipped final edge cell where necessary.
+- Compared new phone labels with the nearest-time 200 ms labels rather than
+  assuming stability across a changed grid. L2/L3 top-label agreement is
+  59.6%/64.2%; mean cosine similarity moves from 0.320/0.265 to 0.350/0.273,
+  and mean top-two margin from 0.132/0.106 to 0.165/0.115. These descriptive
+  checks do not establish calibrated phone accuracy or temporal localization.
+- Final 100 ms release gate: 345 tests passed with three optional skips; Ruff,
+  JavaScript syntax, whitespace, exact static hashes, and all 10/10/10 cached
+  report contracts passed.
