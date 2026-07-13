@@ -30,7 +30,6 @@ def _build_route_fixture(site_root: Path) -> None:
             (
                 'href="./"',
                 'href="./speech/"',
-                'href="./steering/"',
             ),
         ),
         "speech": (
@@ -41,7 +40,6 @@ def _build_route_fixture(site_root: Path) -> None:
             (
                 'href="../"',
                 'href="./"',
-                'href="../steering/"',
             ),
         ),
     }
@@ -95,25 +93,19 @@ def _build_route_fixture(site_root: Path) -> None:
                 'aria-label="Audio Jacobian Lens home" '
                 'class="site-nav" aria-label="Model explorers" '
                 '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
-                'href="../../" href="../../speech/" href="../../steering/"'
+                'href="../../" href="../../speech/"'
             ),
         )
 
     _write(
         site_root / "steering" / "index.html",
-        _noindex('data-results-url="../data/phone-steering-results.json"')
+        _noindex(
+            'get("target") `&condition=${target}` window.location.replace '
+            'href="../?sample=asr-laurel-yanny"'
+        )
         + (
-            f'<link rel="canonical" href="{validator.PUBLIC_BASE}steering/">'
-            '<link rel="stylesheet" href="../assets/steering.css'
-            f'?v={validator.STEERING_ASSET_VERSION}">'
-            '<script src="../assets/steering.js'
-            f'?v={validator.STEERING_ASSET_VERSION}"></script>'
-            'aria-label="Audio Jacobian Lens home" '
-            'class="site-nav" aria-label="Model explorers" '
-            '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
-            'data-target="yanny" data-target="laurel" '
-            'id="checkpoint-range" type="range" '
-            'href="../" href="../speech/"'
+            f'<link rel="canonical" href="{validator.PUBLIC_BASE}'
+            '?sample=asr-laurel-yanny">'
         ),
     )
 
@@ -121,7 +113,8 @@ def _build_route_fixture(site_root: Path) -> None:
         "detailed_cached_explorers": list(validator.CANONICAL_DETAILED_ROUTES.values()),
         "findings": list(validator.FINDINGS_ROUTES.values()),
         "legacy_explorer_aliases": list(validator.LEGACY_EXPLORER_ROUTES.values()),
-        "recorded_interventions": [validator.STEERING_ROUTE],
+        "recorded_interventions": [validator.INTEGRATED_STEERING_ROUTE],
+        "retired_redirects": [validator.STEERING_ROUTE],
     }
     _write(site_root / "site-manifest.json", json.dumps({"routes": routes}))
 
@@ -173,23 +166,25 @@ def test_route_contract_rejects_alias_navigation_to_legacy_routes(
 
 
 @pytest.mark.parametrize(
-    ("relative_path", "steering_link"),
+    "relative_path",
     (
-        ("index.html", 'href="./steering/"'),
-        ("speech/index.html", 'href="../steering/"'),
-        ("explorer/asr/index.html", 'href="../../steering/"'),
-        ("explorer/speech/index.html", 'href="../../steering/"'),
+        "index.html",
+        "speech/index.html",
+        "explorer/asr/index.html",
+        "explorer/speech/index.html",
     ),
 )
-def test_route_contract_requires_steering_in_every_explorer_header(
-    tmp_path: Path, relative_path: str, steering_link: str
+def test_route_contract_rejects_retired_steering_in_explorer_header(
+    tmp_path: Path, relative_path: str
 ) -> None:
     _build_route_fixture(tmp_path)
     page = tmp_path / relative_path
-    html = page.read_text(encoding="utf-8").replace(steering_link, "", 1)
+    html = page.read_text(encoding="utf-8").replace(
+        "</body>", '<a href="./steering/">Steering</a></body>', 1
+    )
     page.write_text(html, encoding="utf-8")
 
-    with pytest.raises(ValueError, match="explorer"):
+    with pytest.raises(ValueError, match="retired standalone steering"):
         validator._validate_route_contract(tmp_path)
 
 
@@ -247,16 +242,16 @@ def test_route_contract_rejects_stale_explorer_asset_version(
         validator._validate_route_contract(tmp_path)
 
 
-def test_route_contract_rejects_stale_steering_asset_version(tmp_path: Path) -> None:
+def test_route_contract_rejects_stale_steering_redirect(tmp_path: Path) -> None:
     _build_route_fixture(tmp_path)
     page = tmp_path / "steering" / "index.html"
     html = page.read_text(encoding="utf-8").replace(
-        f"steering.js?v={validator.STEERING_ASSET_VERSION}",
-        "steering.js?v=stale",
+        "?sample=asr-laurel-yanny",
+        "?sample=stale",
     )
     page.write_text(html, encoding="utf-8")
 
-    with pytest.raises(ValueError, match="recorded phone steering replay"):
+    with pytest.raises(ValueError, match="retired steering redirect"):
         validator._validate_route_contract(tmp_path)
 
 

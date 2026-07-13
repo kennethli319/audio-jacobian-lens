@@ -526,17 +526,17 @@ Status: **in progress**
   train-only A2 prototypes; publish only five ranked phone labels and cosine
   similarities per encoder cell, keep decoder cells lexical, and expose five
   local candidates on pointer hover, keyboard focus, and click-pinned detail.
-- [x] Publish a sanitized, checkpoint-only fitted-phone steering replay at
-  `/steering/`. Include baseline, last-failure, first-success, and recommended
-  Yanny/Laurel checkpoints; exact raw-head ranks and probabilities, timing,
-  coefficient maps, free generation, and controls; exclude source audio, live
-  inference, private prototype tensors, paths, and optimizer artifacts.
+- [x] Publish a sanitized, checkpoint-only fitted-phone steering replay,
+  subsequently superseded by the complete integrated Audio 10 matrices. Keep
+  the bounded checkpoint archive hash-pinned; redirect the retired `/steering/`
+  URL to Audio 10 and exclude live inference, private prototype tensors, paths,
+  and optimizer artifacts.
 - [x] Add Laurel/Yanny to the ordinary ASR Explorer as a complete cached
   full-matrix report with Original, Yanny, and Laurel states. Republish exact
   Bosker demo Audio S7 unchanged under CC BY 4.0, link the demo, license, and
   2018 paper, and identify the project's matrices and overlays separately.
-- [x] Standardize the published ASR, Speech, and Steering top bar: one centered
-  header, one three-item menu that remains visible on mobile, normalized active
+- [x] Standardize the published ASR and Speech top bar: one centered header,
+  one two-item menu that remains visible on mobile, normalized active
   and accessibility states, and no findings shortcut in primary navigation.
   Keep Chatterbox/TTS local until its acoustic-code readouts support a clearer
   public interpretation.
@@ -562,9 +562,10 @@ Acceptance criteria:
 - Visitors can inspect all layer/position cells and neighboring counterexamples,
   not only a preselected hero coordinate.
 - The detailed explorer is the entry point for each published model family. The
-  shared header links only ASR, Speech, and Steering; older ASR/Speech findings
-  pages remain available for saved links but are not a primary navigation
-  destination or a substitute for the underlying matrices. Public TTS routes
+  shared header links only ASR and Speech; the recorded intervention is part of
+  ASR Audio 10. Older ASR/Speech findings pages remain available for saved
+  links but are not primary navigation destinations or substitutes for the
+  underlying matrices. Public TTS routes
   remain absent until the interpretation gate is met.
 - Long speech-to-speech responses remain readable without dropping, merging, or
   silently aggregating any saved top-token cell.
@@ -2147,3 +2148,9 @@ the article and primary explorers now carry the relevant interpretation.
   vocabulary-token J-Lens view. Audio 10 now carries a compact
   `steering experiment` badge so visitors can find the Laurel/Yanny
   intervention replay directly.
+- Retired the separate public `/steering/` interface now that Audio 10 carries
+  the complete recorded Original/Yanny/Laurel matrices. Public navigation and
+  article links point only to the integrated ASR experience; the old URL keeps
+  a noindex compatibility redirect that preserves Yanny/Laurel target links.
+  The bounded checkpoint assets remain hash-pinned but unlinked for research
+  reproducibility.

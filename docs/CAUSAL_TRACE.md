@@ -49,11 +49,11 @@ returns `Laurel`. Three separately optimized matched random bases fail even at
 under the independent fitted lens (`Lori`, with `Laurel` at #10). This is a
 clip-specific existence result, not a cross-fit Laurel knob.
 
-The backend-free [public steering replay](https://kennethli319.github.io/audio-jacobian-lens/steering/)
-contains only sanitized recorded checkpoints, schedules, scalar coefficients,
-ranks, probabilities, and compact controls. It does not interpolate unmeasured
-strengths, run a model, publish fitted tensors, or redistribute the source
-recording.
+The backend-free [integrated ASR Audio 10
+replay](https://kennethli319.github.io/audio-jacobian-lens/?sample=asr-laurel-yanny)
+contains sanitized recorded Original, Yanny, and Laurel matrices. It does not
+interpolate unmeasured strengths, run a model, or publish fitted tensors. The
+served source remains the unchanged, attributed Audio S7 recording.
 
 ## Historical BPE/token-direction trace
 

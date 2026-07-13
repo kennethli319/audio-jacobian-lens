@@ -4,7 +4,12 @@ import hashlib
 import json
 from pathlib import Path
 
-from scripts.publish_static_phone_steering import ASSET_VERSION, PUBLIC_ROUTE, publish
+from scripts.publish_static_phone_steering import (
+    INTEGRATED_ROUTE,
+    PUBLIC_CANONICAL,
+    PUBLIC_ROUTE,
+    publish,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,7 +22,10 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
     manifest = {
         "routes": {"detailed_cached_explorers": ["/audio-jacobian-lens/"]},
         "sha256": {},
-        "interaction_boundary": "Cached reports only.",
+        "interaction_boundary": (
+            "Cached reports only. The steering route replays only saved checkpoints "
+            "and never performs inference or interpolates an unmeasured intervention."
+        ),
         "media_policy": "Cleared inputs only.",
         "payload_policy": "Reduced reports only.",
     }
@@ -27,17 +35,14 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
 
     page = (tmp_path / "steering" / "index.html").read_text(encoding="utf-8")
     assert 'name="robots" content="noindex,nofollow"' in page
-    assert 'href="https://kennethli319.github.io/audio-jacobian-lens/steering/"' in page
-    assert f"../assets/steering.js?v={ASSET_VERSION}" in page
-    assert f"../assets/steering.css?v={ASSET_VERSION}" in page
-    assert 'data-results-url="../data/phone-steering-results.json"' in page
-    assert '<nav class="site-nav" aria-label="Model explorers">' in page
-    assert "PREVIEW · STATIC REPLAY" in page
-    assert 'href="../">ASR</a>' in page
-    assert 'href="../speech/"' in page
-    assert ">TTS</a>" not in page
-    assert 'class="active" href="./" aria-current="page">Steering</a>' in page
-    assert "Showcase</a>" not in page
+    assert f'href="{PUBLIC_CANONICAL}"' in page
+    assert "window.location.replace" in page
+    assert 'get("target")' in page
+    assert "`&condition=${target}`" in page
+    assert 'href="../?sample=asr-laurel-yanny"' in page
+    assert "assets/steering" not in page
+    assert "phone-steering-results.json" not in page
+    assert 'class="site-nav"' not in page
     assert "<audio" not in page
 
     data = json.loads(
@@ -49,9 +54,13 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
     published_manifest = json.loads(
         (tmp_path / "site-manifest.json").read_text(encoding="utf-8")
     )
-    assert published_manifest["routes"]["recorded_interventions"] == [PUBLIC_ROUTE]
-    assert published_manifest["publication_mode"] == "public_linked_noindex_review"
+    assert published_manifest["routes"]["recorded_interventions"] == [INTEGRATED_ROUTE]
+    assert published_manifest["routes"]["retired_redirects"] == [PUBLIC_ROUTE]
+    assert published_manifest["publication_mode"] == "public_static_cached_explorers"
     assert "TTS" not in published_manifest["description"]
+    assert "ASR Audio 10" in published_manifest["description"]
+    assert "The steering route" not in published_manifest["interaction_boundary"]
+    assert "The archived steering payload" in published_manifest["payload_policy"]
     assert "Audio S7 MP3" in published_manifest["media_policy"]
     assert "linked but not embedded" not in published_manifest["media_policy"]
     for relative_path in (

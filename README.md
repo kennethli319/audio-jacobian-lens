@@ -32,7 +32,7 @@ This repository currently contains five connected workspaces:
 | **LFM2.5 speech-to-speech** | Apple-silicon MLX generation, generated-speech playback, fitted readouts over the 16-layer language backbone | The retained lens is a one-clip integration pilot. It does not explain the FastConformer, audio adapter, acoustic codebooks, or played waveform | [`:8001/`](http://127.0.0.1:8001/) |
 | **Chatterbox TTS** | Corpus-fitted T3 acoustic-code readouts, per-run text sensitivity and attention, forced-code branches, and residual steering with suffix regeneration | The ten-prompt rank-128 pilot is encouraging but incomplete; acoustic-code IDs are not words or phonemes, and the current work does not attribute S3Gen or waveform samples | [`:8002/chatterbox`](http://127.0.0.1:8002/chatterbox) |
 | **Static review** | Primary full cached ASR and speech-to-speech explorers with every saved layer/position cell | Backend-free and safe to serve as static files. Each published explorer has ten reports. ASR combines attributed LibriSpeech examples with the unchanged Laurel/Yanny Audio S7; Speech uses the ten CC BY 4.0 LibriSpeech inputs. The Chatterbox/TTS pilot remains local until its acoustic-code readouts support a clearer interpretation | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
-| **Phonetic steering replay** | A static, checkpoint-only replay of fitted phone-prototype encoder interventions on the Laurel/Yanny clip, including phone timing, per-layer coefficients, raw output ranks, free generation, and controls | The equal-strength Yanny recipe is the stronger one-clip result and reproduces with a second fitted lens; the Laurel route is target-conditioned and does not transfer exactly. Neither is a universal word-control axis | [Public replay](https://kennethli319.github.io/audio-jacobian-lens/steering/) |
+| **Phonetic steering experiment** | A recorded fitted-phone encoder intervention integrated into the normal Laurel/Yanny layer explorer, including changed encoder, decoder, and HEAD states | The equal-strength Yanny recipe is the stronger one-clip result and reproduces with a second fitted lens; the Laurel route is target-conditioned and does not transfer exactly. Neither is a universal word-control axis | [Audio 10 replay](https://kennethli319.github.io/audio-jacobian-lens/?sample=asr-laurel-yanny) |
 
 The integrated Laurel/Yanny sample uses the exact **Audio S7** from Hans Rutger
 Bosker's [Laurel or Yanny? demo](https://hrbosker.github.io/demos/laurel-yanny/),
@@ -45,7 +45,7 @@ phone-signature overlays, cached interventions, labels, and controls are this
 project's additions.
 
 The public review opens directly into the detailed ASR explorer. One consistent
-top menu links ASR, Speech, and Steering, including on narrow screens. The ASR
+top menu links ASR and Speech, including on narrow screens. The ASR
 and Speech `/explorer/{family}/` aliases and findings URLs remain functional for
 saved links, but findings are no longer promoted in the primary header. Public
 TTS routes and caches are deliberately absent while the local Chatterbox pilot
@@ -54,9 +54,10 @@ remains scientifically underdetermined.
 The older BPE/prefix Laurel/Yanny steering study is retained as a historical
 baseline in [`web/causal.html`](web/causal.html). The fitted-phone follow-up is
 summarized in [`docs/CAUSAL_TRACE.md`](docs/CAUSAL_TRACE.md) and replayed from
-recorded, sanitized checkpoints on the public steering page. The source audio
-is now available in the normal ASR Explorer as the attributed, unchanged Audio
-S7. The separate checkpoint replay still embeds no audio.
+recorded, sanitized checkpoints inside ASR Audio 10. The source audio is
+available there as the attributed, unchanged Audio S7. The retired standalone
+checkpoint payload remains hash-pinned for reproducibility but is no longer a
+public navigation destination.
 
 ## Start here: plans, evidence, and design contracts
 
@@ -473,15 +474,14 @@ random schedules failed, but timing, reverse-sign, wrong-time, spectral,
 larger-control, and held-out-audio gates remain open. The extended prototypes,
 optimizer and runner outputs, and detailed private report stay under the
 ignored private experiment tree and remain unpublished. Exact Audio S7 is
-separately republished unchanged, with Bosker attribution and its CC BY 4.0
-license, in the normal ASR Explorer. A sanitized,
-checkpoint-only derivative is available in the [public steering
-replay](https://kennethli319.github.io/audio-jacobian-lens/steering/): it contains
-recorded aggregate diagnostics, not source audio, live inference, fitted
-artifacts, or private paths. The equal-strength cross-fit Yanny result is the
-primary finding; the exact Laurel route is target-conditioned and fails exact
-cross-fit transfer. The current boundary is recorded in
-[`PROJECT_PLAN.md`](PROJECT_PLAN.md).
+republished unchanged, with Bosker attribution and its CC BY 4.0 license, in
+the [integrated ASR Audio 10
+replay](https://kennethli319.github.io/audio-jacobian-lens/?sample=asr-laurel-yanny).
+Its sanitized recorded conditions contain aggregate diagnostics, not live
+inference, fitted artifacts, or private paths. The equal-strength cross-fit
+Yanny result is the primary finding; the exact Laurel route is
+target-conditioned and fails exact cross-fit transfer. The current boundary is
+recorded in [`PROJECT_PLAN.md`](PROJECT_PLAN.md).
 
 ## Fit a Whisper lens
 
@@ -693,10 +693,11 @@ exports can be resumed with repeatable `--only` and `--resume`; the resulting
 published manifest must still contain the full ordered ten-report family.
 
 The canonical static pages are the detailed explorers at the site root and
-`/speech/`, plus the recorded `/steering/` replay. All three use the same header
-dimensions and three-item navigation. The ASR/Speech findings and
-`/explorer/{family}/` routes remain functional for saved links but are omitted
-from the primary menu. The speech-to-speech explorer keeps every
+`/speech/`. They share the same header dimensions and two-item navigation; the
+recorded steering experiment now lives inside ASR Audio 10. The retired
+`/steering/` URL forwards saved links to that integrated example. The
+ASR/Speech findings and `/explorer/{family}/` routes remain functional for
+saved links but are omitted from the primary menu. The speech-to-speech explorer keeps every
 saved top-token cell in one continuous, horizontally scrollable matrix with
 fixed readable token columns. Its large cell label is the layer's top
 candidate; the smaller `realized #N` label is the generated token's exact

@@ -32,13 +32,13 @@ LEGACY_EXPLORER_ROUTES = {
     family: f"{SITE_PREFIX}explorer/{family}/" for family in FAMILIES
 }
 STEERING_ROUTE = f"{SITE_PREFIX}steering/"
+INTEGRATED_STEERING_ROUTE = f"{SITE_PREFIX}?sample=asr-laurel-yanny"
 RETIRED_PUBLIC_TTS_PATHS = (
     "tts",
     "findings/tts",
     "explorer/tts",
     "explorer/data/tts",
 )
-STEERING_ASSET_VERSION = "20260713-2"
 FORBIDDEN_KEYS = {
     "analysis_id",
     "parent_analysis_id",
@@ -1483,7 +1483,6 @@ def _validate_route_contract(site_root: Path) -> None:
             (
                 'href="./"',
                 'href="./speech/"',
-                'href="./steering/"',
             ),
         ),
         "speech": (
@@ -1493,7 +1492,6 @@ def _validate_route_contract(site_root: Path) -> None:
             (
                 'href="../"',
                 'href="./"',
-                'href="../steering/"',
             ),
         ),
     }
@@ -1546,6 +1544,8 @@ def _validate_route_contract(site_root: Path) -> None:
             raise ValueError(f"{label} exposes the retired public TTS page")
         if 'class="summary-link"' in html or ">Experiment findings</a>" in html:
             raise ValueError(f"{label} retains the removed findings header link")
+        if "steering/" in html:
+            raise ValueError(f"{label} exposes the retired standalone steering page")
 
     for family, (path, script, data_url) in findings_pages.items():
         label = f"{family} findings"
@@ -1567,7 +1567,6 @@ def _validate_route_contract(site_root: Path) -> None:
     canonical_alias_nav = (
         'href="../../"',
         'href="../../speech/"',
-        'href="../../steering/"',
     )
     for family, (path, script, manifest) in alias_pages.items():
         label = f"legacy {family} explorer alias"
@@ -1598,42 +1597,41 @@ def _validate_route_contract(site_root: Path) -> None:
             raise ValueError(f"{label} exposes the retired public TTS page")
         if 'class="summary-link"' in html or ">Experiment findings</a>" in html:
             raise ValueError(f"{label} retains the removed findings header link")
+        if "steering/" in html:
+            raise ValueError(f"{label} exposes the retired standalone steering page")
 
     steering_html = _require_page(
-        site_root, "steering/index.html", label="recorded phone steering replay"
+        site_root, "steering/index.html", label="retired steering redirect"
     )
     _require_markers(
         steering_html,
         (
-            'data-results-url="../data/phone-steering-results.json"',
-            f'src="../assets/steering.js?v={STEERING_ASSET_VERSION}"',
-            f'href="../assets/steering.css?v={STEERING_ASSET_VERSION}"',
-            f'<link rel="canonical" href="{PUBLIC_BASE}steering/"',
-            'aria-label="Audio Jacobian Lens home"',
-            'class="site-nav" aria-label="Model explorers"',
-            '<span class="static-badge">PREVIEW · STATIC REPLAY</span>',
-            'data-target="yanny"',
-            'data-target="laurel"',
-            'id="checkpoint-range" type="range"',
-            'href="../"',
-            'href="../speech/"',
+            'name="robots" content="noindex,nofollow"',
+            f'<link rel="canonical" href="{PUBLIC_BASE}?sample=asr-laurel-yanny"',
+            'get("target")',
+            "`&condition=${target}`",
+            "window.location.replace",
+            'href="../?sample=asr-laurel-yanny"',
         ),
-        label="recorded phone steering replay",
+        label="retired steering redirect",
     )
     if (
         "assets/app.js" in steering_html
         or "assets/explorer.js" in steering_html
+        or "assets/steering" in steering_html
+        or "phone-steering-results.json" in steering_html
         or "<audio" in steering_html
-        or ">TTS</a>" in steering_html
+        or 'class="site-nav"' in steering_html
     ):
-        raise ValueError("recorded phone steering replay has an unsafe renderer")
+        raise ValueError("retired steering redirect still exposes its old renderer")
 
     site_manifest = _load(site_root / "site-manifest.json")
     expected_routes = {
         "detailed_cached_explorers": list(CANONICAL_DETAILED_ROUTES.values()),
         "findings": list(FINDINGS_ROUTES.values()),
         "legacy_explorer_aliases": list(LEGACY_EXPLORER_ROUTES.values()),
-        "recorded_interventions": [STEERING_ROUTE],
+        "recorded_interventions": [INTEGRATED_STEERING_ROUTE],
+        "retired_redirects": [STEERING_ROUTE],
     }
     routes = site_manifest.get("routes")
     if not isinstance(routes, Mapping):
