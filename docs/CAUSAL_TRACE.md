@@ -1,210 +1,107 @@
-# Causal residual traces
+# Whisper residual-steering protocol
 
-This experiment tests a causal edit in Whisper. It is not a claim that Whisper
-uses the same perceptual mechanism as people, and it is not a way to edit an
-encoder "token distribution": the encoder has no vocabulary softmax.
+This guide describes how the repository edits Whisper residual states and how
+to reproduce the historical token-direction traces. Measured outcomes,
+controls, and their evidence labels live in the canonical
+[`experiments/WHISPER_PHONE_STEERING.md`](experiments/WHISPER_PHONE_STEERING.md)
+report.
 
-## Fitted-phone follow-up
+An intervention is a causal edit to a real post-block residual state. It is not
+an edit to an encoder token distribution: Whisper's encoder has no vocabulary
+softmax. After the edit, the remaining encoder blocks, decoder, final
+normalization, output head, and ordinary generation are rerun without changing
+model weights.
 
-The first public trace below used vocabulary-token and token-prefix directions.
-It changed downstream computation but stopped at `Yay!`, not `Yanny`. A later
-development-only follow-up uses the distributed fitted Phone Signature instead.
-For each requested phone, it differentiates the complete phone-prototype
-readout contrast back through the matching encoder lens and final decoder
-normalization to obtain a proposed direction in Whisper's 384-dimensional
-encoder residual space. The edit is added to real post-block encoder states;
-the remaining encoder, decoder, output head, and ordinary greedy generation are
-then rerun without an LM-head bias, forced token, decoder edit, or weight update.
+## Encoder intervention
 
-The primary recorded condition places `Y / AE / N / IY` over 0.08–0.68 seconds
-at encoder L0–L3 with one equal coefficient for all 16 phone/layer directions.
-At a 3.5% aggregate edited-reference residual-norm budget, free generation
-changes from `Lily!` to `Yanny!` with ordinary token IDs `[575, 7737, 0]`.
-Whisper represents the target with two decisions, so there is no honest single
-"Yanny rank":
-
-| Condition | ` Y` | conditional `anny` | joint path | free generation |
-|---|---:|---:|---:|---|
-| Baseline | #3, 12.3331% | #42, 0.26564% | 0.032761% | `Lily!` |
-| 3.1884155% | #1, 49.4310% | #2, 5.70938% | 2.82221% | `Yelly!` |
-| 3.1884766% | #1, 49.4315% | #1, 5.70967% | 2.82238% | `Yanny!` |
-| **3.5%** | **#1, 51.5962%** | **#1, 7.37133%** | **3.80332%** | **`Yanny!`** |
-
-The 3.5% recipe was frozen before the main checks. Replacing only the fitted
-phone directions with an independently fitted lens still returns `Yanny!`;
-fresh CPU and MPS runs agree on the ordinary token IDs and ranks. None of ten
-random schedules at the same coordinates and exact norm generates Yanny, and
-their conditional `anny` ranks remain #38–#55. This is stronger than the old
-near-miss, but the phone order and timing were developed after examining this
-clip. Wrong-time, reverse-sign, unrelated-order, spectral, held-out-audio, and
-larger null-control gates remain open.
-
-A separate `L / AO / R / AH / L` phone-basis search also produces exact
-`Laurel`. Its evidence level is deliberately lower: 20 nonnegative phone/layer
-coefficients were optimized directly against the desired final-head token. At
-the recommended recorded point, a 14.5292% aggregate edit moves token 43442
-from baseline rank #2,463 / 0.0010898% to rank #1 / 10.6043% and free generation
-returns `Laurel`. Three separately optimized matched random bases fail even at
-51.6–58.6% budgets, but the frozen coefficients do not preserve the exact flip
-under the independent fitted lens (`Lori`, with `Laurel` at #10). This is a
-clip-specific existence result, not a cross-fit Laurel knob.
-
-The backend-free [integrated ASR Audio 10
-replay](https://kennethli319.github.io/audio-jacobian-lens/?sample=asr-laurel-yanny)
-contains sanitized recorded Original, Yanny, and Laurel matrices. It does not
-interpolate unmeasured strengths, run a model, or publish fitted tensors. The
-served source remains the unchanged, attributed Audio S7 recording.
-
-## Historical BPE/token-direction trace
-
-For one post-block encoder residual layer ℓ and a contiguous raw 20 ms
-position span \\(S\\), the runner adds
+For encoder layer \(\ell\) and raw 20 ms positions \(S\), the runner applies
 
 \[
-h'^{E}_{\ell,s} = h^{E}_{\ell,s} + \delta,\qquad s\in S.
+h'^{E}_{\ell,s}=h^{E}_{\ell,s}+\delta_{\ell,s},\qquad s\in S.
 \]
 
-The vector is a normalized direction scaled to a specified fraction of the
-baseline residual norm in \\(S\\). All remaining encoder blocks, the full
-decoder, final normalization, and output head are rerun. The saved JSON records
-per-position L2 state changes at every encoder and decoder layer plus final
-logit change.
+The edit direction may come from one of two experimental proposals:
 
-### Candidate outcome
+- **Token or prefix direction:** transport one or more Whisper vocabulary
+  directions back through the fitted encoder J-lens. These strings are
+  tokenizer objects, not phoneme labels.
+- **Fitted-phone direction:** differentiate a contrast between frozen phone
+  prototypes through the matching encoder lens and final decoder
+  normalization, yielding a direction in Whisper's 384-dimensional encoder
+  residual space.
 
-The primary candidate outcome is the total teacher-forced token-path log
-probability. For candidate text \\(c\\) with tokenizer pieces
-\\(c_1,\\ldots,c_n\\), we report
-
-\[
-\log P_{\mathrm{path}}(c\mid x)=\sum_i \log p(c_i \mid c_{<i}, x).
-\]
-
-The browser shows both the absolute path likelihood and a restricted softmax of
-these totals over the four declared candidates. This path excludes EOS and
-generation-time processors, so it is not the probability of a completed
-terminated transcript. It also mechanically favors shorter tokenizer paths.
-Mean token log probability remains serialized as a secondary length-normalized
-diagnostic. Free generation remains a separate, discontinuous outcome.
-
-The first direction is proposed by the fitted encoder J-lens: the mean
-source-space direction for the positive candidate's pieces minus the mean
-direction for the negative candidate's pieces. It is a hypothesis generated by
-the lens, not proof of functional use. Every interpretation needs a
-matched-norm random-direction control at the same layer, span, and strength.
+The second proposal uses the distributed Phone Signature readout; it does not
+turn those cosine similarities into probabilities or a trained phoneme head.
+Every schedule must state its layers, audio coordinates, direction source, and
+residual-norm budget.
 
 ## Decoder intervention
 
-Decoder steering uses the same fitted decoder J-lens, but its source coordinate
-is an autoregressive prediction position rather than audio time. If Whisper's
-forced prefix has length \(P\), positive-target BPE piece \(c_j\) is steered at
-post-block residual position \(P-1+j\):
+Decoder steering uses autoregressive prediction positions instead of audio
+time. If the forced prefix has length \(P\), target BPE piece \(c_j\) is edited
+at post-block residual position \(P-1+j\):
 
 \[
 h'^{D}_{\ell,P-1+j}=h^{D}_{\ell,P-1+j}+\delta_{\ell,j}.
 \]
 
-The pilot decoder lens has source layers L0–L2 and target layer L3. L3 is
-captured as a downstream state; it is not edited as though a source Jacobian
-existed there. A decoder pre-hook tracks absolute positions through Whisper's
-KV cache, so the same schedule is applied correctly during teacher forcing and
-free generation.
+The pilot decoder lens has source layers L0–L2 and target layer L3. L3 is a
+downstream state, not another editable source Jacobian. A pre-hook tracks
+absolute positions through Whisper's KV cache. Later-piece edits are applied
+open-loop at their declared positions even if an earlier generated piece has
+already diverged, so teacher-forced conditionals and free generation must be
+reported separately.
 
-Run all actual Yanny pieces in decoder mode with:
+## Candidate score
 
-```bash
-PYTHONPATH="$PWD" .venv/bin/python -m jlens.causal_whisper_cli \
-  --stream decoder --layers 0,1,2 \
-  --audio /path/to/laurel-yanny.mp3 \
-  --lens artifacts/pilot/whisper_tiny_en_10_tts_aligned.pt \
-  --device mps --strength 0.20 \
-  --positive ' Yanny' --negative ' Laurel' \
-  --random-control-seed 7 \
-  --output artifacts/causal/laurel-yanny-decoder.json
-```
+For candidate text \(c\) with pieces \(c_1,\ldots,c_n\), the primary
+teacher-forced diagnostic is the complete token-path score
 
-Omitting `--piece-index` selects every positive-target BPE piece. Repeat
-`--piece-index N` to run a component condition such as Yanny piece 0 (` Y`) or
-piece 1 (`anny`). Decoder free generation is **open-loop by absolute prediction
-position**: a later-piece edit still runs if an earlier generated piece is not
-the expected target prefix. Teacher-forced conditional probabilities remain
-explicitly labelled and must not be confused with that generation policy.
-Encoder and decoder percentage budgets are normalized within different
-residual spaces, so equal percentages are not identical cross-stream doses.
+\[
+\log P_{\mathrm{path}}(c\mid x)=\sum_i\log p(c_i\mid c_{<i},x).
+\]
 
-## Run locally
+The restricted softmax in the replay normalizes these totals only over the
+declared candidate set. It is not probability under Whisper's full output
+space, excludes EOS and generation-time processors, and mechanically favors
+shorter token paths. The trace therefore also retains absolute token
+probabilities, ranks, a length-normalized diagnostic, and the separate free
+generation outcome.
 
-Do not add the Laurel/Yanny source audio to `samples/` until its reuse terms are
-verified. Download or provide a local file, then run:
+## Reproduce a token-direction trace
+
+The attributed Laurel/Yanny source is already bundled as
+`samples/laurel-yanny.mp3`; its provenance and reuse terms are in
+[`../samples/README.md`](../samples/README.md).
 
 ```bash
 PYTHONPATH="$PWD" .venv/bin/python -m jlens.causal_whisper_cli \
   --stream encoder \
-  --audio /path/to/laurel-yanny.mp3 \
+  --audio samples/laurel-yanny.mp3 \
   --lens artifacts/pilot/whisper_tiny_en_10_tts_aligned.pt \
   --model openai/whisper-tiny.en \
   --revision 87c7102498dcde7456f24cfd30239ca606ed9063 \
   --device mps \
   --layers 1,2,3 \
-  --start-seconds 0.18 --end-seconds 0.38 \
+  --start-seconds 0 --end-seconds 0.92 \
   --strength 0.20 \
   --positive ' Yanny' --negative ' Laurel' \
   --random-control-seed 7 \
-  --output artifacts/causal/laurel-yanny-l1.json
+  --output artifacts/causal/laurel-yanny-encoder.json
 ```
 
-The exploratory first trace must not be treated as validation. Whisper Tiny
-generated `Lily!` for the original source clip. The specified L1 edit increased
-the Yanny-minus-Laurel candidate contrast but did not change free generation;
-one random control moved the contrast in the opposite direction. Next steps
-are a distribution of random controls, spectral variants, and a static browser
-view of a fully recorded experiment.
+For decoder coordinates, switch to `--stream decoder --layers 0,1,2` and omit
+the audio-time flags. Omitting `--piece-index` applies the schedule to every
+positive-target BPE piece; repeat `--piece-index N` for a component condition.
+Encoder and decoder percentage budgets are normalized in different residual
+spaces, so equal percentages are not equal cross-stream doses.
 
-`--layers` accepts one ordered post-block layer or a coordinated schedule such
-as `1,2,3`. The runner applies L1's edit, feeds that modified state into L2,
-adds the L2 edit, then does the same at L3 before decoding. The requested
-`--strength` is a total budget and is divided by `sqrt(number_of_layers)`, so a
-three-layer schedule is comparable in aggregate norm to a single-layer run.
-The archived `web/causal.html` study records exploratory single- and
-multi-layer results separately from the ordinary lens explorer. Serve `web/`
-directly and open `/causal.html` when reproducing this historical display. The
-new fitted-phone result is a separate method and must not be retroactively
-attributed to these BPE/prefix runs.
+### Tokenizer-faithful and explicit spans
 
-Each `comparison_set` row now records both
-`restricted_total_log_probability_softmax` and the retained
-`restricted_mean_log_probability_softmax`. The former is the browser primary;
-it normalizes total token-path scores over the named candidate set only and is
-not Whisper's full output distribution. The trace marks this policy explicitly
-and records that EOS is absent. `first_token_softmax_probability` remains the
-actual model softmax at the first generated decoder position. Candidates that
-share that first BPE piece, such as `Yay!` and `Yanny`, necessarily have the
-same first-token probability.
-
-The historical target buttons in `causal.html` display a fixed predeclared 20%,
-40%, 80%, and 120% total-budget sweep for both directions. They demonstrate a
-limitation of the current J-lens steering proposal: the Yanny direction reached
-`Yay!` but not `Yanny`, and the Laurel direction left the local model manifold
-before producing `Laurel`. Do not interpret a larger budget as evidence of
-successful semantic control for that method; inspect the generated text,
-candidate values, and matched controls together. The later fitted-phone
-follow-up above supersedes this as the current one-clip steering result.
-
-For time-localized edits, the tokenizer-faithful path is now the default.
-Give a selected span with `--start-seconds` and `--end-seconds`, and the runner
-tokenizes `--positive`, divides the span evenly across its actual BPE pieces,
-and uses each decoded piece as its target direction. Thus this ordinary command
-uses Whisper's real ` Y` → `anny` path for Yanny:
-
-```bash
---layers 1,2,3 \
---start-seconds 0 --end-seconds 0.92 \
---positive ' Yanny' --negative ' Laurel'
-```
-
-Repeat `--segment start:end:text` only when deliberately overriding that
-default. For example, the following is equivalent in target pieces but permits
-nonuniform, overlapping time spans:
+With only `--start-seconds` and `--end-seconds`, the runner tokenizes the
+positive target and divides the interval over its actual pieces. Use repeated
+explicit segments only when the experiment calls for nonuniform or overlapping
+coordinates:
 
 ```bash
 --layers 1,2,3 \
@@ -213,25 +110,20 @@ nonuniform, overlapping time spans:
 --positive ' Yanny' --negative ' Laurel'
 ```
 
-The text after an explicit segment is a Whisper text-token target, not a
-phoneme label. The current tokenizer represents ` Yanny` as ` Y` then `anny`.
-A three-slice ` Y` / `an` / `ny` experiment is supported as a phoneme-inspired
-proxy, but it deliberately does not follow the actual tokenizer path for the
-word and should always be labelled as such.
+The segment text is still a Whisper token target, not a phone. A decomposition
+such as `Y` / `an` / `ny` is a phoneme-inspired proxy and must be labeled as
+such.
 
-### Encoder vocabulary-prefix families
+### Vocabulary-prefix families
 
-An additional exploratory encoder mode can steer toward every ordinary
-vocabulary token whose decoded text starts with the same substring. Prefix
-matching is case-sensitive after removing leading whitespace from both the
-supplied prefix and each decoded token. For example,
-`Y` matches decoded tokens such as `Y`, ` Y`, ` You`, and ` York`; it does not
-mean the acoustic phoneme /j/. Special tokens are excluded.
+Encoder-only prefix mode averages fitted source directions for all ordinary
+tokens whose decoded text starts with the supplied substring after leading
+whitespace is removed:
 
 ```bash
 PYTHONPATH="$PWD" .venv/bin/python -m jlens.causal_whisper_cli \
   --stream encoder --layers 1,2,3 \
-  --audio /path/to/laurel-yanny.mp3 \
+  --audio samples/laurel-yanny.mp3 \
   --lens artifacts/pilot/whisper_tiny_en_10_tts_aligned.pt \
   --device mps --strength 0.20 \
   --prefix-segment '0:0.46:Y' \
@@ -242,52 +134,38 @@ PYTHONPATH="$PWD" .venv/bin/python -m jlens.causal_whisper_cli \
   --output artifacts/causal/laurel-yanny-prefix-families.json
 ```
 
-For each segment and layer, the runner averages the fitted J-lens source
-directions for all matching vocabulary tokens, then contrasts that mean with
-the negative-prefix family mean. Each token receives equal weight, so family
-size and composition matter. In the pinned Whisper Tiny vocabulary, `Y*` has
-114 ordinary tokens, `La*` has 131, and `anny*` has only one. The last case is
-therefore not a broader positive family than exact token 7737. Prefix-family
-segments are mutually exclusive with exact `--segment` entries and apply only
-to encoder steering. Identical positive and negative families are rejected;
-partial overlap is retained but its count and an interpretation warning are
-saved in the trace.
+Prefix matching is case-sensitive, special tokens are excluded, and each
+matching token receives equal weight. A textual prefix such as `Y` must never
+be described as acoustic phone /j/. Family composition and overlap are stored
+in the trace.
 
-The archived `causal.html` piece-impact view uses a fixed 20% total budget to
-compare four recorded conditions over 0.00–0.92 seconds: baseline, ` Y` only,
-`anny` only, and the default ` Y` then `anny` schedule. It reports the actual full-vocabulary
-softmax for ` Y`, the teacher-forced conditional softmax for `anny`, their joint
-path probability, the restricted complete-candidate comparison, free
-generation, and downstream state changes. Holding total budget fixed makes this
-a comparison of where the edit is allocated, not an additive decomposition.
+## Record and publish the fitted-phone replay
 
-In the current exploratory run, baseline Yanny has 0.182% of the restricted
-total-path set. ` Y` only reaches 4.72% and generates `Yay!`; `anny` only reaches
-0.219% and remains `Lily!`; the tokenizer-faithful two-piece default reaches
-2.65% and generates `Yay!`. None generates `Yanny`, and only one matched random
-seed is shown per condition, so the page does not claim direction specificity.
+The full fitted-phone recorder consumes private fitted artifacts and writes a
+sanitized report without fitted tensors:
 
-The page now provides the same tokenizer-faithful comparison for decoder
-residuals. At a fixed 20% within-decoder budget, decoder ` Y` only reaches a
-0.400% restricted total-path Yanny share, `anny` only reaches 3.03%, and both
-pieces reach 2.38%; all three still freely generate `Lily!`. These are
-teacher-forced path changes, not transcript flips.
+```bash
+.venv/bin/python scripts/record_whisper_phone_steering_explorer.py --help
+.venv/bin/python scripts/publish_static_phone_steering.py \
+  --source-root . \
+  --site-root /path/to/static-site
+```
 
-Laurel is not split into invented fragments: Whisper represents ` Laurel` as
-one token (43442). In the canonical encoder run its actual full-vocabulary
-probability falls from 0.001090% to 0.000367%, even though its restricted
-total-path share rises from 0.00607% to 7.27% because the other candidates are
-harmed more; generation becomes unrelated text. The decoder edit raises the
-actual Laurel probability to 0.002851% and restricted total-path share to
-0.01295%, but free generation remains `Lily!`. The UI shows both the absolute
-path likelihood and restricted share so the latter cannot masquerade as a
-full-output probability.
+The published replay contains only recorded Original, Yanny, and Laurel
+checkpoints; it never interpolates an unmeasured strength. The canonical public
+view is ASR Audio 10. `/steering/` is retained only as a redirect for old links.
 
-The page also preserves the prefix-family runs as a separate encoder mode.
-At the same 20% within-encoder budget, steering `Y*` over the first half raises
-actual `p(" Y")` from 12.33% to 52.90% and freely generates `Yay!`; applying
-`Y*` then `anny*` generates `Yay!` and gives Yanny 2.51% of the restricted
-total-path set, not `Yanny`. The `La*` run gives Laurel 61.35% of that restricted
-set while lowering its actual full-vocabulary probability to 0.000199% and
-generating unrelated text. The high share means the other declared paths were
-damaged even more; it is not successful word-level control.
+## Interpretation requirements
+
+- Include matched-norm random directions at the same layers, coordinates, and
+  budget; one random seed is not a control distribution.
+- Freeze direction construction, timing, and stopping criteria before the main
+  evaluation, or label the outcome target-conditioned and exploratory.
+- Report wrong-time, reverse-sign, unrelated-order, spectral, and held-out-audio
+  checks where available.
+- Treat a transcript flip as evidence for that exact intervention and
+  checkpoint, not as a universal semantic control knob.
+- Inspect absolute full-vocabulary scores alongside restricted candidate-set
+  shares; damaging every alternative can inflate the latter.
+- Keep fitted-phone cosine similarities, J-lens token readouts, raw head
+  probabilities, and intervention outcomes visually and verbally distinct.

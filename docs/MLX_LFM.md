@@ -61,7 +61,7 @@ a scientifically adequate corpus:
 ```
 
 Pass multiple audio paths before `--output` for a pilot corpus. Keep fitting and
-held-out evaluation clips disjoint; the three bundled LibriSpeech files are
+held-out evaluation clips disjoint; the bundled LibriSpeech files are
 convenient integration examples, not a representative evaluation set.
 
 The command first generates a deterministic interleaved text/audio response,
@@ -131,11 +131,12 @@ where `k` is `--projection-dim`. Rank 2,048 uses the complete basis and
 reconstructs the selected dense estimator; lower ranks are approximations whose
 fine token ordering may change with rank and seed.
 
-The earlier one-clip rank-64 Rademacher smoke artifact produced poor lexical
-readouts and is not pilot evidence. The current implementation uses
-`subsampled_hadamard_output_probe_vjp`, and **rank 512 is the minimum pilot
-default**, not a quality guarantee. Any reported result still needs rank/seed
-sensitivity, multiple fitting clips, held-out evaluation, and failure cases.
+The smoke-test outcomes and estimator change are recorded in
+[`experiments/LFM_VERTICAL_SLICE.md`](experiments/LFM_VERTICAL_SLICE.md).
+The current implementation uses `subsampled_hadamard_output_probe_vjp`, and
+rank 512 is the minimum pilot default, not a quality guarantee. A reportable
+result still needs rank/seed sensitivity, multiple fitting clips, held-out
+evaluation, and failure cases.
 
 Artifacts record the projection method, rank, seed, reduction, exact checkpoint
 revision, runtime versions, tokenizer/config fingerprints, and fitting-example

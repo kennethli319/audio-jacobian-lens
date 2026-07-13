@@ -14,9 +14,11 @@ The tenth ASR input is the byte-identical `Audio S7.mp3` labeled
 demo page displays a
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) notice. Bosker (2018)
 describes the viral clip as originating from Vocabulary.com's “laurel”
-pronunciation. The audio is reproduced unchanged; the cached J-lens analysis
-and steering overlays are project-authored. The speech-to-speech explorer keeps
-the LibriSpeech `impossible.flac` input in its tenth slot instead.
+pronunciation; see the associated
+[JASA Express Letters article](https://doi.org/10.1121/1.5070144). The audio is
+reproduced unchanged; the cached J-lens analysis and steering overlays are
+project-authored. The speech-to-speech explorer keeps the LibriSpeech
+`impossible.flac` input in its tenth slot instead.
 
 | Bundled file | LibriSpeech utterance ID | Reference transcript |
 |---|---|---|

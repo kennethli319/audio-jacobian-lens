@@ -6,6 +6,12 @@ This is the continuity document for the project. Read it before making changes,
 update it when a milestone or design decision changes, and append a short entry
 to the work log before ending a work session.
 
+> **Document status:** this file is the chronological control log and preserves
+> superseded decisions for continuity. Canonical measured outcomes live in
+> [`docs/experiments/`](docs/experiments/); current setup, hosting, and
+> publication contracts live in [`docs/README.md`](docs/README.md). When an old
+> work-log entry conflicts with those documents, the focused document wins.
+
 ## Goal
 
 Build a reproducible, local-first Jacobian-lens explorer for speech models. The
@@ -2157,3 +2163,19 @@ the article and primary explorers now carry the relevant interpretation.
 - Added the source repository to every public explorer header as a visible
   `GitHub · self-host` link, so visitors can inspect the implementation and run
   their own copy without hunting through the article or page source.
+- Reorganized the repository documentation so measured outcomes have one
+  canonical home under `docs/experiments/`. Split out reports for the Whisper
+  pilot, distributed phonetic signatures, fitted-phone steering, LFM vertical
+  slice, Chatterbox T3 pilot, and static-example screening; retained short
+  compatibility pointers at the two former result-document paths.
+- Reduced the root README to the project introduction and runnable install,
+  fit, evaluation, local-serving, self-hosting, and development instructions.
+  Moved detailed Hosting and static Publishing procedures into focused guides,
+  added a documentation index, and corrected stale public TTS/four-item-header
+  and pre-license Laurel/Yanny statements in the supporting docs.
+- Documentation gate: all relative Markdown links resolve; Ruff, six frontend
+  JavaScript syntax checks, and `git diff --check` pass. A full pytest attempt
+  could not collect because macOS FileProvider moved files out of the local
+  ignored `.venv` during Python imports; no repository test failure was
+  observed, but the environment must be rebuilt before claiming a fresh full
+  suite pass for this documentation-only change.

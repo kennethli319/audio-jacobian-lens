@@ -21,29 +21,31 @@ For a standalone visual preview, serve this directory with any static HTTP
 server and choose **Load synthetic UI demo**. Demo analysis never contacts the
 analysis endpoint.
 
-The shared navigation links to the static **Showcase** at `/showcase`. The
-legacy `/causal` route is an alias for the same replacement so saved links keep
-working. The showcase compares frozen, curated ASR, speech-to-speech, and TTS
-evidence without calling a model backend, and keeps readouts, raw heads,
-diagnostics, and residual interventions semantically separate. Publication and
-rights caveats travel with each example.
+The static publisher exposes the ASR explorer at the release root and the
+speech-to-speech explorer at `/speech/`. Both use frozen, hash-pinned reports
+without calling a model backend, and keep readouts, raw heads, diagnostics, and
+residual interventions semantically separate. Chatterbox TTS is intentionally
+absent from the public release while its fitted-code pilot remains too
+provisional for the main story. Publication and rights caveats travel with each
+example.
 
 The earlier Laurel/Yanny causal experiment remains in `causal.html`,
 `causal.js`, and `docs/CAUSAL_TRACE.md` as a reproducible project artifact; it
 is no longer the primary public-facing study page.
 
-`/steering` opens the newer backend-free Phone Steering Replay. It uses a
+The backend-free Phone Steering Replay now lives inside ASR Audio 10. It uses a
 sanitized copy of `data/static_phone_steering_v1.json` and exposes only recorded
-Yanny and Laurel checkpoints: phone spans, scalar encoder coefficients, free
-outputs, full-head ranks/probabilities, and compact controls. The strength
-control snaps to those saved runs and never interpolates model behavior. No
-source audio, fitted tensor, upload, or inference endpoint is included. The
-equal-strength cross-fit Yanny result and target-conditioned Laurel existence
-result are intentionally presented with different evidence labels.
+Original, Yanny, and Laurel checkpoints: phone spans, scalar encoder
+coefficients, free outputs, full-head ranks/probabilities, and compact controls.
+It never interpolates model behavior, runs inference, or publishes fitted
+tensors. The legacy `/steering/` URL redirects to this integrated example and
+preserves a requested Laurel or Yanny target when possible.
 
-The published ASR, Speech, TTS, and Steering pages share one four-item header.
-The menu remains visible by wrapping on narrow screens; archived findings pages
-are intentionally absent from that primary navigation.
+The published ASR and Speech pages share one two-item header plus a GitHub
+self-host link. The menu remains visible by wrapping on narrow screens;
+archived findings pages and retired TTS/standalone-steering pages are
+intentionally absent from primary navigation. The exact publishing contract is
+documented in [`../docs/PUBLISHING.md`](../docs/PUBLISHING.md).
 
 ## Interaction model
 

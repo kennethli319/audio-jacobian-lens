@@ -90,22 +90,10 @@ exactly; rank 128 is an approximation. One zero perturbation is inserted after
 each requested source block, so one MLX VJP obtains every source layer for a
 given probe.
 
-The pilot artifact has this exact provenance:
-
-| Field | Value |
-|---|---|
-| Fit corpus | 10 prompts, 480 selected speech positions |
-| Source / target | post-block L0/L4/L8/L12/L16/L20/L22 to post-block L23, before final normalization |
-| Estimator | uncentered, target `sum`, equal example mean |
-| Projection | Hadamard rank `128/1024`, seed `29` |
-| Projection time | `391.859` seconds, excluding `8.549` seconds of trajectory capture |
-| Serialized size | `2,104,061` bytes, fp16 factors |
-| Model compatibility fingerprint | `47f1c6108840fae0` |
-| In-app fitted-lens fingerprint | `67da0e6fef27e310` |
-| Serialized file SHA-256 | `ebf46e3e088106e270eff676b09bac9ff3f5ff5206e9e1f924d692ee9a7b2aa8` |
-| Prepared-example fingerprint | `9de6342be062cdf4efdf53ae01570cf47f96d0790cb6aa1093e253e4e03bedf7` |
-
-The artifact remains a local pilot and is ignored by version control; the
+The exact artifact provenance, held-out measurements, and scientific caveats
+are recorded once in
+[`experiments/CHATTERBOX_T3_PILOT.md`](experiments/CHATTERBOX_T3_PILOT.md).
+The artifact remains local and ignored by version control; the report's
 fingerprints identify the measured file rather than promising that it is
 distributed with this repository.
 
@@ -239,28 +227,13 @@ large, potentially off-manifold edits. A top-1 flip demonstrates what this
 specific intervention caused in the quantized local model; it does not prove a
 natural acoustic concept, phoneme direction, or robust mechanism.
 
-## Ten-prompt pilot and held-out check
+## Pilot report
 
-Four manifest records excluded from fitting produced 251 ordinary speech codes
-in the held-out aggregate. Rank is one-based among all 6,563 raw speech-head
-entries, and top-10 rate is the fraction of positions where the realized code
-appeared in the fitted distribution's ten highest entries.
-
-| Source layer | Median realized-code rank | Realized code in top 10 |
-|---:|---:|---:|
-| L0 | 1,593 | 0.4% |
-| L4 | 1,376 | 0.4% |
-| L8 | 952 | 2.0% |
-| L12 | 466 | 6.4% |
-| L16 | 187 | 9.6% |
-| L20 | 23 | 32.3% |
-| L22 | 12 | 45.8% |
-
-Across those positions, the actual final head assigned the realized code a
-mean probability of `15.85%`; the fitted L22 readout assigned it `3.38%` on
-average. The monotonic rank improvement is encouraging evidence that the
-transport becomes more predictive later in T3. It does not establish that the
-probabilities are calibrated or that the pilot is scientifically stable.
+The failure-inclusive ten-prompt fit and four-prompt held-out check—including
+per-layer realized-code ranks, top-10 rates, fingerprints, and unresolved
+validation gates—live in
+[`experiments/CHATTERBOX_T3_PILOT.md`](experiments/CHATTERBOX_T3_PILOT.md).
+This document is the setup and interpretation guide.
 
 ## What the per-run text trace measures
 
@@ -376,10 +349,10 @@ observation, but it does not turn either one into causal evidence.
 - The implementation has no S3 acoustic-frame Jacobian and no end-to-end
   text-to-mel or text-to-waveform attribution. The waveform is used only as a
   synchronized display for nominal T3 code coordinates.
-- The fitted artifact is a ten-prompt, one-seed, rank-128 pilot. There is no
-  rank sweep, projection-seed replication, direct/identity logit-lens baseline,
-  or unquantized-checkpoint comparison yet. The four-prompt held-out aggregate
-  is a useful plumbing and trend check, not a completed validation study.
+- The fitted artifact is a small, one-seed projected pilot. There is no rank
+  sweep, projection-seed replication, direct/identity logit-lens baseline, or
+  unquantized-checkpoint comparison yet. See the linked experiment report for
+  the exact corpus and measurements.
 - The input-text gradient and attention matrices remain a context-specific VJP
   trace and routing view. Loading the fitted speech-position artifact does not
   turn either matrix into a corpus-averaged text explanation.
