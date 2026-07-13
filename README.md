@@ -678,6 +678,8 @@ candidate and the smaller `realized #N` badge is the exact rank of that
 column's emitted token. A decoder column tracks its generated token directly;
 an encoder window tracks the output token with greatest overlap under Whisper's
 model-derived DTW timing. That encoder pairing is approximate and non-causal.
+Phone Signature view is available on every cached ASR sample, so no sample is
+singled out with a special feature badge.
 When the optional character filter is active, both the top candidate and
 realized rank are recomputed in the filtered vocabulary; an excluded realized
 token is labeled `realized out`. The encoder layer matrix is independently

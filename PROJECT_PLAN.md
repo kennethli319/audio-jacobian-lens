@@ -2084,3 +2084,15 @@ the article and primary explorers now carry the relevant interpretation.
 - Final navigation gate: 384 tests passed with three optional skips; full Ruff,
   all JavaScript syntax checks, whitespace checks, exact manifest hashes, and
   the strict 10/10/10 static-site validator passed.
+- Retired the buzzer-only `PHONE SIGNATURE EXAMPLE` designation after all ten
+  cached ASR reports gained the same Phone Signature toggle. The catalog,
+  local prepared-sample metadata, public manifest, renderer, and release gate
+  now treat the feature as universal and reject the obsolete featured-view
+  field.
+- Restored explicit ASR architecture context beside the cached matrices:
+  encoder audio-time rows are identified as the four bidirectional Whisper
+  blocks (L0-L3), while decoder token-time rows distinguish fitted source
+  readouts L0-L2 from the final L3 state read through the LM head.
+- Final universal-phone-view and architecture-label gate: 386 tests passed
+  with three optional skips; Ruff, all JavaScript syntax checks, whitespace,
+  exact static hashes, and the strict 10/10/10 public-site validator passed.

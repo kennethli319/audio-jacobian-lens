@@ -1053,7 +1053,7 @@ def test_app_lists_and_serves_bundled_samples(tmp_path):
     assert audio.content == (directory / "hello.wav").read_bytes()
 
 
-def test_real_sample_catalog_recommends_the_phone_signature_example():
+def test_real_sample_catalog_has_no_special_phone_signature_example():
     root = Path(__file__).resolve().parents[1]
     client = TestClient(
         create_app(None, web_dir=root / "web", samples_dir=root / "samples")
@@ -1061,9 +1061,11 @@ def test_real_sample_catalog_recommends_the_phone_signature_example():
 
     samples = client.get("/api/samples").json()["samples"]
     assert samples[0]["id"] == "buzzer-whirr"
-    assert samples[0]["badge"] == "PHONE SIGNATURE EXAMPLE"
-    assert samples[0]["recommended_for"] == "phone-signature"
-    assert "recommended for Phone signature view" in samples[0]["description"]
+    assert "badge" not in samples[0]
+    assert "recommended_for" not in samples[0]
+    assert samples[0]["description"] == (
+        "Consonant-rich natural speech · LibriSpeech dev-clean"
+    )
 
 
 def test_app_returns_404_for_missing_and_traversal_sample_ids(tmp_path):

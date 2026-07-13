@@ -4,11 +4,9 @@
       "id": "buzzer-whirr",
       "file": "buzzer.flac",
       "title": "The buzzer's whirr",
-      "description": "Consonant-rich natural speech · recommended for Phone signature view",
+      "description": "Consonant-rich natural speech · LibriSpeech dev-clean",
       "transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
-      "duration_seconds": 4.93,
-      "badge": "PHONE SIGNATURE EXAMPLE",
-      "recommended_for": "phone-signature"
+      "duration_seconds": 4.93
     },
     {
       "id": "short-question",

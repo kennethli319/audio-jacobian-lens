@@ -315,18 +315,28 @@ def test_renderer_contract_requires_asr_phone_signature_hybrid() -> None:
         "const phoneCell = encoderPhoneMode(kind);",
         "label: phoneMode ? compactText(top?.phone)",
         "descriptor.candidates.slice(0, 5)",
-        "PHONE SIGNATURE EXAMPLE",
         "Audio and alignment attribution",
         "exact 100/20/80 ms encoder pooling",
     )
     assert validator.ASR_PHONE_SIGNATURE_CSS_MARKERS == (
-        ".sample-button.phone-example",
         ".phone-signature-control",
         ".matrix-cell.phone-signature-cell .matrix-cell-label",
         ".phone-candidate-row",
         ".rights-block",
         ".explorer-tooltip",
     )
+
+
+def test_renderer_contract_restores_asr_architecture_context() -> None:
+    assert validator.ASR_ARCHITECTURE_SCRIPT_MARKERS == (
+        'family === "asr" ? "Encoder: Across the audio representation"',
+        'family === "asr" ? "Decoder: As each token resolves"',
+        'class="matrix-architecture" aria-label="Encoder architecture"',
+        'class="matrix-architecture" aria-label="Decoder architecture"',
+        "Bidirectional audio-time states",
+        "Final L${finalLayer} state → LM head · causal token time",
+    )
+    assert validator.ASR_ARCHITECTURE_CSS_MARKERS == (".matrix-architecture",)
 
 
 def test_safe_cache_rejects_private_artifact_paths() -> None:
@@ -398,8 +408,6 @@ def _ten_report_manifest(family: str) -> dict:
                     f"sample-{index}.filters.json"
                 )
             }
-            if index == 0:
-                entry["featured_views"] = ["asr_phone_signature"]
         reports.append(entry)
     return {
         "report_count": validator.EXPECTED_REPORT_COUNT,
@@ -414,6 +422,14 @@ def test_manifest_index_accepts_ten_unique_reports(family: str) -> None:
     reports = validator._manifest_reports(manifest, family=family)
 
     assert len(reports) == validator.EXPECTED_REPORT_COUNT
+
+
+def test_manifest_index_rejects_retired_asr_feature_badge_metadata() -> None:
+    manifest = _ten_report_manifest("asr")
+    manifest["reports"][0]["featured_views"] = ["asr_phone_signature"]
+
+    with pytest.raises(ValueError, match="retired featured-view"):
+        validator._manifest_reports(manifest, family="asr")
 
 
 def test_manifest_index_rejects_wrong_count_and_duplicate_urls() -> None:

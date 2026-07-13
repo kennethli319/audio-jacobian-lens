@@ -15,7 +15,7 @@ SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260712-19"
+EXPLORER_ASSET_VERSION = "20260713-20"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -88,18 +88,25 @@ ASR_PHONE_SIGNATURE_SCRIPT_MARKERS = (
     "const phoneCell = encoderPhoneMode(kind);",
     "label: phoneMode ? compactText(top?.phone)",
     "descriptor.candidates.slice(0, 5)",
-    "PHONE SIGNATURE EXAMPLE",
     "Audio and alignment attribution",
     "exact 100/20/80 ms encoder pooling",
 )
 ASR_PHONE_SIGNATURE_CSS_MARKERS = (
-    ".sample-button.phone-example",
     ".phone-signature-control",
     ".matrix-cell.phone-signature-cell .matrix-cell-label",
     ".phone-candidate-row",
     ".rights-block",
     ".explorer-tooltip",
 )
+ASR_ARCHITECTURE_SCRIPT_MARKERS = (
+    'family === "asr" ? "Encoder: Across the audio representation"',
+    'family === "asr" ? "Decoder: As each token resolves"',
+    'class="matrix-architecture" aria-label="Encoder architecture"',
+    'class="matrix-architecture" aria-label="Decoder architecture"',
+    "Bidirectional audio-time states",
+    "Final L${finalLayer} state → LM head · causal token time",
+)
+ASR_ARCHITECTURE_CSS_MARKERS = (".matrix-architecture",)
 STEERING_SCRIPT_MARKERS = (
     'data.mode !== "static_recorded_checkpoints"',
     "checkpoint.recorded !== true || checkpoint.interpolated !== false",
@@ -240,7 +247,6 @@ def _manifest_reports(
             raise ValueError(f"{family} manifest audio URLs are empty or duplicated")
     if family == "asr":
         filter_urls: list[str] = []
-        featured_phone_examples = 0
         for entry in reports:
             reference = entry.get("character_length_filter_cache")
             if not isinstance(reference, Mapping) or not reference.get("url"):
@@ -248,19 +254,12 @@ def _manifest_reports(
                     "ASR manifest entry is missing its character-filter URL"
                 )
             filter_urls.append(str(reference["url"]))
-            featured = entry.get("featured_views", [])
-            if (
-                not isinstance(featured, list)
-                or any(not isinstance(value, str) for value in featured)
-                or set(featured) - {"asr_phone_signature"}
-            ):
-                raise ValueError("ASR manifest has invalid featured views")
-            if "asr_phone_signature" in featured:
-                featured_phone_examples += 1
+            if "featured_views" in entry:
+                raise ValueError(
+                    "ASR manifest uses retired featured-view metadata"
+                )
         if len(set(filter_urls)) != len(filter_urls):
             raise ValueError("ASR manifest character-filter URLs are duplicated")
-        if featured_phone_examples < 1:
-            raise ValueError("ASR manifest has no featured phone-signature example")
     return reports
 
 
@@ -1335,6 +1334,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         *ASR_DECODER_HIERARCHY_SCRIPT_MARKERS,
         *CROSS_FAMILY_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS,
         *ASR_PHONE_SIGNATURE_SCRIPT_MARKERS,
+        *ASR_ARCHITECTURE_SCRIPT_MARKERS,
     ):
         if marker not in explorer_script:
             raise ValueError(
@@ -1368,6 +1368,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         *ASR_DECODER_HIERARCHY_CSS_MARKERS,
         *CROSS_FAMILY_SYNCHRONIZED_SCROLL_CSS_MARKERS,
         *ASR_PHONE_SIGNATURE_CSS_MARKERS,
+        *ASR_ARCHITECTURE_CSS_MARKERS,
     ):
         if marker not in explorer_css:
             raise ValueError(
