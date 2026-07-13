@@ -196,6 +196,10 @@ Status: **in progress**
   horizontal scroller so long token runs preserve their left-to-right order
   without causing page-level overflow. Retain eight-token bands for the much
   longer speech-to-speech responses.
+- [x] Give both lexical and Phone Signature encoder matrices a contained
+  horizontal scroller, and automatically reveal the synchronized encoder and
+  decoder/HEAD columns after every pointer, keyboard, waveform, or token
+  selection without moving the page viewport.
 - [x] Add real encoder pooling overlap: 100 ms windows with a default 20 ms
   overlap, a zero-overlap control, exact range metadata, and adaptive widening
   only beyond the 100-bin display safety limit.
@@ -1174,6 +1178,18 @@ shared-renderer change does not reintroduce the earlier readability problem on
 that page. Long ASR transcripts scroll inside the decoder panel rather than
 widening the page.
 
+### 2026-07-12 — Reveal one synchronized selection across both ASR scrollers
+
+The static ASR encoder now keeps readable fixed-width cells in both lexical and
+Phone Signature modes, using a contained horizontal scroller instead of
+compressing longer runs to the panel width. Selecting a token, encoder window,
+decoder cell, HEAD cell, or waveform region continues to update the shared
+token/time coordinate. After that update, only the encoder and decoder
+containers adjust their own horizontal scroll positions so the selected audio
+window and aligned output/HEAD column are visible together. The page itself is
+not scrolled. Keyboard matrix navigation suppresses the browser's default page
+scroll before the same synchronized reveal runs.
+
 ## Work log
 
 ### 2026-07-10
@@ -1886,3 +1902,9 @@ widening the page.
   synchronized selections are preserved; speech-to-speech keeps its existing
   eight-token bands. Bumped the public explorer asset version and extended the
   static validator to lock in this family-specific layout contract.
+- Made both encoder display modes horizontally scrollable with readable cell
+  widths, including the ordinary lexical-token view. Added container-local
+  synchronized reveal so any token, waveform, encoder, decoder, or HEAD
+  selection brings both its encoder window and decoder/HEAD column into view
+  without moving the page. Phone/filter rerenders and keyboard navigation keep
+  the same visibility contract.

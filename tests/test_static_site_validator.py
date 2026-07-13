@@ -178,6 +178,25 @@ def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:
     )
 
 
+def test_renderer_contract_requires_synchronized_asr_matrix_scrolling() -> None:
+    assert validator.ASR_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS == (
+        'const scrollableEncoder = family === "asr" && streamName === "encoder";',
+        'const encoderCellWidth = phoneMode ? 28 : 72;',
+        'scrollable: family === "asr",',
+        "function scrollTargetIntoHorizontalView(",
+        "function revealSynchronizedSelection(",
+        'workspace.querySelector(".scrollable-matrix-panel .layer-matrix")',
+        'workspace.querySelectorAll(".speech-matrix-scroll")',
+        'syncSelectionDOM({ reveal: true, behavior: "auto" });',
+        'target.focus({ preventScroll: true });',
+    )
+    assert validator.ASR_SYNCHRONIZED_SCROLL_CSS_MARKERS == (
+        ".scrollable-matrix-panel .layer-matrix",
+        ".scrollable-matrix-panel .matrix-row",
+        "overflow-x: auto",
+    )
+
+
 def test_renderer_contract_requires_asr_phone_signature_hybrid() -> None:
     assert validator.ASR_PHONE_SIGNATURE_SCRIPT_MARKERS == (
         "phoneSignatureEnabled: false,",

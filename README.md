@@ -641,7 +641,12 @@ an encoder window tracks the output token with greatest overlap under Whisper's
 model-derived DTW timing. That encoder pairing is approximate and non-causal.
 When the optional character filter is active, both the top candidate and
 realized rank are recomputed in the filtered vocabulary; an excluded realized
-token is labeled `realized out`.
+token is labeled `realized out`. The encoder layer matrix is independently
+horizontally scrollable in both lexical-token and Phone Signature modes.
+Selecting any token, waveform region, encoder cell, decoder cell, or HEAD cell
+updates the shared coordinate and adjusts only those two matrix scrollers until
+the synchronized encoder window and decoder/HEAD column are visible; it never
+uses page-level scrolling for this reveal.
 
 Before publishing, run the static-only integrity gate:
 

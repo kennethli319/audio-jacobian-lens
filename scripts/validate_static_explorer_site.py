@@ -15,7 +15,7 @@ SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260712-15"
+EXPLORER_ASSET_VERSION = "20260712-16"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -56,6 +56,22 @@ ASR_DECODER_HIERARCHY_SCRIPT_MARKERS = (
 ASR_DECODER_HIERARCHY_CSS_MARKERS = (
     '[data-family="asr"] .speech-matrix-grid .matrix-cell .matrix-cell-label',
     '[data-family="asr"] .speech-matrix-grid .matrix-cell .realized-rank-badge',
+)
+ASR_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS = (
+    'const scrollableEncoder = family === "asr" && streamName === "encoder";',
+    'const encoderCellWidth = phoneMode ? 28 : 72;',
+    'scrollable: family === "asr",',
+    "function scrollTargetIntoHorizontalView(",
+    "function revealSynchronizedSelection(",
+    'workspace.querySelector(".scrollable-matrix-panel .layer-matrix")',
+    'workspace.querySelectorAll(".speech-matrix-scroll")',
+    'syncSelectionDOM({ reveal: true, behavior: "auto" });',
+    'target.focus({ preventScroll: true });',
+)
+ASR_SYNCHRONIZED_SCROLL_CSS_MARKERS = (
+    ".scrollable-matrix-panel .layer-matrix",
+    ".scrollable-matrix-panel .matrix-row",
+    'overflow-x: auto',
 )
 ASR_PHONE_SIGNATURE_SCRIPT_MARKERS = (
     "phoneSignatureEnabled: false,",
@@ -1043,6 +1059,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         'class="sample-button-grid"',
         *SPEECH_TERMINATION_SCRIPT_MARKERS,
         *ASR_DECODER_HIERARCHY_SCRIPT_MARKERS,
+        *ASR_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS,
         *ASR_PHONE_SIGNATURE_SCRIPT_MARKERS,
     ):
         if marker not in explorer_script:
@@ -1062,6 +1079,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         "overflow-x: hidden",
         *SPEECH_TERMINATION_CSS_MARKERS,
         *ASR_DECODER_HIERARCHY_CSS_MARKERS,
+        *ASR_SYNCHRONIZED_SCROLL_CSS_MARKERS,
         *ASR_PHONE_SIGNATURE_CSS_MARKERS,
     ):
         if marker not in explorer_css:
