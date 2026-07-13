@@ -280,6 +280,20 @@ button:focus-visible, [role="slider"]:focus-visible, [tabindex="0"]:focus-visibl
 .button.secondary:hover:not(:disabled), .button.quiet:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-soft); }
 .button.quiet { border-color: var(--line); background: transparent; color: var(--text-soft); }
 
+.hosted-notice {
+  margin-top: 22px;
+  padding: 14px 16px;
+  border: 1px solid rgba(14, 111, 160, 0.24);
+  border-radius: 10px;
+  background: rgba(14, 111, 160, 0.045);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+.hosted-notice strong { color: var(--text); font-size: 11px; }
+.hosted-notice p { margin: 5px 0 0; }
+.hosted-notice a { color: var(--lens); text-underline-offset: 2px; }
+
 .source-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

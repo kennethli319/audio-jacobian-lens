@@ -37,6 +37,7 @@ const elements = {
   statusButton: $("#status-button"),
   statusDot: $("#status-dot"),
   statusText: $("#status-text"),
+  hostedNotice: $("#hosted-notice"),
   inputPanel: $("#input-panel"),
   sourceTabs: $$("[data-source-tab]"),
   sourcePanels: $$(".source-panel"),
@@ -802,6 +803,8 @@ async function checkBackendStatus() {
     const response = await fetch(API.status, { headers: { Accept: "application/json" }, signal: controller.signal });
     if (!response.ok) throw new Error(`Status endpoint returned ${response.status}`);
     const payload = await response.json();
+    document.body.dataset.asrOnly = payload.asr_only === true ? "true" : "false";
+    elements.hostedNotice.hidden = payload.asr_only !== true;
     state.serverMode = isMlxLfmInfo(payload) ? "speech" : "asr";
     applyBackendBranding(payload);
     const ready = payload.ready ?? payload.ok ?? true;

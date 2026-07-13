@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRYPOINT = ROOT / "docker" / "entrypoint.sh"
+DOCKERFILE = ROOT / "Dockerfile"
 MODEL_REVISION = "87c7102498dcde7456f24cfd30239ca606ed9063"
 
 
@@ -47,6 +48,14 @@ def _run_entrypoint(
         else []
     )
     return result, arguments
+
+
+def test_space_image_installs_cpu_only_torch() -> None:
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "--torch-backend cpu" in dockerfile
+    assert "--prune torch" in dockerfile
+    assert "nvidia-" not in dockerfile
 
 
 def test_entrypoint_passes_pinned_model_and_local_lens(tmp_path: Path) -> None:
@@ -111,6 +120,57 @@ def test_entrypoint_downloads_private_hub_lens_before_start(tmp_path: Path) -> N
         "--quiet",
     ]
     assert arguments[-2:] == ["--lens", str(downloaded_lens)]
+
+
+def test_entrypoint_downloads_phone_signatures_and_enables_asr_only(
+    tmp_path: Path,
+) -> None:
+    downloaded_lens = tmp_path / "combined.pt"
+    downloaded_phones = tmp_path / "phones.pt"
+    downloaded_lens.touch()
+    downloaded_phones.touch()
+    hf_args_file = tmp_path / "hf-args.txt"
+    _make_executable(
+        tmp_path / "hf",
+        "#!/bin/sh\n"
+        'printf "%s\\n" "$@" >> "$HF_ARGS_FILE"\n'
+        'case "$3" in\n'
+        '  combined.pt) printf "%s\\n" "$DOWNLOADED_LENS_PATH" ;;\n'
+        '  phones.pt) printf "%s\\n" "$DOWNLOADED_PHONES_PATH" ;;\n'
+        'esac\n',
+    )
+
+    result, arguments = _run_entrypoint(
+        tmp_path,
+        DOWNLOADED_LENS_PATH=str(downloaded_lens),
+        DOWNLOADED_PHONES_PATH=str(downloaded_phones),
+        HF_ARGS_FILE=str(hf_args_file),
+        JLENS_ASR_ONLY="true",
+        JLENS_LENS_FILENAME="combined.pt",
+        JLENS_LENS_REPO_ID="example/private-lens",
+        JLENS_LENS_REVISION="abc123",
+        JLENS_PHONE_SIGNATURES_FILENAME="phones.pt",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert arguments[-5:] == [
+        "--lens",
+        str(downloaded_lens),
+        "--phone-signatures",
+        str(downloaded_phones),
+        "--asr-only",
+    ]
+    assert hf_args_file.read_text(encoding="utf-8").splitlines().count(
+        "download"
+    ) == 2
+
+
+def test_entrypoint_rejects_invalid_asr_only_value(tmp_path: Path) -> None:
+    result, arguments = _run_entrypoint(tmp_path, JLENS_ASR_ONLY="sometimes")
+
+    assert result.returncode == 64
+    assert not arguments
+    assert "JLENS_ASR_ONLY must be true or false" in result.stderr
 
 
 def test_entrypoint_rejects_partial_hub_lens_configuration(tmp_path: Path) -> None:

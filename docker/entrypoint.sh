@@ -17,8 +17,11 @@ fi
 lens_path="${JLENS_LENS_PATH:-}"
 lens_repo_id="${JLENS_LENS_REPO_ID:-}"
 lens_filename="${JLENS_LENS_FILENAME:-}"
+phone_signatures_path="${JLENS_PHONE_SIGNATURES_PATH:-}"
+phone_signatures_filename="${JLENS_PHONE_SIGNATURES_FILENAME:-}"
 
-if [ -n "$lens_repo_id" ] || [ -n "$lens_filename" ]; then
+if [ -n "$lens_repo_id" ] || [ -n "$lens_filename" ] || \
+    [ -n "$phone_signatures_filename" ]; then
     if [ -z "$lens_repo_id" ] || [ -z "$lens_filename" ]; then
         die "JLENS_LENS_REPO_ID and JLENS_LENS_FILENAME must be set together"
     fi
@@ -48,6 +51,28 @@ if [ -n "$lens_repo_id" ] || [ -n "$lens_filename" ]; then
             --repo-type "$lens_repo_type" \
             --quiet)"
     fi
+
+    if [ -n "$phone_signatures_filename" ]; then
+        if [ -n "$phone_signatures_path" ]; then
+            die "set either JLENS_PHONE_SIGNATURES_PATH or JLENS_PHONE_SIGNATURES_FILENAME, not both"
+        fi
+        printf 'Downloading phone-signature artifact from %s/%s...\n' \
+            "$lens_repo_id" "$phone_signatures_filename"
+        if [ -n "${JLENS_LENS_REVISION:-}" ]; then
+            phone_signatures_path="$(hf download \
+                "$lens_repo_id" \
+                "$phone_signatures_filename" \
+                --repo-type "$lens_repo_type" \
+                --revision "$JLENS_LENS_REVISION" \
+                --quiet)"
+        else
+            phone_signatures_path="$(hf download \
+                "$lens_repo_id" \
+                "$phone_signatures_filename" \
+                --repo-type "$lens_repo_type" \
+                --quiet)"
+        fi
+    fi
 fi
 
 encoder_lens_path="${JLENS_ENCODER_LENS_PATH:-}"
@@ -57,7 +82,8 @@ if [ -n "$lens_path" ] && \
     die "a combined lens cannot be used with encoder/decoder lens paths"
 fi
 
-for artifact in "$lens_path" "$encoder_lens_path" "$decoder_lens_path"; do
+for artifact in "$lens_path" "$encoder_lens_path" "$decoder_lens_path" \
+    "$phone_signatures_path"; do
     if [ -n "$artifact" ] && [ ! -f "$artifact" ]; then
         die "lens artifact does not exist or is not a file: $artifact"
     fi
@@ -81,6 +107,14 @@ fi
 if [ -n "$decoder_lens_path" ]; then
     set -- "$@" --decoder-lens "$decoder_lens_path"
 fi
+if [ -n "$phone_signatures_path" ]; then
+    set -- "$@" --phone-signatures "$phone_signatures_path"
+fi
+case "${JLENS_ASR_ONLY:-}" in
+    ''|0|false|no) ;;
+    1|true|yes) set -- "$@" --asr-only ;;
+    *) die "JLENS_ASR_ONLY must be true or false" ;;
+esac
 if [ -n "${JLENS_TOP_K:-}" ]; then
     set -- "$@" --top-k "$JLENS_TOP_K"
 fi

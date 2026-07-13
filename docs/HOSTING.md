@@ -50,6 +50,12 @@ The container accepts these environment variables:
 - `JLENS_LENS_REVISION` should pin that Hub artifact to an immutable commit.
 - `JLENS_LENS_REPO_TYPE` may be `model`, `dataset`, or `space`; it defaults to
   `model`.
+- `JLENS_PHONE_SIGNATURES_PATH` loads a matching local phone-prototype artifact.
+  `JLENS_PHONE_SIGNATURES_FILENAME` downloads it from the same Hub repository
+  and revision as the combined lens.
+- `JLENS_ASR_ONLY=true` hides and blocks the Speech, TTS, Showcase, and
+  steering pages for a focused hosted ASR explorer. It does not change the
+  Whisper analysis itself.
 - `JLENS_DEVICE`, `JLENS_TOP_K`, `JLENS_TIME_BIN_SECONDS`, and
   `JLENS_TIME_BIN_OVERLAP_SECONDS` override serving defaults.
 
@@ -80,6 +86,8 @@ JLENS_MODEL_REVISION=<immutable Whisper revision>
 JLENS_LENS_REPO_ID=<user>/<artifact-repository>
 JLENS_LENS_FILENAME=<combined-lens-filename.pt>
 JLENS_LENS_REVISION=<immutable artifact commit>
+JLENS_PHONE_SIGNATURES_FILENAME=<matching-phone-prototypes.pt>
+JLENS_ASR_ONLY=true
 ```
 
 If the artifact repository is private, add a read-scoped `HF_TOKEN` as a Space

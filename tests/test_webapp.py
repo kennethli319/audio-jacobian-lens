@@ -95,6 +95,54 @@ def test_status_and_analyze_without_lens(tmp_path):
     assert "No fitted audio lens" in response.json()["detail"]
 
 
+def test_status_reports_asr_only_deployment_mode(tmp_path):
+    client = TestClient(create_app(None, web_dir=tmp_path, asr_only=True))
+
+    assert client.get("/api/status").json()["asr_only"] is True
+
+
+def test_backend_status_reports_asr_only_deployment_mode(tmp_path):
+    client = TestClient(
+        create_app(_FakeBackend(), web_dir=tmp_path, asr_only=True)
+    )
+
+    status = client.get("/api/status").json()
+    assert status["ready"] is True
+    assert status["asr_only"] is True
+
+
+def test_asr_only_deployment_marks_index_and_blocks_other_workspaces(tmp_path):
+    (tmp_path / "index.html").write_text(
+        '<body data-workspace="asr">ASR explorer</body>', encoding="utf-8"
+    )
+    for filename in (
+        "showcase.html",
+        "causal.html",
+        "steering.html",
+        "chatterbox.html",
+    ):
+        (tmp_path / filename).write_text(filename, encoding="utf-8")
+    client = TestClient(create_app(None, web_dir=tmp_path, asr_only=True))
+
+    root = client.get("/")
+    assert root.status_code == 200
+    assert 'data-asr-only="true"' in root.text
+    for path in (
+        "/showcase",
+        "/showcase.html",
+        "/causal",
+        "/steering",
+        "/chatterbox",
+        "/chatterbox.html",
+        "/api/chatterbox/status",
+    ):
+        response = client.get(path)
+        assert response.status_code == 404, path
+        assert response.json()["detail"] == (
+            "This deployment serves the ASR explorer only."
+        )
+
+
 def test_app_serves_showcase_and_legacy_causal_alias(tmp_path):
     (tmp_path / "index.html").write_text("index", encoding="utf-8")
     showcase = '<body data-workspace="showcase">Showcase replacement</body>'

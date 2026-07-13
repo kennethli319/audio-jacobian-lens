@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 
 import torch
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from jlens.audio_io import (
@@ -506,6 +506,7 @@ def create_app(
     samples_dir: str | Path | None = None,
     chatterbox_backend: ChatterboxBackend | None = None,
     phonetic_experiment_dir: str | Path | None = None,
+    asr_only: bool = False,
 ) -> FastAPI:
     app = FastAPI(title="Audio Jacobian Lens", docs_url="/api/docs")
     sample_catalog = load_sample_catalog(samples_dir)
@@ -515,6 +516,24 @@ def create_app(
 
     @app.middleware("http")
     async def protect_local_analysis(request: Request, call_next):
+        if asr_only:
+            non_asr_paths = {
+                "/causal",
+                "/causal.html",
+                "/chatterbox",
+                "/chatterbox.html",
+                "/showcase",
+                "/showcase.html",
+                "/steering",
+                "/steering.html",
+            }
+            if request.url.path in non_asr_paths or request.url.path.startswith(
+                "/api/chatterbox/"
+            ):
+                return JSONResponse(
+                    {"detail": "This deployment serves the ASR explorer only."},
+                    status_code=404,
+                )
         protected_paths = {
             "/api/analyze",
             "/api/chatterbox/generate",
@@ -551,9 +570,12 @@ def create_app(
             return {
                 "ready": False,
                 "model_id": None,
+                "asr_only": asr_only,
                 "message": "No fitted audio lens was supplied; demo mode is available.",
             }
-        return backend.status()
+        payload = dict(backend.status())
+        payload["asr_only"] = asr_only
+        return payload
 
     @app.get("/api/samples")
     def list_samples() -> dict[str, Any]:
@@ -899,8 +921,16 @@ def create_app(
     if static_dir.is_dir():
 
         @app.get("/")
-        def index() -> FileResponse:
-            return FileResponse(static_dir / "index.html")
+        def index():
+            if not asr_only:
+                return FileResponse(static_dir / "index.html")
+            markup = (static_dir / "index.html").read_text(encoding="utf-8")
+            markup = markup.replace(
+                '<body data-workspace="asr">',
+                '<body data-workspace="asr" data-asr-only="true">',
+                1,
+            )
+            return HTMLResponse(markup)
 
         showcase_page = static_dir / "showcase.html"
         legacy_causal_page = static_dir / "causal.html"
@@ -988,6 +1018,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--time-bin-seconds", type=float, default=0.1)
     parser.add_argument("--time-bin-overlap-seconds", type=float, default=0.02)
+    parser.add_argument(
+        "--asr-only",
+        action="store_true",
+        help="hide non-ASR workspace links in the hosted explorer",
+    )
     parser.add_argument("--web-dir")
     parser.add_argument(
         "--phonetic-experiment-dir",
@@ -1060,6 +1095,7 @@ def main() -> None:
         web_dir=args.web_dir,
         samples_dir=args.samples_dir,
         phonetic_experiment_dir=args.phonetic_experiment_dir,
+        asr_only=args.asr_only,
     )
     import uvicorn
 

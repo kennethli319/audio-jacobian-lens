@@ -30,9 +30,28 @@ RUN apt-get update \
 WORKDIR /home/user/app
 
 # Install locked runtime dependencies before copying frequently changed source files.
+# PyPI's Linux torch wheel pulls CUDA libraries even on a CPU-only Space, so
+# install the matching official CPU build separately and prune torch's PyPI
+# dependency subtree from the exported lock.
 COPY --chown=user:user pyproject.toml uv.lock README.md LICENSE ./
 RUN python -m pip install --no-cache-dir "uv==0.11.28" \
-    && uv sync --locked --no-dev --extra audio --no-install-project
+    && uv export \
+        --locked \
+        --no-dev \
+        --extra audio \
+        --no-emit-project \
+        --prune torch \
+        --no-hashes \
+        --output-file /tmp/requirements-hf.txt \
+    && uv venv .venv \
+    && uv pip install \
+        --python .venv/bin/python \
+        --torch-backend cpu \
+        "torch==2.13.0" \
+    && uv pip install \
+        --python .venv/bin/python \
+        --requirements /tmp/requirements-hf.txt \
+    && rm /tmp/requirements-hf.txt
 
 # Cache the exact public Whisper snapshot in the image. The web server loads
 # the model before binding its port, so this keeps Space wake-ups independent
@@ -46,7 +65,7 @@ COPY --chown=user:user web ./web
 COPY --chown=user:user samples ./samples
 COPY --chown=user:user docker/entrypoint.sh ./docker/entrypoint.sh
 
-RUN uv sync --locked --no-dev --extra audio --no-editable \
+RUN uv pip install --python .venv/bin/python --no-deps . \
     && install -m 0755 docker/entrypoint.sh /usr/local/bin/jlens-entrypoint
 
 ENV HOME=/home/user \

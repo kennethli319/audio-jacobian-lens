@@ -10,6 +10,10 @@
   }
 
   function workspaceUrls(mode) {
+    const asrOnly = document.body.dataset.asrOnly === "true";
+    if (asrOnly) {
+      return { asr: "./", speech: null, tts: null, showcase: null };
+    }
     const defaults = localHost
       ? {
           asr: localUrl(8000),
@@ -51,6 +55,6 @@
   renderWorkspaceNavigation();
   new MutationObserver(renderWorkspaceNavigation).observe(document.body, {
     attributes: true,
-    attributeFilter: ["data-workspace"],
+    attributeFilter: ["data-workspace", "data-asr-only"],
   });
 })();
