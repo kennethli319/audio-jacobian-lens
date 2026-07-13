@@ -1,21 +1,3 @@
----
-title: Audio Jacobian Lens
-emoji: 🎧
-colorFrom: blue
-colorTo: yellow
-sdk: docker
-app_port: 7860
-license: apache-2.0
-fullWidth: true
-header: mini
-models:
-  - openai/whisper-tiny.en
-tags:
-  - audio
-  - automatic-speech-recognition
-  - interpretability
----
-
 # Audio Jacobian Lens
 
 Audio Jacobian Lens adapts the Jacobian-lens method to speech models. It

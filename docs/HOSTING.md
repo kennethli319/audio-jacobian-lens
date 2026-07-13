@@ -71,20 +71,26 @@ confirm the rights to its fitting corpus before uploading it anywhere.
 
 ## Hugging Face Docker Space
 
-The repository's YAML frontmatter selects the Docker SDK and port `7860`. The
-image prefetches the pinned public Whisper Tiny snapshot during its build. The
-current deployment is
+The GitHub README intentionally contains no Hugging Face YAML frontmatter. The
+Space-specific card at [`../deploy/huggingface/README.md`](../deploy/huggingface/README.md)
+selects the Docker SDK and port `7860`; it must be uploaded as the Space
+repository's root `README.md`. The image prefetches the pinned public Whisper
+Tiny snapshot during its build. The current deployment is
 [`kennethli319/audio-jacobian-lens`](https://huggingface.co/spaces/kennethli319/audio-jacobian-lens),
 with the direct application at
 [`kennethli319-audio-jacobian-lens.hf.space`](https://kennethli319-audio-jacobian-lens.hf.space).
 
-To deploy another Space, create it with the Docker SDK and push this repository:
+To deploy another Space, create it with the Docker SDK. Upload the source while
+excluding the GitHub README, then map the Space card to the root `README.md`:
 
 ```bash
 hf auth login
-git remote add space https://huggingface.co/spaces/<user>/<space-name>
-git push space HEAD:main
+hf upload <user>/<space-name> . . --repo-type space --exclude README.md
+hf upload <user>/<space-name> deploy/huggingface/README.md README.md --repo-type space
 ```
+
+Do not push the source branch directly over the Space's `main` branch: doing so
+would replace the required Space card with GitHub's documentation-only README.
 
 For a lens stored in a Hub model repository, add these Space **Variables**:
 
