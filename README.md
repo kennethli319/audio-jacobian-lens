@@ -150,3 +150,26 @@ evaluation outputs.
 Code is available under the [Apache License 2.0](LICENSE). Existing source files
 retain their original notices. Model weights, tokenizers, fitted lenses, and
 audio datasets remain subject to their own licenses.
+
+## Citation
+
+If Audio Jacobian Lens contributes to your work, please cite this repository
+and the original Jacobian Lens paper:
+
+```bibtex
+@software{li2026audiojacobianlens,
+  author={Li, Wang Yau Kenneth},
+  title={Audio Jacobian Lens},
+  year={2026},
+  url={https://github.com/kennethli319/audio-jacobian-lens},
+  license={Apache-2.0}
+}
+
+@article{gurnee2026verbalizable,
+  author={Gurnee, Wes and Sofroniew, Nicholas and Pearce, Adam and Piotrowski, Mateusz and Kauvar, Isaac and Chen, Runjin and Soligo, Anna and Bogdan, Paul and Ong, Euan and Wang, Rowan and Thompson, Ben and Abrahams, David and Kantamneni, Subhash and Ameisen, Emmanuel and Batson, Joshua and Lindsey, Jack},
+  title={Verbalizable Representations Form a Global Workspace in Language Models},
+  journal={Transformer Circuits Thread},
+  year={2026},
+  url={https://transformer-circuits.pub/2026/workspace/index.html}
+}
+```
