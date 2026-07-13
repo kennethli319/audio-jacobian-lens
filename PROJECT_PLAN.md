@@ -192,14 +192,13 @@ Status: **in progress**
   token IDs with exact scoped ranks/denominators and raw lens scores; HEAD uses
   actual probability and log probability. Keep the full right inspector pinned
   until the user explicitly selects a different coordinate.
-- [x] Keep the static ASR decoder sequence in one continuous, contained
-  horizontal scroller so long token runs preserve their left-to-right order
-  without causing page-level overflow. Retain eight-token bands for the much
-  longer speech-to-speech responses.
-- [x] Give both lexical and Phone Signature encoder matrices a contained
-  horizontal scroller, and automatically reveal the synchronized encoder and
-  decoder/HEAD columns after every pointer, keyboard, waveform, or token
-  selection without moving the page viewport.
+- [x] Keep the static ASR and speech-to-speech language sequences in continuous,
+  contained horizontal scrollers so long token runs preserve their complete
+  left-to-right order without causing page-level overflow.
+- [x] Give ASR encoder, language-position, and TTS speech-code matrices
+  contained horizontal scrollers, and automatically reveal the synchronized
+  timeline and layer/HEAD columns after every pointer or keyboard selection
+  without moving the page viewport.
 - [x] Add real encoder pooling overlap: 100 ms windows with a default 20 ms
   overlap, a zero-overlap control, exact range metadata, and adaptive widening
   only beyond the 100-bin display safety limit.
@@ -507,8 +506,8 @@ Status: **in progress**
   from the live pages so upload, generation, and mutation controls cannot leak
   into the public build.
 - [x] Keep every cached speech-to-speech layer × output-position top-token cell
-  while dividing long response timelines into aligned, readable position bands
-  with full token text available locally.
+  in one continuous, horizontally scrollable matrix with fixed readable token
+  columns and full token text available locally.
 - [x] Retain the realized generated token's exact full-logit score and scoped
   competition rank at every cached LFM layer/position cell, and show that rank
   as a small secondary label without replacing the layer's top candidate.
@@ -628,9 +627,9 @@ decision log.
   single-phone assertion for a pooled window.
 - Static speech-to-speech pages distribute the cleared input waveform and
   generated text but not generated response audio. Long generated-text
-  timelines wrap into aligned position bands: each band repeats the layer
-  labels and preserves one individually selectable top-token cell per original
-  layer/position coordinate. Each LFM cell also retains the realized token's
+  timelines use one continuous contained horizontal scroller with fixed
+  readable columns, preserving one individually selectable top-token cell per
+  original layer/position coordinate. Each LFM cell also retains the realized token's
   exact score and competition rank from the complete logits: lexical-display
   rank when that token is eligible, otherwise full-vocabulary rank. The orange
   HEAD uses the complete 65,536-token vocabulary. Each speech report must also
@@ -1167,28 +1166,26 @@ mixing but may increase boundary noise. A phone label remains the nearest
 prototype after pooling—not a framewise vote, phoneme boundary, local-only
 receptive field, calibrated probability, or causal attribution.
 
-### 2026-07-12 — Keep the ASR decoder token sequence continuous
+### 2026-07-12 — Keep language-output sequences continuous
 
 The static ASR decoder previously split the emitted sequence into separate
-eight-token bands. It now renders every ASR output token in one fixed-width
-layer matrix inside a contained horizontal scroller. Pointer, focus, selection,
-tooltip, realized-rank, filtering, and HEAD behavior remain unchanged. The much
-longer speech-to-speech responses retain their eight-token bands, so this
-shared-renderer change does not reintroduce the earlier readability problem on
-that page. Long ASR transcripts scroll inside the decoder panel rather than
-widening the page.
+eight-token bands. ASR and speech-to-speech now render every language position
+in one fixed-width layer matrix inside a contained horizontal scroller.
+Pointer, focus, selection, tooltip, realized-rank, filtering, and HEAD behavior
+remain unchanged. Long sequences scroll inside their panel rather than
+widening the page or breaking the sequence into disconnected bands.
 
-### 2026-07-12 — Reveal one synchronized selection across both ASR scrollers
+### 2026-07-12 — Reveal synchronized selections across every family
 
-The static ASR encoder now keeps readable fixed-width cells in both lexical and
-Phone Signature modes, using a contained horizontal scroller instead of
-compressing longer runs to the panel width. Selecting a token, encoder window,
-decoder cell, HEAD cell, or waveform region continues to update the shared
-token/time coordinate. After that update, only the encoder and decoder
-containers adjust their own horizontal scroll positions so the selected audio
-window and aligned output/HEAD column are visible together. The page itself is
-not scrolled. Keyboard matrix navigation suppresses the browser's default page
-scroll before the same synchronized reveal runs.
+Every static family now keeps readable fixed-width timeline cells in contained
+horizontal scrollers. ASR synchronizes its output timeline, encoder window, and
+decoder/HEAD column; speech-to-speech synchronizes its generated-text timeline
+with every language layer and the tied text head; TTS synchronizes its acoustic
+code timeline with every fitted T3 layer, the actual speech head, and the
+selected-position trace. After each update, only the relevant containers
+adjust their own horizontal scroll positions. The page itself is not scrolled.
+Keyboard matrix navigation suppresses the browser's default page movement
+before the same synchronized reveal runs.
 
 ## Work log
 
@@ -1908,3 +1905,8 @@ scroll before the same synchronized reveal runs.
   selection brings both its encoder window and decoder/HEAD column into view
   without moving the page. Phone/filter rerenders and keyboard navigation keep
   the same visibility contract.
+- Extended the same contained-scroll and synchronized-reveal contract to the
+  speech-to-speech and TTS explorers. Speech now keeps the complete generated
+  text sequence in one continuous matrix; TTS keeps all fitted T3 layers and
+  HEAD speech-code positions in one matrix. Their top position timelines and
+  selected layer columns auto-reveal together without page-level movement.

@@ -167,8 +167,6 @@ def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:
         'data-value-role="top-candidate"',
         'realizedBadge = asrDecoderCell ? "realized out" : "out";',
         'const cellWidth = family === "asr" ? 92 : 82;',
-        'const windowSize = family === "asr" ? Math.max(tokens.length, 1) : 8;',
-        "All ${count} tokens · scroll horizontally",
         "renderSpeechRows(),",
         "Decoder boxes show each layer's top candidate",
     )
@@ -178,21 +176,29 @@ def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:
     )
 
 
-def test_renderer_contract_requires_synchronized_asr_matrix_scrolling() -> None:
-    assert validator.ASR_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS == (
+def test_renderer_contract_requires_synchronized_cross_family_scrolling() -> None:
+    assert validator.CROSS_FAMILY_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS == (
         'const scrollableEncoder = family === "asr" && streamName === "encoder";',
         'const encoderCellWidth = phoneMode ? 28 : 72;',
-        'scrollable: family === "asr",',
+        'const continuous = family === "asr" || family === "speech";',
+        'const windowSize = continuous ? Math.max(tokens.length, 1) : 8;',
+        'All ${count} ${family === "speech" ? "generated text positions" : "tokens"} · scroll horizontally',
+        "const ttsCellWidth = 54;",
+        'class="position-timeline scrollable',
         "function scrollTargetIntoHorizontalView(",
         "function revealSynchronizedSelection(",
-        'workspace.querySelector(".scrollable-matrix-panel .layer-matrix")',
+        'workspace.querySelector(".position-timeline.scrollable")',
+        'workspace.querySelectorAll(".scrollable-matrix-panel .layer-matrix")',
         'workspace.querySelectorAll(".speech-matrix-scroll")',
+        'matrixScroller.querySelector(`.matrix-cell[data-kind="tts-layer"]',
         'syncSelectionDOM({ reveal: true, behavior: "auto" });',
         'target.focus({ preventScroll: true });',
     )
-    assert validator.ASR_SYNCHRONIZED_SCROLL_CSS_MARKERS == (
+    assert validator.CROSS_FAMILY_SYNCHRONIZED_SCROLL_CSS_MARKERS == (
+        ".position-timeline.scrollable",
         ".scrollable-matrix-panel .layer-matrix",
         ".scrollable-matrix-panel .matrix-row",
+        ".speech-matrix-scroll",
         "overflow-x: auto",
     )
 

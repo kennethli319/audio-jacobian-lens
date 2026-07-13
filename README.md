@@ -624,11 +624,13 @@ The canonical static pages are the detailed explorers at the site root,
 `/findings/`, `/findings/speech/`, and `/findings/tts/`. Functional copies at
 `/explorer/asr/`, `/explorer/speech/`, and `/explorer/tts/` preserve older
 links and query-selected samples. The speech-to-speech explorer keeps every
-saved top-token cell, but groups long responses into readable, aligned position
-bands so token text does not have to fit inside a compressed matrix cell. Its
-large cell label is the layer's top candidate; the smaller `realized #N` label
-is the generated token's exact competition rank from the complete saved
-readout, even when that token is outside the five displayed candidates.
+saved top-token cell in one continuous, horizontally scrollable matrix with
+fixed readable token columns. Its large cell label is the layer's top
+candidate; the smaller `realized #N` label is the generated token's exact
+competition rank from the complete saved readout, even when that token is
+outside the five displayed candidates. Selecting either its generated-text
+timeline or any layer/HEAD cell auto-reveals the matching timestep in both
+contained scrollers without moving the page.
 Each speech report also shows whether generation ended at a natural audio EOS
 or exhausted its emergency step cap. A capped response is visibly marked as
 possibly truncated and must not be read as a naturally completed answer.
@@ -647,6 +649,12 @@ Selecting any token, waveform region, encoder cell, decoder cell, or HEAD cell
 updates the shared coordinate and adjusts only those two matrix scrollers until
 the synchronized encoder window and decoder/HEAD column are visible; it never
 uses page-level scrolling for this reveal.
+
+The TTS replay follows the same interaction contract for acoustic-code time.
+Its realized-code timeline and the complete fitted-T3/HEAD matrix are contained
+horizontal scrollers. Selecting any speech-code position in either surface
+updates the shared fitted layers, speech head, candidate inspector, and local
+text trace, then reveals that code position in both scrollers.
 
 Before publishing, run the static-only integrity gate:
 

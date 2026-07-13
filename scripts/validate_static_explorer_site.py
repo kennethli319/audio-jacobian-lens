@@ -15,7 +15,7 @@ SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260712-16"
+EXPLORER_ASSET_VERSION = "20260712-17"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -48,8 +48,6 @@ ASR_DECODER_HIERARCHY_SCRIPT_MARKERS = (
     'data-value-role="top-candidate"',
     'realizedBadge = asrDecoderCell ? "realized out" : "out";',
     'const cellWidth = family === "asr" ? 92 : 82;',
-    'const windowSize = family === "asr" ? Math.max(tokens.length, 1) : 8;',
-    "All ${count} tokens · scroll horizontally",
     "renderSpeechRows(),",
     "Decoder boxes show each layer's top candidate",
 )
@@ -57,20 +55,28 @@ ASR_DECODER_HIERARCHY_CSS_MARKERS = (
     '[data-family="asr"] .speech-matrix-grid .matrix-cell .matrix-cell-label',
     '[data-family="asr"] .speech-matrix-grid .matrix-cell .realized-rank-badge',
 )
-ASR_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS = (
+CROSS_FAMILY_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS = (
     'const scrollableEncoder = family === "asr" && streamName === "encoder";',
     'const encoderCellWidth = phoneMode ? 28 : 72;',
-    'scrollable: family === "asr",',
+    'const continuous = family === "asr" || family === "speech";',
+    'const windowSize = continuous ? Math.max(tokens.length, 1) : 8;',
+    'All ${count} ${family === "speech" ? "generated text positions" : "tokens"} · scroll horizontally',
+    "const ttsCellWidth = 54;",
+    'class="position-timeline scrollable',
     "function scrollTargetIntoHorizontalView(",
     "function revealSynchronizedSelection(",
-    'workspace.querySelector(".scrollable-matrix-panel .layer-matrix")',
+    'workspace.querySelector(".position-timeline.scrollable")',
+    'workspace.querySelectorAll(".scrollable-matrix-panel .layer-matrix")',
     'workspace.querySelectorAll(".speech-matrix-scroll")',
+    'matrixScroller.querySelector(`.matrix-cell[data-kind="tts-layer"]',
     'syncSelectionDOM({ reveal: true, behavior: "auto" });',
     'target.focus({ preventScroll: true });',
 )
-ASR_SYNCHRONIZED_SCROLL_CSS_MARKERS = (
+CROSS_FAMILY_SYNCHRONIZED_SCROLL_CSS_MARKERS = (
+    ".position-timeline.scrollable",
     ".scrollable-matrix-panel .layer-matrix",
     ".scrollable-matrix-panel .matrix-row",
+    ".speech-matrix-scroll",
     'overflow-x: auto',
 )
 ASR_PHONE_SIGNATURE_SCRIPT_MARKERS = (
@@ -1059,7 +1065,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         'class="sample-button-grid"',
         *SPEECH_TERMINATION_SCRIPT_MARKERS,
         *ASR_DECODER_HIERARCHY_SCRIPT_MARKERS,
-        *ASR_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS,
+        *CROSS_FAMILY_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS,
         *ASR_PHONE_SIGNATURE_SCRIPT_MARKERS,
     ):
         if marker not in explorer_script:
@@ -1079,7 +1085,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         "overflow-x: hidden",
         *SPEECH_TERMINATION_CSS_MARKERS,
         *ASR_DECODER_HIERARCHY_CSS_MARKERS,
-        *ASR_SYNCHRONIZED_SCROLL_CSS_MARKERS,
+        *CROSS_FAMILY_SYNCHRONIZED_SCROLL_CSS_MARKERS,
         *ASR_PHONE_SIGNATURE_CSS_MARKERS,
     ):
         if marker not in explorer_css:
