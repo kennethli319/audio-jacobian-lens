@@ -19,7 +19,7 @@ PUBLIC_CATALOG_URL = (
 )
 FAMILIES = ("asr", "speech")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260713-22"
+EXPLORER_ASSET_VERSION = "20260713-23"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -96,6 +96,7 @@ ASR_PHONE_SIGNATURE_SCRIPT_MARKERS = (
     "function renderPhoneSignatureControl()",
     "On by default · turn off for normal token J-Lens readouts",
     'queryParams.set("phone", phoneQueryValue);',
+    'workspace.querySelector("#static-phone-signature-toggle")?.focus({ preventScroll: true });',
     "const phoneCell = encoderPhoneMode(kind);",
     "label: phoneMode ? compactText(top?.phone)",
     "descriptor.candidates.slice(0, 5)",
@@ -127,7 +128,8 @@ ASR_RECORDED_REPLAY_SCRIPT_MARKERS = (
     'url.searchParams.set("condition", condition.id);',
     "Updates encoder · decoder · HEAD",
     'entry.id === "asr-laurel-yanny"',
-    '<em class="sample-tag">steering exp</em>',
+    '<em class="sample-tag">steering experiment</em>',
+    'workspace.querySelector(`[data-replay-condition="${condition.id}"]`)?.focus({ preventScroll: true });',
     "function effectiveProvenance()",
     "Original Laurel/Yanny post",
 )
@@ -137,6 +139,7 @@ ASR_RECORDED_REPLAY_CSS_MARKERS = (
     ".replay-active-summary",
     ".replay-attribution",
     ".sample-tag",
+    ".matrix-panel .replay-active-summary",
 )
 STEERING_SCRIPT_MARKERS = (
     'data.mode !== "static_recorded_checkpoints"',

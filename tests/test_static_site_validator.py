@@ -319,6 +319,7 @@ def test_renderer_contract_requires_asr_phone_signature_hybrid() -> None:
         "function renderPhoneSignatureControl()",
         "On by default · turn off for normal token J-Lens readouts",
         'queryParams.set("phone", phoneQueryValue);',
+        'workspace.querySelector("#static-phone-signature-toggle")?.focus({ preventScroll: true });',
         "const phoneCell = encoderPhoneMode(kind);",
         "label: phoneMode ? compactText(top?.phone)",
         "descriptor.candidates.slice(0, 5)",
@@ -356,7 +357,8 @@ def test_renderer_contract_requires_recorded_asr_intervention_replay() -> None:
         'url.searchParams.set("condition", condition.id);',
         "Updates encoder · decoder · HEAD",
         'entry.id === "asr-laurel-yanny"',
-        '<em class="sample-tag">steering exp</em>',
+        '<em class="sample-tag">steering experiment</em>',
+        'workspace.querySelector(`[data-replay-condition="${condition.id}"]`)?.focus({ preventScroll: true });',
         "function effectiveProvenance()",
         "Original Laurel/Yanny post",
     )
@@ -366,6 +368,7 @@ def test_renderer_contract_requires_recorded_asr_intervention_replay() -> None:
         ".replay-active-summary",
         ".replay-attribution",
         ".sample-tag",
+        ".matrix-panel .replay-active-summary",
     )
 
 

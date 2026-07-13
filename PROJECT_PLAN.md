@@ -2144,5 +2144,6 @@ the article and primary explorers now carry the relevant interpretation.
   their attention to a separate pre-timeline card.
 - Made the fitted phone-signature encoder view the default for all public ASR
   examples while retaining a URL-persistent off switch for the normal
-  vocabulary-token J-Lens view. Audio 10 now carries a compact `steering exp`
-  badge so visitors can find the Laurel/Yanny intervention replay directly.
+  vocabulary-token J-Lens view. Audio 10 now carries a compact
+  `steering experiment` badge so visitors can find the Laurel/Yanny
+  intervention replay directly.
