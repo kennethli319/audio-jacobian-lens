@@ -531,9 +531,11 @@ Status: **in progress**
   Yanny/Laurel checkpoints; exact raw-head ranks and probabilities, timing,
   coefficient maps, free generation, and controls; exclude source audio, live
   inference, private prototype tensors, paths, and optimizer artifacts.
-- [x] Standardize the ASR, Speech, TTS, and Steering top bar: one centered
-  header, one four-item menu that remains visible on mobile, normalized active
+- [x] Standardize the published ASR, Speech, and Steering top bar: one centered
+  header, one three-item menu that remains visible on mobile, normalized active
   and accessibility states, and no findings shortcut in primary navigation.
+  Keep Chatterbox/TTS local until its acoustic-code readouts support a clearer
+  public interpretation.
 - [ ] Package the Chatterbox bridge baseline/steered pair after completing the
   conversion/S3/derived-output review.
 - [x] Package the three attributed LibriSpeech inputs with immutable hashes and
@@ -555,10 +557,11 @@ Acceptance criteria:
   complete license/attribution record.
 - Visitors can inspect all layer/position cells and neighboring counterexamples,
   not only a preselected hero coordinate.
-- The detailed explorer is the entry point for each model family. The shared
-  header links only ASR, Speech, TTS, and Steering; older findings pages remain
-  available for saved links but are not a primary navigation destination or a
-  substitute for the underlying matrices.
+- The detailed explorer is the entry point for each published model family. The
+  shared header links only ASR, Speech, and Steering; older ASR/Speech findings
+  pages remain available for saved links but are not a primary navigation
+  destination or a substitute for the underlying matrices. Public TTS routes
+  remain absent until the interpretation gate is met.
 - Long speech-to-speech responses remain readable without dropping, merging, or
   silently aggregating any saved top-token cell.
 - The static pages preserve the live site's distinctions among fitted readout,
@@ -2096,3 +2099,18 @@ the article and primary explorers now carry the relevant interpretation.
 - Final universal-phone-view and architecture-label gate: 386 tests passed
   with three optional skips; Ruff, all JavaScript syntax checks, whitespace,
   exact static hashes, and the strict 10/10/10 public-site validator passed.
+- Withdrew Chatterbox/TTS from the public Audio J-Lens release because the
+  current acoustic-code readouts do not yet support a sufficiently clear or
+  useful interpretation. Retain the local Chatterbox workspace, fitted lens,
+  exporter, catalogs, technical documentation, and tests for continued work;
+  reject public TTS routes, aliases, findings pages, and cached report data.
+- Proposed the next ASR experience as a recorded two-state Laurel/Yanny report:
+  an ordinary baseline Explorer plus Yanny/Laurel steering buttons that swap in
+  complete post-intervention encoder, decoder, and HEAD matrices on the same
+  synchronized coordinates. Do not synthesize these changes client-side. A
+  publication requires real full-matrix reruns and permission to redistribute
+  the original clip, or a rights-cleared replacement recording.
+- Public TTS-retirement gate: 55 focused route, manifest, steering-publication,
+  and frontend tests passed. Ruff, JavaScript syntax, whitespace, exact hashes,
+  and the strict public validator passed with 10 ASR and 10 Speech reports and
+  explicit rejection of every retired TTS route/cache path.

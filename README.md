@@ -31,13 +31,15 @@ This repository currently contains five connected workspaces:
 | **Whisper ASR** | Paper-style decoder J-lens, experimental encoder-to-decoder lens, raw output diagnostics, audio upload/samples/recording, synchronized waveform and token timelines | A small synthetic decoder pilot recovers some early lexical directions; the current cross-stream encoder result is negative and must not be treated as a phoneme or streaming-belief detector | [`:8000/`](http://127.0.0.1:8000/) |
 | **LFM2.5 speech-to-speech** | Apple-silicon MLX generation, generated-speech playback, fitted readouts over the 16-layer language backbone | The retained lens is a one-clip integration pilot. It does not explain the FastConformer, audio adapter, acoustic codebooks, or played waveform | [`:8001/`](http://127.0.0.1:8001/) |
 | **Chatterbox TTS** | Corpus-fitted T3 acoustic-code readouts, per-run text sensitivity and attention, forced-code branches, and residual steering with suffix regeneration | The ten-prompt rank-128 pilot is encouraging but incomplete; acoustic-code IDs are not words or phonemes, and the current work does not attribute S3Gen or waveform samples | [`:8002/chatterbox`](http://127.0.0.1:8002/chatterbox) |
-| **Static review** | Primary full cached ASR, speech-to-speech, and TTS explorers with every saved layer/position cell | Backend-free and safe to serve as static files. Each detailed explorer has ten reports; ten CC BY 4.0 LibriSpeech inputs are packaged, while generated LFM/Chatterbox audio and live steering remain excluded | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
+| **Static review** | Primary full cached ASR and speech-to-speech explorers with every saved layer/position cell | Backend-free and safe to serve as static files. Each published explorer has ten reports and uses the same ten CC BY 4.0 LibriSpeech inputs. The Chatterbox/TTS pilot remains local until its acoustic-code readouts support a clearer interpretation | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
 | **Phonetic steering replay** | A static, checkpoint-only replay of fitted phone-prototype encoder interventions on the Laurel/Yanny clip, including phone timing, per-layer coefficients, raw output ranks, free generation, and controls | The equal-strength Yanny recipe is the stronger one-clip result and reproduces with a second fitted lens; the Laurel route is target-conditioned and does not transfer exactly. Neither is a universal word-control axis | [Public replay](https://kennethli319.github.io/audio-jacobian-lens/steering/) |
 
 The public review opens directly into the detailed ASR explorer. One consistent
-top menu links ASR, Speech, TTS, and Steering, including on narrow screens. The
-earlier `/explorer/{family}/` and findings URLs remain functional for saved
-links, but findings are no longer promoted in the primary header.
+top menu links ASR, Speech, and Steering, including on narrow screens. The ASR
+and Speech `/explorer/{family}/` aliases and findings URLs remain functional for
+saved links, but findings are no longer promoted in the primary header. Public
+TTS routes and caches are deliberately absent while the local Chatterbox pilot
+remains scientifically underdetermined.
 
 The older BPE/prefix Laurel/Yanny steering study is retained as a historical
 baseline in [`web/causal.html`](web/causal.html). The fitted-phone follow-up is
@@ -155,9 +157,9 @@ record up to 30 seconds from the browser.
 
 The evidence Showcase is also available from the demo-only server at
 [http://127.0.0.1:8000/showcase](http://127.0.0.1:8000/showcase). It makes no
-model API calls: the current ASR, speech-to-speech, and TTS stories are frozen
+model API calls: the local ASR, speech-to-speech, and TTS stories are frozen
 curation records with their exact rank semantics, failure controls, and rights
-status. See
+status. Only ASR and speech-to-speech are currently published. See
 [`docs/STATIC_SHOWCASE_CURATION.md`](docs/STATIC_SHOWCASE_CURATION.md) before
 adding or replacing a public example.
 
@@ -625,40 +627,35 @@ lens_logits, model_logits, _ = lens.apply(model, "A prompt", positions=[-1])
 
 ## Refresh and validate the backend-free explorers
 
-The personal-site build uses already-inferred JSON only. With the three local
-model servers ready on ports 8000–8002, regenerate the cached matrices into a
-separate static-site checkout with:
+The personal-site build uses already-inferred JSON only. With the ASR and
+speech-to-speech servers ready on ports 8000–8001, regenerate the published
+cached matrices into a separate static-site checkout with:
 
 ```bash
 .venv/bin/python scripts/export_static_explorer.py \
-  --site-root ../kennethli319.github.io/audio-jacobian-lens
-
-.venv/bin/python scripts/export_static_tts_explorer.py \
   --site-root ../kennethli319.github.io/audio-jacobian-lens
 
 .venv/bin/python scripts/publish_static_phone_steering.py \
   --site-root ../kennethli319.github.io/audio-jacobian-lens
 ```
 
-ASR and speech-to-speech are captured sequentially. Chatterbox generation is
-also sequential, followed by one saved trace request per speech-code position.
-The exporters whitelist fields, pin model/lens provenance, remove ephemeral run
-IDs and generated audio, and hash every report. ASR's larger exact-length token
-buckets are split into compact sidecars and fetched only if a visitor enables
-the filter.
+ASR and speech-to-speech are captured sequentially. The exporters whitelist
+fields, pin model/lens provenance, remove ephemeral run IDs and generated audio,
+and hash every report. ASR's larger exact-length token buckets are split into
+compact sidecars and fetched only if a visitor enables the filter.
 
 The detailed explorer catalog lives in
 `data/static_explorer_catalog_v2.json` and contains ten audio inputs plus ten
-held-out or reviewed TTS prompts. It is intentionally separate from
-`data/static_public_reports_v1.json`: the latter remains the three-example-per-
-family findings bundle. Long exports can be resumed without rebuilding valid
-reports: ASR/LFM use repeatable `--only` with `--resume`, while TTS uses
-repeatable `--example-id` with `--resume-valid`. Either way, the resulting
-manifest is still required to contain the full ordered ten-report family.
+held-out or reviewed TTS prompts. The TTS prompts and
+`scripts/export_static_tts_explorer.py` are retained for local research, but the
+public release gate rejects any TTS route or cached report directory. It is
+intentionally separate from `data/static_public_reports_v1.json`. ASR/LFM
+exports can be resumed with repeatable `--only` and `--resume`; the resulting
+published manifest must still contain the full ordered ten-report family.
 
-The canonical static pages are the detailed explorers at the site root,
-`/speech/`, `/tts/`, and the recorded `/steering/` replay. All four use the same
-header dimensions and four-item navigation. The older findings and
+The canonical static pages are the detailed explorers at the site root and
+`/speech/`, plus the recorded `/steering/` replay. All three use the same header
+dimensions and three-item navigation. The ASR/Speech findings and
 `/explorer/{family}/` routes remain functional for saved links but are omitted
 from the primary menu. The speech-to-speech explorer keeps every
 saved top-token cell in one continuous, horizontally scrollable matrix with
@@ -689,11 +686,9 @@ updates the shared coordinate and adjusts only those two matrix scrollers until
 the synchronized encoder window and decoder/HEAD column are visible; it never
 uses page-level scrolling for this reveal.
 
-The TTS replay follows the same interaction contract for acoustic-code time.
-Its realized-code timeline and the complete fitted-T3/HEAD matrix are contained
-horizontal scrollers. Selecting any speech-code position in either surface
-updates the shared fitted layers, speech head, candidate inspector, and local
-text trace, then reveals that code position in both scrollers.
+The local Chatterbox/TTS workspace and exporter remain available for continued
+experimentation, but no TTS page, findings page, alias, or cached TTS report is
+part of the public site.
 
 Before publishing, run the static-only integrity gate:
 
@@ -703,10 +698,10 @@ Before publishing, run the static-only integrity gate:
 ```
 
 This verifies the canonical explorer, findings, and legacy-alias hierarchy;
-the correct renderer on every no-index page; all 30 detailed reports and the
-separate 3×3 findings bundle; matrices, trace coverage, hashes, ten cleared
-input files; and the absence of model API calls, generated audio, or ephemeral
-analysis identifiers. It also locks the steering payload to recorded-only
+the correct renderer on every no-index page; all 20 published detailed reports
+and the separate ASR/Speech findings bundle; matrices, trace coverage, hashes,
+ten cleared input files; and the absence of model API calls, generated audio,
+or ephemeral analysis identifiers. It also locks the steering payload to recorded-only
 checkpoints, excludes source media and private artifacts, verifies its asset
 hashes, and preserves the different evidence labels for Yanny and Laurel.
 

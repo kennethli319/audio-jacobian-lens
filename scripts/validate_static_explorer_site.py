@@ -13,23 +13,27 @@ from typing import Any
 
 SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
-FAMILIES = ("asr", "speech", "tts")
+FAMILIES = ("asr", "speech")
 EXPECTED_REPORT_COUNT = 10
 EXPLORER_ASSET_VERSION = "20260713-20"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
-    "tts": f"{SITE_PREFIX}tts/",
 }
 FINDINGS_ROUTES = {
     "asr": f"{SITE_PREFIX}findings/",
     "speech": f"{SITE_PREFIX}findings/speech/",
-    "tts": f"{SITE_PREFIX}findings/tts/",
 }
 LEGACY_EXPLORER_ROUTES = {
     family: f"{SITE_PREFIX}explorer/{family}/" for family in FAMILIES
 }
 STEERING_ROUTE = f"{SITE_PREFIX}steering/"
+RETIRED_PUBLIC_TTS_PATHS = (
+    "tts",
+    "findings/tts",
+    "explorer/tts",
+    "explorer/data/tts",
+)
 STEERING_ASSET_VERSION = "20260713-2"
 FORBIDDEN_KEYS = {
     "analysis_id",
@@ -932,6 +936,11 @@ def _require_markers(html: str, markers: tuple[str, ...], *, label: str) -> None
 
 
 def _validate_route_contract(site_root: Path) -> None:
+    for relative_path in RETIRED_PUBLIC_TTS_PATHS:
+        if (site_root / relative_path).exists():
+            raise ValueError(
+                f"retired public TTS path still exists: {relative_path}"
+            )
     detailed_pages = {
         "asr": (
             "index.html",
@@ -940,7 +949,6 @@ def _validate_route_contract(site_root: Path) -> None:
             (
                 'href="./"',
                 'href="./speech/"',
-                'href="./tts/"',
                 'href="./steering/"',
             ),
         ),
@@ -950,18 +958,6 @@ def _validate_route_contract(site_root: Path) -> None:
             "../explorer/data/speech/manifest.json",
             (
                 'href="../"',
-                'href="./"',
-                'href="../tts/"',
-                'href="../steering/"',
-            ),
-        ),
-        "tts": (
-            "tts/index.html",
-            "../assets/explorer.js",
-            "../explorer/data/tts/manifest.json",
-            (
-                'href="../"',
-                'href="../speech/"',
                 'href="./"',
                 'href="../steering/"',
             ),
@@ -975,11 +971,6 @@ def _validate_route_contract(site_root: Path) -> None:
         ),
         "speech": (
             "findings/speech/index.html",
-            "../../assets/app.js",
-            "../../data/reports.json",
-        ),
-        "tts": (
-            "findings/tts/index.html",
             "../../assets/app.js",
             "../../data/reports.json",
         ),
@@ -1017,6 +1008,8 @@ def _validate_route_contract(site_root: Path) -> None:
         )
         if "assets/app.js" in html:
             raise ValueError(f"{label} uses the findings renderer")
+        if ">TTS</a>" in html:
+            raise ValueError(f"{label} exposes the retired public TTS page")
         if 'class="summary-link"' in html or ">Experiment findings</a>" in html:
             raise ValueError(f"{label} retains the removed findings header link")
 
@@ -1034,11 +1027,12 @@ def _validate_route_contract(site_root: Path) -> None:
         )
         if 'class="detailed-explorer"' in html or "assets/explorer.js" in html:
             raise ValueError(f"{label} uses the detailed-explorer renderer")
+        if ">TTS</a>" in html:
+            raise ValueError(f"{label} exposes the retired public TTS page")
 
     canonical_alias_nav = (
         'href="../../"',
         'href="../../speech/"',
-        'href="../../tts/"',
         'href="../../steering/"',
     )
     for family, (path, script, manifest) in alias_pages.items():
@@ -1066,6 +1060,8 @@ def _validate_route_contract(site_root: Path) -> None:
         )
         if "assets/app.js" in html:
             raise ValueError(f"{label} uses the findings renderer")
+        if ">TTS</a>" in html:
+            raise ValueError(f"{label} exposes the retired public TTS page")
         if 'class="summary-link"' in html or ">Experiment findings</a>" in html:
             raise ValueError(f"{label} retains the removed findings header link")
 
@@ -1087,7 +1083,6 @@ def _validate_route_contract(site_root: Path) -> None:
             'id="checkpoint-range" type="range"',
             'href="../"',
             'href="../speech/"',
-            'href="../tts/"',
         ),
         label="recorded phone steering replay",
     )
@@ -1095,6 +1090,7 @@ def _validate_route_contract(site_root: Path) -> None:
         "assets/app.js" in steering_html
         or "assets/explorer.js" in steering_html
         or "<audio" in steering_html
+        or ">TTS</a>" in steering_html
     ):
         raise ValueError("recorded phone steering replay has an unsafe renderer")
 

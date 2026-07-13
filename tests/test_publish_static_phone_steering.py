@@ -37,7 +37,7 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
     assert "PREVIEW · STATIC REPLAY" in page
     assert 'href="../">ASR</a>' in page
     assert 'href="../speech/"' in page
-    assert 'href="../tts/"' in page
+    assert ">TTS</a>" not in page
     assert 'class="active" href="./" aria-current="page">Steering</a>' in page
     assert "Showcase</a>" not in page
     assert "<audio" not in page
@@ -55,6 +55,7 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
     )
     assert published_manifest["routes"]["recorded_interventions"] == [PUBLIC_ROUTE]
     assert published_manifest["publication_mode"] == "public_linked_noindex_review"
+    assert "TTS" not in published_manifest["description"]
     for relative_path in (
         "assets/steering.css",
         "assets/steering.js",

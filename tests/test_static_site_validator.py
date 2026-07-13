@@ -30,7 +30,6 @@ def _build_route_fixture(site_root: Path) -> None:
             (
                 'href="./"',
                 'href="./speech/"',
-                'href="./tts/"',
                 'href="./steering/"',
             ),
         ),
@@ -41,19 +40,6 @@ def _build_route_fixture(site_root: Path) -> None:
             f"{validator.PUBLIC_BASE}speech/",
             (
                 'href="../"',
-                'href="./"',
-                'href="../tts/"',
-                'href="../steering/"',
-            ),
-        ),
-        "tts": (
-            "tts/index.html",
-            "../assets/explorer.js",
-            "../explorer/data/tts/manifest.json",
-            f"{validator.PUBLIC_BASE}tts/",
-            (
-                'href="../"',
-                'href="../speech/"',
                 'href="./"',
                 'href="../steering/"',
             ),
@@ -82,7 +68,6 @@ def _build_route_fixture(site_root: Path) -> None:
     findings = {
         "asr": ("findings/index.html", "../", "../"),
         "speech": ("findings/speech/index.html", "../../", "../../"),
-        "tts": ("findings/tts/index.html", "../../", "../../"),
     }
     for family, (path, asset_prefix, data_prefix) in findings.items():
         _write(
@@ -110,8 +95,7 @@ def _build_route_fixture(site_root: Path) -> None:
                 'aria-label="Audio Jacobian Lens home" '
                 'class="site-nav" aria-label="Model explorers" '
                 '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
-                'href="../../" href="../../speech/" href="../../tts/" '
-                'href="../../steering/"'
+                'href="../../" href="../../speech/" href="../../steering/"'
             ),
         )
 
@@ -129,7 +113,7 @@ def _build_route_fixture(site_root: Path) -> None:
             '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
             'data-target="yanny" data-target="laurel" '
             'id="checkpoint-range" type="range" '
-            'href="../" href="../speech/" href="../tts/"'
+            'href="../" href="../speech/"'
         ),
     )
 
@@ -148,6 +132,30 @@ def test_route_contract_keeps_explorers_primary_and_findings_secondary(
     _build_route_fixture(tmp_path)
 
     validator._validate_route_contract(tmp_path)
+
+
+@pytest.mark.parametrize("relative_path", validator.RETIRED_PUBLIC_TTS_PATHS)
+def test_route_contract_rejects_retired_public_tts_paths(
+    tmp_path: Path, relative_path: str
+) -> None:
+    _build_route_fixture(tmp_path)
+    retired = tmp_path / relative_path
+    retired.mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(ValueError, match="retired public TTS path"):
+        validator._validate_route_contract(tmp_path)
+
+
+def test_route_contract_rejects_tts_in_public_navigation(tmp_path: Path) -> None:
+    _build_route_fixture(tmp_path)
+    page = tmp_path / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8") + '<a href="./tts/">TTS</a>',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="retired public TTS page"):
+        validator._validate_route_contract(tmp_path)
 
 
 def test_route_contract_rejects_alias_navigation_to_legacy_routes(
@@ -169,10 +177,8 @@ def test_route_contract_rejects_alias_navigation_to_legacy_routes(
     (
         ("index.html", 'href="./steering/"'),
         ("speech/index.html", 'href="../steering/"'),
-        ("tts/index.html", 'href="../steering/"'),
         ("explorer/asr/index.html", 'href="../../steering/"'),
         ("explorer/speech/index.html", 'href="../../steering/"'),
-        ("explorer/tts/index.html", 'href="../../steering/"'),
     ),
 )
 def test_route_contract_requires_steering_in_every_explorer_header(
@@ -192,10 +198,8 @@ def test_route_contract_requires_steering_in_every_explorer_header(
     (
         "index.html",
         "speech/index.html",
-        "tts/index.html",
         "explorer/asr/index.html",
         "explorer/speech/index.html",
-        "explorer/tts/index.html",
     ),
 )
 def test_route_contract_rejects_removed_findings_link_in_explorer_header(
@@ -485,7 +489,6 @@ def test_site_manifest_integrity_checks_counts_and_hashes(tmp_path: Path) -> Non
         "steering/index.html": "steering page",
         "explorer/data/asr/manifest.json": "asr",
         "explorer/data/speech/manifest.json": "speech",
-        "explorer/data/tts/manifest.json": "tts",
     }
     for relative_path, body in relative_paths.items():
         _write(tmp_path / relative_path, body)
