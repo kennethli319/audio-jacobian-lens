@@ -73,12 +73,19 @@
       "duration_seconds": 6.0
     },
     {
-      "id": "impossible",
-      "file": "impossible.flac",
-      "title": "Physically impossible",
-      "description": "Concise technical phrase · LibriSpeech dev-clean",
-      "transcript": "This is physically impossible when conscious.",
-      "duration_seconds": 3.64
+      "id": "laurel-yanny",
+      "file": "laurel-yanny.mp3",
+      "title": "Laurel or Yanny?",
+      "description": "Ambiguous speech illusion · Hans Rutger Bosker demo",
+      "transcript": "Ambiguous source clip; listeners report ‘Laurel’ or ‘Yanny’.",
+      "duration_seconds": 0.9255328798,
+      "source": {
+        "license": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://hrbosker.github.io/demos/laurel-yanny/",
+        "attribution": "‘Laurel/Yanny — original’ (Audio S7), reproduced from Hans Rutger Bosker's ‘Laurel or Yanny?’ demo.",
+        "modification_notice": "Audio S7 MP3 is reproduced byte-for-byte unchanged."
+      }
     }
   ]
 }

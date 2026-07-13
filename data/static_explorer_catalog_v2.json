@@ -115,6 +115,116 @@
       "lfm_fit_relationship": "held_out_from_one_clip_fit"
     }
   ],
+  "asr_audio_samples": [
+    {
+      "slug": "question",
+      "title": "A short question",
+      "description": "Clean short question",
+      "utterance_id": "1272-135031-0012",
+      "reference_transcript": "Where is my brother now?",
+      "duration_seconds": 2.04,
+      "sha256": "2da8a3d5a915be58a29cae9520c94e96395619f1dd3a0968486c9d5154b77b12",
+      "lfm_fit_relationship": "in_sample_integration"
+    },
+    {
+      "slug": "universe",
+      "title": "Sir, I exist",
+      "description": "Measured declarative speech",
+      "utterance_id": "1272-141231-0000",
+      "reference_transcript": "A man said to the universe, sir, I exist.",
+      "duration_seconds": 4.65,
+      "sha256": "adb240047a1e0732c96b029b7dbd7c81a17c853cbd30aec0ee0d9c4e59fe720a",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "buzzer",
+      "title": "The buzzer's whirr",
+      "description": "Consonant-heavy model-error path",
+      "utterance_id": "1272-141231-0006",
+      "reference_transcript": "The buzzer's whirr triggered his muscles into complete relaxation.",
+      "duration_seconds": 4.93,
+      "sha256": "c3e32102b9faeb6dc3ec5203440d4e2a365cc0ea44fa6aeaefe5e3668a9a8585",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "raps",
+      "title": "The raps at the door",
+      "description": "Homophone error: raps versus wraps",
+      "utterance_id": "1272-135031-0003",
+      "reference_transcript": "The little girl had been asleep, but she heard the raps and opened the door.",
+      "duration_seconds": 4.755,
+      "sha256": "80f47603018506ec4a646b68d9f7716b132d8d5ee740dc503ed4f9122cd76243",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "one-minute",
+      "title": "One minute",
+      "description": "Article substitution around the time buzzer",
+      "utterance_id": "1272-141231-0004",
+      "reference_transcript": "One minute, a voice said, and the time buzzer sounded.",
+      "duration_seconds": 5.09,
+      "sha256": "34c4339d921ca363faa292996ea12864c9bbdb5a69fa40178e41629f069a36e0",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "ten-seconds",
+      "title": "Ten seconds",
+      "description": "Spoken-word versus numeral tokenization",
+      "utterance_id": "1272-141231-0016",
+      "reference_transcript": "Ten seconds.",
+      "duration_seconds": 1.85,
+      "sha256": "2de6e800e9a973de275a2c57ef2a8ccf0e25655f0158a0a551bdc0e944607ebc",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "oh-no",
+      "title": "Oh no, I'm quite sure",
+      "description": "Short contractions and punctuation",
+      "utterance_id": "1272-135031-0018",
+      "reference_transcript": "Oh no, I'm quite sure he didn't.",
+      "duration_seconds": 2.4449375,
+      "sha256": "db055fdf17b99b4e68f2e2bdbd01a5a8388321df44e0fcb1600e6b4387466fc3",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "metal-forest",
+      "title": "The metal forest",
+      "description": "Long utterance with proper-name substitutions",
+      "utterance_id": "1272-135031-0015",
+      "reference_transcript": "The metal forest is in the great domed cavern, the largest in all our dominions, replied Kaliko.",
+      "duration_seconds": 7.375,
+      "sha256": "95eb0d408f2f4275bd44995e2202b1b1377ac00538662d5cae509de32e9d353f",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "inexhaustible",
+      "title": "An inexhaustible store",
+      "description": "Rare multi-piece lexical item",
+      "utterance_id": "1272-141231-0018",
+      "reference_transcript": "A red-haired mountain of a man with an apparently inexhaustible store of energy.",
+      "duration_seconds": 6.0,
+      "sha256": "dcc9cc41630ec440e639cf8349899f6e76000d728659ca42ef7ac0ef003ca201",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit"
+    },
+    {
+      "slug": "laurel-yanny",
+      "title": "Laurel or Yanny?",
+      "description": "Ambiguous speech illusion with recorded phonetic steering",
+      "utterance_id": "bosker-audio-s7",
+      "filename": "laurel-yanny.mp3",
+      "reference_transcript": "Ambiguous source clip; listeners report ‘Laurel’ or ‘Yanny’.",
+      "duration_seconds": 0.9255328798,
+      "sha256": "1aac3c17d79ab00e7747f7fbaa2e4b1ba05538d9c2666c820d9a3a8444069a49",
+      "lfm_fit_relationship": "held_out_from_one_clip_fit",
+      "source_override": {
+        "license": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "source_url": "https://hrbosker.github.io/demos/laurel-yanny/",
+        "attribution": "‘Laurel/Yanny — original’ (Audio S7), reproduced from Hans Rutger Bosker's ‘Laurel or Yanny?’ demo. Bosker (2018) describes the viral clip as originating from Vocabulary.com's ‘laurel’ pronunciation.",
+        "modification_notice": "Audio S7 MP3 is reproduced byte-for-byte unchanged; the cached model analysis and steering overlays are project-authored."
+      }
+    }
+  ],
   "tts_examples": [
     {
       "id": "tts-bridge-s9",

@@ -8,6 +8,8 @@ import base64
 import io
 import math
 import wave
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -64,6 +66,92 @@ _LEXICAL_RANK_SPACE = "lexical_display_vocabulary"
 _LENGTH_BUCKET_RANK_SPACE = "exact_decoded_character_length_bucket"
 _MAX_LENGTH_RANK_SPACE = "maximum_decoded_character_length_vocabulary"
 _FULL_VOCABULARY_RANK_SPACE = "full_model_vocabulary"
+
+
+@dataclass(frozen=True)
+class WhisperAnalysisCapture:
+    """Pre-captured tensors for :func:`analyze_whisper_run`.
+
+    This is primarily useful for causal replays: a caller can run Whisper under
+    residual-edit hooks, capture the states that the edited downstream model
+    actually saw, and pass those exact tensors through the normal explorer
+    serializer.  Validation is intentionally strict so tensors from another
+    sequence, lens, or model vocabulary cannot silently produce a plausible
+    but misaligned report.
+    """
+
+    encoder_activations: Mapping[int, torch.Tensor]
+    decoder_activations: Mapping[int, torch.Tensor]
+    actual_logits: torch.Tensor
+
+    def validate(
+        self,
+        *,
+        model: HFWhisperLensModel,
+        lens: WhisperJacobianLens,
+        inputs: WhisperLensInputs,
+    ) -> None:
+        """Reject a capture that does not exactly match this analysis run."""
+
+        encoder_layers = [] if lens.encoder is None else lens.encoder.source_layers
+        decoder_layers = [] if lens.decoder is None else lens.decoder.source_layers
+        if any(not isinstance(layer, int) for layer in self.encoder_activations):
+            raise ValueError("captured encoder layer keys must be integers")
+        if any(not isinstance(layer, int) for layer in self.decoder_activations):
+            raise ValueError("captured decoder layer keys must be integers")
+        actual_encoder_layers = sorted(self.encoder_activations)
+        actual_decoder_layers = sorted(self.decoder_activations)
+        if actual_encoder_layers != encoder_layers:
+            raise ValueError(
+                "captured encoder layers do not match the active encoder lens: "
+                f"expected {encoder_layers}, got {actual_encoder_layers}"
+            )
+        if actual_decoder_layers != decoder_layers:
+            raise ValueError(
+                "captured decoder layers do not match the active decoder lens: "
+                f"expected {decoder_layers}, got {actual_decoder_layers}"
+            )
+
+        batch_size = inputs.batch_size
+        encoder_positions = int(inputs.encoder_position_mask.shape[1])
+        decoder_positions = int(inputs.decoder_input_ids.shape[1])
+        for layer in encoder_layers:
+            value = self.encoder_activations[layer]
+            expected = (batch_size, encoder_positions, lens.encoder.source_dim)
+            _validate_captured_tensor(
+                value,
+                expected_shape=expected,
+                label=f"captured encoder layer {layer}",
+            )
+        for layer in decoder_layers:
+            value = self.decoder_activations[layer]
+            expected = (batch_size, decoder_positions, lens.decoder.source_dim)
+            _validate_captured_tensor(
+                value,
+                expected_shape=expected,
+                label=f"captured decoder layer {layer}",
+            )
+        _validate_captured_tensor(
+            self.actual_logits,
+            expected_shape=(batch_size, decoder_positions, model.vocab_size),
+            label="captured output logits",
+        )
+
+
+def _validate_captured_tensor(
+    value: Any,
+    *,
+    expected_shape: tuple[int, ...],
+    label: str,
+) -> None:
+    if not isinstance(value, torch.Tensor):
+        raise ValueError(f"{label} must be a torch.Tensor")
+    if tuple(value.shape) != expected_shape:
+        raise ValueError(
+            f"{label} has shape {tuple(value.shape)}, expected {expected_shape}"
+        )
+    if not bool(torch.isfinite(value).all()):
+        raise ValueError(f"{label} contains non-finite values")
 
 
 def display_token_mask(tokenizer: Any, vocab_size: int) -> torch.Tensor:
@@ -149,9 +237,7 @@ def _top_tokens(
                         result.display_vocabulary_denominator
                     ),
                     "full_vocabulary_rank": int(full_rank),
-                    "full_vocabulary_denominator": (
-                        result.full_vocabulary_denominator
-                    ),
+                    "full_vocabulary_denominator": (result.full_vocabulary_denominator),
                     "rank_tie_policy": _RANK_TIE_POLICY,
                     "score_kind": score_kind,
                     "vocabulary_filter": {
@@ -386,9 +472,7 @@ def _attach_cell_context(
 ) -> None:
     if len(cells) != len(contexts):
         raise ValueError("lens cells and position contexts must align")
-    for position_index, (cell, context) in enumerate(
-        zip(cells, contexts, strict=True)
-    ):
+    for position_index, (cell, context) in enumerate(zip(cells, contexts, strict=True)):
         length_filter_available = "top_tokens_by_length" in cell
         cell["position_index"] = position_index
         cell["time_window"] = {
@@ -631,8 +715,14 @@ def analyze_whisper_run(
     time_bin_overlap_seconds: float = 0.02,
     max_time_bins: int = 100,
     phone_signature_prototypes: PhoneSignaturePrototypes | None = None,
+    captured: WhisperAnalysisCapture | None = None,
 ) -> dict[str, Any]:
-    """Compute actual-output diagnostics and both lens grids for one clip."""
+    """Compute actual-output diagnostics and both lens grids for one clip.
+
+    By default the model is captured once here.  ``captured`` is an opt-in path
+    for serializing a previously measured causal replay; it is shape-, layer-,
+    vocabulary-, and finiteness-checked before use.
+    """
     lens.validate_model(model)
     if top_k <= 0 or top_k > model.vocab_size:
         raise ValueError(f"top_k must be in [1, {model.vocab_size}]")
@@ -659,11 +749,17 @@ def analyze_whisper_run(
 
     encoder_layers = [] if lens.encoder is None else lens.encoder.source_layers
     decoder_layers = [] if lens.decoder is None else lens.decoder.source_layers
-    encoder_activations, decoder_activations, actual_logits = model.capture(
-        inputs,
-        encoder_layers=encoder_layers,
-        decoder_layers=decoder_layers,
-    )
+    if captured is None:
+        encoder_activations, decoder_activations, actual_logits = model.capture(
+            inputs,
+            encoder_layers=encoder_layers,
+            decoder_layers=decoder_layers,
+        )
+    else:
+        captured.validate(model=model, lens=lens, inputs=inputs)
+        encoder_activations = dict(captured.encoder_activations)
+        decoder_activations = dict(captured.decoder_activations)
+        actual_logits = captured.actual_logits
     transcription, decoder_positions = _transcript_and_confidence(
         model,
         inputs,
@@ -789,16 +885,13 @@ def analyze_whisper_run(
                     raise ValueError(
                         "phone-signature rows and encoder cells must align"
                     )
-                for cell, candidates in zip(
-                    layer_cells, phone_rows, strict=True
-                ):
+                for cell, candidates in zip(layer_cells, phone_rows, strict=True):
                     cell["phone_signatures"] = candidates
                     cell["phone_signature_usable"] = bool(candidates)
                     cell["phone_signature_margin"] = (
                         None
                         if len(candidates) < 2
-                        else candidates[0]["similarity"]
-                        - candidates[1]["similarity"]
+                        else candidates[0]["similarity"] - candidates[1]["similarity"]
                     )
         for layer_cells in encoder_payload["cells"]:
             if encoder_realized_alignment:
@@ -848,9 +941,9 @@ def analyze_whisper_run(
                     if layer in _DECODER_TOKEN_LENGTH_FILTER_LAYERS
                     else None
                 ),
-                realized_token_ids=inputs.decoder_target_ids[
-                    0, decoder_positions
-                ].detach().cpu(),
+                realized_token_ids=inputs.decoder_target_ids[0, decoder_positions]
+                .detach()
+                .cpu(),
                 score_kind="raw_readout_logit",
             )
             for layer in decoder_layers
@@ -903,9 +996,7 @@ def analyze_whisper_run(
                 "full_vocabulary_size": model.vocab_size,
                 "display_vocabulary_size": display_vocabulary_size,
                 "exact_decoded_character_length_counts": length_bucket_counts,
-                "maximum_decoded_character_length_counts": (
-                    cumulative_length_counts
-                ),
+                "maximum_decoded_character_length_counts": (cumulative_length_counts),
             },
             "candidate_rank_semantics": {
                 "method": _RANK_TIE_POLICY,

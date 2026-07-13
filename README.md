@@ -31,8 +31,18 @@ This repository currently contains five connected workspaces:
 | **Whisper ASR** | Paper-style decoder J-lens, experimental encoder-to-decoder lens, raw output diagnostics, audio upload/samples/recording, synchronized waveform and token timelines | A small synthetic decoder pilot recovers some early lexical directions; the current cross-stream encoder result is negative and must not be treated as a phoneme or streaming-belief detector | [`:8000/`](http://127.0.0.1:8000/) |
 | **LFM2.5 speech-to-speech** | Apple-silicon MLX generation, generated-speech playback, fitted readouts over the 16-layer language backbone | The retained lens is a one-clip integration pilot. It does not explain the FastConformer, audio adapter, acoustic codebooks, or played waveform | [`:8001/`](http://127.0.0.1:8001/) |
 | **Chatterbox TTS** | Corpus-fitted T3 acoustic-code readouts, per-run text sensitivity and attention, forced-code branches, and residual steering with suffix regeneration | The ten-prompt rank-128 pilot is encouraging but incomplete; acoustic-code IDs are not words or phonemes, and the current work does not attribute S3Gen or waveform samples | [`:8002/chatterbox`](http://127.0.0.1:8002/chatterbox) |
-| **Static review** | Primary full cached ASR and speech-to-speech explorers with every saved layer/position cell | Backend-free and safe to serve as static files. Each published explorer has ten reports and uses the same ten CC BY 4.0 LibriSpeech inputs. The Chatterbox/TTS pilot remains local until its acoustic-code readouts support a clearer interpretation | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
+| **Static review** | Primary full cached ASR and speech-to-speech explorers with every saved layer/position cell | Backend-free and safe to serve as static files. Each published explorer has ten reports. ASR combines attributed LibriSpeech examples with the unchanged Laurel/Yanny Audio S7; Speech uses the ten CC BY 4.0 LibriSpeech inputs. The Chatterbox/TTS pilot remains local until its acoustic-code readouts support a clearer interpretation | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
 | **Phonetic steering replay** | A static, checkpoint-only replay of fitted phone-prototype encoder interventions on the Laurel/Yanny clip, including phone timing, per-layer coefficients, raw output ranks, free generation, and controls | The equal-strength Yanny recipe is the stronger one-clip result and reproduces with a second fitted lens; the Laurel route is target-conditioned and does not transfer exactly. Neither is a universal word-control axis | [Public replay](https://kennethli319.github.io/audio-jacobian-lens/steering/) |
+
+The integrated Laurel/Yanny sample uses the exact **Audio S7** from Hans Rutger
+Bosker's [Laurel or Yanny? demo](https://hrbosker.github.io/demos/laurel-yanny/),
+republished unchanged using the demo page's [CC BY
+4.0](https://creativecommons.org/licenses/by/4.0/) notice; see also [Bosker
+(2018)](https://doi.org/10.1121/1.5070144). Bosker describes the underlying
+viral recording as originating from Vocabulary.com. That is source history
+reported by Bosker, not a separate permission claim. The J-lens matrices,
+phone-signature overlays, cached interventions, labels, and controls are this
+project's additions.
 
 The public review opens directly into the detailed ASR explorer. One consistent
 top menu links ASR, Speech, and Steering, including on narrow screens. The ASR
@@ -45,7 +55,8 @@ The older BPE/prefix Laurel/Yanny steering study is retained as a historical
 baseline in [`web/causal.html`](web/causal.html). The fitted-phone follow-up is
 summarized in [`docs/CAUSAL_TRACE.md`](docs/CAUSAL_TRACE.md) and replayed from
 recorded, sanitized checkpoints on the public steering page. The source audio
-is not redistributed while its reuse terms remain unreviewed.
+is now available in the normal ASR Explorer as the attributed, unchanged Audio
+S7. The separate checkpoint replay still embeds no audio.
 
 ## Start here: plans, evidence, and design contracts
 
@@ -150,7 +161,7 @@ Start the frontend in demo-only mode (no model download or fitted lens needed):
 ```
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Ten bundled natural
-speech clips can be selected and played without supplying a local file. The
+speech samples can be selected and played without supplying a local file. The
 synthetic UI demo provides a complete backend-free analysis; analyzing a bundled,
 uploaded, or recorded clip still requires a compatible fitted lens. You can
 record up to 30 seconds from the browser.
@@ -167,6 +178,13 @@ The recorded fitted-phone intervention replay is available at
 [http://127.0.0.1:8000/steering](http://127.0.0.1:8000/steering). It is also
 backend-free: the controls select only measured Yanny and Laurel checkpoints,
 not interpolated strengths or new inference runs.
+
+The normal layer-by-layer version is the [integrated Laurel/Yanny ASR
+Explorer](https://kennethli319.github.io/audio-jacobian-lens/?sample=asr-laurel-yanny).
+Its Original, Yanny, and Laurel buttons swap complete cached encoder, decoder,
+and HEAD matrices rather than drawing a client-side approximation. The Yanny
+state is the cross-fit-reproduced open-loop result; the Laurel state remains a
+target-conditioned, clip-specific existence result.
 
 For live analysis, fit or supply a compatible lens and start:
 
@@ -452,9 +470,11 @@ reached `Yelly!`/`Yay!`; a later post-hoc active-region, equal-strength
 all-encoder-layer schedule generated tokenizer-faithful `Yanny!` on this clip
 and survived replacement with an independently fitted phone lens. Ten matched
 random schedules failed, but timing, reverse-sign, wrong-time, spectral,
-larger-control, and held-out-audio gates remain open. The raw audio, extended
-prototypes, optimizer and runner outputs, and detailed report stay under the
-ignored private experiment tree and remain unpublished. A sanitized,
+larger-control, and held-out-audio gates remain open. The extended prototypes,
+optimizer and runner outputs, and detailed private report stay under the
+ignored private experiment tree and remain unpublished. Exact Audio S7 is
+separately republished unchanged, with Bosker attribution and its CC BY 4.0
+license, in the normal ASR Explorer. A sanitized,
 checkpoint-only derivative is available in the [public steering
 replay](https://kennethli319.github.io/audio-jacobian-lens/steering/): it contains
 recorded aggregate diagnostics, not source audio, live inference, fitted
@@ -628,21 +648,40 @@ lens_logits, model_logits, _ = lens.apply(model, "A prompt", positions=[-1])
 ## Refresh and validate the backend-free explorers
 
 The personal-site build uses already-inferred JSON only. With the ASR and
-speech-to-speech servers ready on ports 8000–8001, regenerate the published
-cached matrices into a separate static-site checkout with:
+speech-to-speech servers ready on ports 8000–8001, and the private fitted-phone
+artifacts available, regenerate the complete publication into a separate
+static-site checkout with this ordered pipeline:
 
 ```bash
+.venv/bin/python scripts/record_whisper_phone_steering_explorer.py \
+  --audio samples/laurel-yanny.mp3 \
+  --output artifacts/private/phonetic_encoder/causal/recorded_asr_steering_explorer_v1.json
+
 .venv/bin/python scripts/export_static_explorer.py \
   --site-root ../kennethli319.github.io/audio-jacobian-lens
 
+.venv/bin/python scripts/publish_static_asr_replay.py \
+  artifacts/private/phonetic_encoder/causal/recorded_asr_steering_explorer_v1.json \
+  ../kennethli319.github.io/audio-jacobian-lens
+
 .venv/bin/python scripts/publish_static_phone_steering.py \
   --site-root ../kennethli319.github.io/audio-jacobian-lens
+
+.venv/bin/python scripts/validate_static_explorer_site.py \
+  ../kennethli319.github.io/audio-jacobian-lens
 ```
 
 ASR and speech-to-speech are captured sequentially. The exporters whitelist
 fields, pin model/lens provenance, remove ephemeral run IDs and generated audio,
 and hash every report. ASR's larger exact-length token buckets are split into
 compact sidecars and fetched only if a visitor enables the filter.
+`export_static_explorer.py` deliberately preserves an already integrated,
+manifest-bound Laurel/Yanny replay instead of replacing it with a plain ASR
+run. On a clean build it emits an explicit reminder that
+`publish_static_asr_replay.py` must run next; that publisher reduces the three
+recorded runs, attaches the Original/Yanny/Laurel matrices, copies the exact
+attributed Audio S7, and re-hashes the ASR manifest. Do not publish the
+intermediate base export. The final validator is the release boundary.
 
 The detailed explorer catalog lives in
 `data/static_explorer_catalog_v2.json` and contains ten audio inputs plus ten
@@ -686,6 +725,12 @@ updates the shared coordinate and adjusts only those two matrix scrollers until
 the synchronized encoder window and decoder/HEAD column are visible; it never
 uses page-level scrolling for this reveal.
 
+The `asr-laurel-yanny` report adds Original, Yanny, and Laurel cached replay
+states to this same Explorer grammar. Switching state replaces the complete
+saved encoder, decoder, and HEAD matrices while preserving synchronized
+coordinates, so the visible top candidates, realized ranks, phone signatures,
+and local candidate details all come from the selected recorded run.
+
 The local Chatterbox/TTS workspace and exporter remain available for continued
 experimentation, but no TTS page, findings page, alias, or cached TTS report is
 part of the public site.
@@ -700,10 +745,13 @@ Before publishing, run the static-only integrity gate:
 This verifies the canonical explorer, findings, and legacy-alias hierarchy;
 the correct renderer on every no-index page; all 20 published detailed reports
 and the separate ASR/Speech findings bundle; matrices, trace coverage, hashes,
-ten cleared input files; and the absence of model API calls, generated audio,
+every referenced input file; and the absence of model API calls, generated audio,
 or ephemeral analysis identifiers. It also locks the steering payload to recorded-only
-checkpoints, excludes source media and private artifacts, verifies its asset
-hashes, and preserves the different evidence labels for Yanny and Laurel.
+checkpoints, excludes source media and private artifacts from that replay
+payload, verifies its asset hashes, and preserves the different evidence labels
+for Yanny and Laurel. The separately served ASR Audio S7 is allowed only with
+its unchanged-content hash and Bosker source, CC BY 4.0 license, and paper
+attribution.
 
 ## Development
 

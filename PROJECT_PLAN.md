@@ -531,6 +531,10 @@ Status: **in progress**
   Yanny/Laurel checkpoints; exact raw-head ranks and probabilities, timing,
   coefficient maps, free generation, and controls; exclude source audio, live
   inference, private prototype tensors, paths, and optimizer artifacts.
+- [x] Add Laurel/Yanny to the ordinary ASR Explorer as a complete cached
+  full-matrix report with Original, Yanny, and Laurel states. Republish exact
+  Bosker demo Audio S7 unchanged under CC BY 4.0, link the demo, license, and
+  2018 paper, and identify the project's matrices and overlays separately.
 - [x] Standardize the published ASR, Speech, and Steering top bar: one centered
   header, one three-item menu that remains visible on mobile, normalized active
   and accessibility states, and no findings shortcut in primary navigation.
@@ -634,7 +638,9 @@ decision log.
   tree and remain loopback-only. A separate publication decision may approve
   only a deterministic, schema-validated derivative. The `/steering/` replay is
   such a derivative: recorded checkpoints and aggregate diagnostics only, with
-  no source audio, live steering, fitted artifacts, or private paths.
+  no source audio, live steering, fitted artifacts, or private paths. The
+  ordinary ASR Explorer separately serves the attributed, unchanged Bosker
+  Audio S7 and swaps only among recorded full-matrix states.
 - The live encoder phone-signature mode interprets each cell's complete top-100
   J-readout pattern; it does not relabel the top vocabulary token. Prototype
   artifacts must match the active model and exact encoder-lens content
@@ -1245,9 +1251,12 @@ ordinary generation boundary, reproduces with a second fitted readout, and is
 not matched by ten exact-budget random schedules. Laurel is presented
 separately as a weaker, target-conditioned existence result whose exact output
 does not survive the same cross-fit replacement. Neither route is described as
-a universal word-control axis. The external perception demonstration is linked
-for context but its audio is not redistributed while reuse terms remain
-unreviewed.
+a universal word-control axis. The replay payload itself embeds no audio. The
+ordinary ASR Explorer separately republishes exact Audio S7 from Bosker's demo
+unchanged under the demo's CC BY 4.0 license, with prominent source, license,
+and paper links. Bosker's description of Vocabulary.com is treated only as
+underlying source history, not as a separate permission claim; all J-lens
+overlays are identified as project-authored additions.
 
 ### 2026-07-13 — Make the four exploratory workspaces the whole top menu
 
@@ -2114,3 +2123,18 @@ the article and primary explorers now carry the relevant interpretation.
   and frontend tests passed. Ruff, JavaScript syntax, whitespace, exact hashes,
   and the strict public validator passed with 10 ASR and 10 Speech reports and
   explicit rejection of every retired TTS route/cache path.
+- Completed the integrated Laurel/Yanny ASR experience as an ordinary cached
+  full-matrix Explorer report. Original, Yanny, and Laurel buttons replace the
+  complete recorded encoder, decoder, and HEAD state while preserving the
+  shared selection coordinate. Exact Bosker demo Audio S7 is republished
+  unchanged under CC BY 4.0 with source, license, and paper links; the
+  checkpoint-only `/steering/` payload still embeds no audio. The Yanny replay
+  remains the cross-fit-reproduced open-loop result, while Laurel is labeled as
+  a target-conditioned, clip-specific existence result.
+- Hardened the static refresh pipeline around that integrated report. A routine
+  ASR export now detects and preserves the manifest-bound recorded replay
+  instead of silently replacing it with a baseline-only server response. A
+  clean build explicitly records the three runs, exports the base families,
+  immediately runs `publish_static_asr_replay.py`, publishes the separate
+  checkpoint replay, and passes the static validator before deployment. The
+  exporter emits the required follow-up when the integrated report is absent.

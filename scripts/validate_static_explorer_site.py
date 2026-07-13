@@ -13,9 +13,13 @@ from typing import Any
 
 SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
+PUBLIC_CATALOG_URL = (
+    "https://github.com/kennethli319/audio-jacobian-lens/blob/main/"
+    "data/static_explorer_catalog_v2.json"
+)
 FAMILIES = ("asr", "speech")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260713-20"
+EXPLORER_ASSET_VERSION = "20260713-21"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -63,9 +67,9 @@ ASR_DECODER_HIERARCHY_CSS_MARKERS = (
 )
 CROSS_FAMILY_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS = (
     'const scrollableEncoder = family === "asr" && streamName === "encoder";',
-    'const encoderCellWidth = phoneMode ? 28 : 72;',
+    "const encoderCellWidth = phoneMode ? 28 : 72;",
     'const continuous = family === "asr" || family === "speech";',
-    'const windowSize = continuous ? Math.max(tokens.length, 1) : 8;',
+    "const windowSize = continuous ? Math.max(tokens.length, 1) : 8;",
     'All ${count} ${family === "speech" ? "generated text positions" : "tokens"} · scroll horizontally',
     "const ttsCellWidth = 54;",
     'class="position-timeline scrollable',
@@ -76,14 +80,14 @@ CROSS_FAMILY_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS = (
     'workspace.querySelectorAll(".speech-matrix-scroll")',
     'matrixScroller.querySelector(`.matrix-cell[data-kind="tts-layer"]',
     'syncSelectionDOM({ reveal: true, behavior: "auto" });',
-    'target.focus({ preventScroll: true });',
+    "target.focus({ preventScroll: true });",
 )
 CROSS_FAMILY_SYNCHRONIZED_SCROLL_CSS_MARKERS = (
     ".position-timeline.scrollable",
     ".scrollable-matrix-panel .layer-matrix",
     ".scrollable-matrix-panel .matrix-row",
     ".speech-matrix-scroll",
-    'overflow-x: auto',
+    "overflow-x: auto",
 )
 ASR_PHONE_SIGNATURE_SCRIPT_MARKERS = (
     "phoneSignatureEnabled: false,",
@@ -111,6 +115,22 @@ ASR_ARCHITECTURE_SCRIPT_MARKERS = (
     "Final L${finalLayer} state → LM head · causal token time",
 )
 ASR_ARCHITECTURE_CSS_MARKERS = (".matrix-architecture",)
+ASR_RECORDED_REPLAY_SCRIPT_MARKERS = (
+    "recorded_intervention_replay",
+    "audio-jacobian-lens.recorded-asr-intervention-replay",
+    "function composeReplayReport(",
+    "function activateReplayCondition(",
+    'url.searchParams.set("condition", condition.id);',
+    "Cached analyses · never live inference",
+    "function effectiveProvenance()",
+    "Original Laurel/Yanny post",
+)
+ASR_RECORDED_REPLAY_CSS_MARKERS = (
+    ".recorded-replay",
+    ".replay-condition-buttons",
+    ".replay-active-summary",
+    ".replay-attribution",
+)
 STEERING_SCRIPT_MARKERS = (
     'data.mode !== "static_recorded_checkpoints"',
     "checkpoint.recorded !== true || checkpoint.interpolated !== false",
@@ -195,6 +215,111 @@ PUBLIC_PHONE_INVENTORY = (
     "W",
     "Z",
 )
+ASR_REPLAY_SCHEMA_ID = "audio-jacobian-lens.recorded-asr-intervention-replay"
+ASR_REPLAY_MODE = "static_recorded_analyses"
+ASR_REPLAY_CONDITIONS = ("baseline", "yanny", "laurel")
+ASR_REPLAY_ANALYSIS_FIELDS = {"metadata", "transcription", "encoder", "decoder"}
+ASR_REPLAY_EXPECTED = {
+    "baseline": {
+        "text": "Lily!",
+        "token_ids": [20037, 0],
+        "target_match": False,
+        "budget_fraction": 0.0,
+        "coefficient_scale": 0.0,
+        "evidence_tier": "observed_baseline",
+        "layer_count": 0,
+        "schedule_count": 0,
+    },
+    "yanny": {
+        "text": "Yanny!",
+        "token_ids": [575, 7737, 0],
+        "target_match": True,
+        "budget_fraction": 0.035,
+        "coefficient_scale": 0.035,
+        "evidence_tier": "open_loop_cross_fit_reproduced",
+        "layer_count": 4,
+        "schedule_count": 4,
+    },
+    "laurel": {
+        "text": "Laurel",
+        "token_ids": [43442],
+        "target_match": True,
+        "budget_fraction": 0.1452915875040831,
+        "coefficient_scale": 0.7,
+        "evidence_tier": "target_conditioned_clip_specific_existence",
+        "layer_count": 4,
+        "schedule_count": 5,
+    },
+}
+ASR_REPLAY_ROOT_FIELDS = {
+    "schema_id",
+    "schema_version",
+    "mode",
+    "default_condition",
+    "conditions",
+}
+ASR_REPLAY_CONDITION_FIELDS = {
+    "id",
+    "label",
+    "recorded",
+    "interpolated",
+    "generated",
+    "budget_fraction",
+    "coefficient_scale",
+    "evidence",
+    "method",
+    "layers",
+    "schedule",
+}
+ASR_REPLAY_GENERATED_FIELDS = {"text", "token_ids", "target_match"}
+ASR_REPLAY_EVIDENCE_FIELDS = {"tier", "badge", "tone", "summary"}
+ASR_REPLAY_METHOD_FIELDS = {
+    "kind",
+    "label",
+    "description",
+    "coefficient_policy",
+}
+ASR_REPLAY_SCHEDULE_FIELDS = {
+    "phone",
+    "start_seconds",
+    "end_seconds",
+    "start_position",
+    "end_position",
+}
+ASR_REPLAY_RIGHTS_STATUS = "attributed_under_source_page_license"
+ASR_REPLAY_SOURCE_URL = "https://hrbosker.github.io/demos/laurel-yanny/"
+ASR_REPLAY_LICENSE = "CC BY 4.0"
+ASR_REPLAY_LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/"
+ASR_REPLAY_ATTRIBUTION = (
+    "‘Laurel/Yanny — original’ (Audio S7), reproduced from Hans Rutger "
+    "Bosker's ‘Laurel or Yanny?’ demo. Bosker (2018) describes the viral "
+    "clip as originating from Vocabulary.com's ‘laurel’ pronunciation."
+)
+ASR_REPLAY_MODIFICATION_NOTICE = (
+    "Audio S7 MP3 is reproduced byte-for-byte unchanged; the cached model "
+    "analysis and steering overlays are project-authored."
+)
+ASR_REPLAY_FORBIDDEN_KEYS = {
+    "analysis_id",
+    "audio",
+    "audio_data_url",
+    "audio_url",
+    "branch_analysis_id",
+    "coefficients",
+    "delta",
+    "deltas",
+    "direction",
+    "generated_audio",
+    "model_input_wav",
+    "output_waveform",
+    "parent_analysis_id",
+    "pullback_audit",
+    "recording",
+    "repository_path",
+    "residual",
+    "residuals",
+    "waveform",
+}
 
 
 def _sha256(path: Path) -> str:
@@ -259,9 +384,7 @@ def _manifest_reports(
                 )
             filter_urls.append(str(reference["url"]))
             if "featured_views" in entry:
-                raise ValueError(
-                    "ASR manifest uses retired featured-view metadata"
-                )
+                raise ValueError("ASR manifest uses retired featured-view metadata")
         if len(set(filter_urls)) != len(filter_urls):
             raise ValueError("ASR manifest character-filter URLs are duplicated")
     return reports
@@ -314,8 +437,10 @@ def _validate_asr_manifest_provenance(manifest: Mapping[str, Any]) -> None:
         ("phone", phones),
     ):
         digest = record.get("sha256")
-        if not isinstance(digest, str) or len(digest) != 64 or any(
-            character not in "0123456789abcdef" for character in digest.lower()
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest.lower())
         ):
             raise ValueError(f"ASR {label} provenance has no pinned SHA-256")
     relationship = str(encoder.get("public_evaluation_relationship") or "")
@@ -330,14 +455,22 @@ def _validate_asr_manifest_provenance(manifest: Mapping[str, Any]) -> None:
     ):
         raise ValueError("ASR phone-prototype provenance is inconsistent")
     rights = provenance.get("rights")
-    if not isinstance(rights, Mapping) or (
+    if not isinstance(rights, Mapping):
+        raise ValueError("ASR manifest lacks complete public-source rights provenance")
+    mixed_sources = rights.get("source_url") == PUBLIC_CATALOG_URL
+    if (
         rights.get("license") != "CC BY 4.0"
         or rights.get("license_url") != "https://creativecommons.org/licenses/by/4.0/"
-        or rights.get("source_url") != "https://www.openslr.org/12"
-        or rights.get("alignment_source_url")
-        != "https://zenodo.org/records/2619474"
+        or rights.get("source_url")
+        not in {"https://www.openslr.org/12", PUBLIC_CATALOG_URL}
+        or rights.get("alignment_source_url") != "https://zenodo.org/records/2619474"
         or rights.get("alignment_license") != "CC BY 4.0"
         or not str(rights.get("attribution") or "").strip()
+        or (
+            mixed_sources
+            and "Per-report source metadata is authoritative"
+            not in str(rights.get("attribution") or "")
+        )
     ):
         raise ValueError("ASR manifest lacks complete public-source rights provenance")
 
@@ -468,9 +601,7 @@ def _validate_asr_phone_signatures(report: Mapping[str, Any]) -> None:
         raise ValueError("ASR encoder pooling geometry is missing")
     try:
         pooling_matches = all(
-            math.isclose(
-                float(pooling.get(field)), expected, rel_tol=0, abs_tol=1e-9
-            )
+            math.isclose(float(pooling.get(field)), expected, rel_tol=0, abs_tol=1e-9)
             for field, expected in expected_pooling.items()
         )
     except (TypeError, ValueError):
@@ -502,10 +633,8 @@ def _validate_asr_phone_signatures(report: Mapping[str, Any]) -> None:
         or metadata.get("score_kind") != "phone_prototype_cosine_similarity"
         or metadata.get("signature_top_k") != 100
         or metadata.get("display_unit") != "pooled_encoder_window"
-        or metadata.get("method")
-        != "nearest_frozen_top_k_j_signature_phone_prototype"
-        or metadata.get("training_unit")
-        != "aligned_native_20_ms_phone_midpoint_state"
+        or metadata.get("method") != "nearest_frozen_top_k_j_signature_phone_prototype"
+        or metadata.get("training_unit") != "aligned_native_20_ms_phone_midpoint_state"
         or not str(metadata.get("interpretation") or "").strip()
         or not math.isclose(
             float(metadata.get("effective_display_window_seconds") or 0),
@@ -536,7 +665,10 @@ def _validate_asr_phone_signatures(report: Mapping[str, Any]) -> None:
             previous: float | None = None
             seen: set[str] = set()
             for candidate in candidates:
-                if not isinstance(candidate, Mapping) or set(candidate) != PHONE_SIGNATURE_FIELDS:
+                if (
+                    not isinstance(candidate, Mapping)
+                    or set(candidate) != PHONE_SIGNATURE_FIELDS
+                ):
                     raise ValueError("ASR phone candidate has unapproved fields")
                 phone = candidate.get("phone")
                 rank = candidate.get("rank")
@@ -655,7 +787,384 @@ def _validate_encoder_alignment_provenance(
             raise ValueError(f"ASR encoder alignment {field} does not match timing")
 
 
-def _validate_asr_or_speech(report: Mapping[str, Any], *, family: str) -> None:
+def _matches_replay_number(value: Any, expected: float) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        numeric = float(value)
+        return math.isfinite(numeric) and math.isclose(
+            numeric, expected, rel_tol=0.0, abs_tol=1e-8
+        )
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
+def _is_replay_integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_replay_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
+def _validate_recorded_replay_source(source: Any) -> None:
+    required_source = {
+        "audio_url",
+        "sha256",
+        "source_url",
+        "license",
+        "license_url",
+        "attribution",
+        "modification_notice",
+        "rights_status",
+    }
+    if (
+        not isinstance(source, Mapping)
+        or required_source - source.keys()
+        or source.get("rights_status") != ASR_REPLAY_RIGHTS_STATUS
+        or source.get("source_url") != ASR_REPLAY_SOURCE_URL
+        or source.get("license") != ASR_REPLAY_LICENSE
+        or source.get("license_url") != ASR_REPLAY_LICENSE_URL
+        or source.get("attribution") != ASR_REPLAY_ATTRIBUTION
+        or source.get("modification_notice") != ASR_REPLAY_MODIFICATION_NOTICE
+    ):
+        raise ValueError(
+            "Laurel/Yanny report lacks the exact report-local source, license, "
+            "attribution, and change notice"
+        )
+
+
+def _validate_replay_condition_contract(
+    condition: Mapping[str, Any],
+    *,
+    condition_id: str,
+    encoder_layers: list[Any],
+    audio_duration_seconds: float,
+) -> None:
+    """Validate the exact public metadata schema for one recorded rerun."""
+
+    expected = ASR_REPLAY_EXPECTED[condition_id]
+    label = condition.get("label")
+    generated = condition.get("generated")
+    evidence = condition.get("evidence")
+    method = condition.get("method")
+    layers = condition.get("layers")
+    schedule = condition.get("schedule")
+    token_ids = generated.get("token_ids") if isinstance(generated, Mapping) else None
+
+    if not isinstance(label, str) or not label.strip():
+        raise ValueError(f"recorded {condition_id} replay has an invalid label")
+    if not isinstance(generated, Mapping) or set(generated) != (
+        ASR_REPLAY_GENERATED_FIELDS
+    ):
+        raise ValueError(f"recorded {condition_id} generated schema changed")
+    if (
+        not isinstance(generated.get("text"), str)
+        or generated.get("text") != expected["text"]
+        or not isinstance(token_ids, list)
+        or not all(_is_replay_integer(token_id) for token_id in token_ids)
+        or token_ids != expected["token_ids"]
+        or type(generated.get("target_match")) is not bool
+        or generated.get("target_match") is not expected["target_match"]
+    ):
+        raise ValueError(f"recorded {condition_id} generated value changed")
+
+    if not isinstance(evidence, Mapping) or set(evidence) != (
+        ASR_REPLAY_EVIDENCE_FIELDS
+    ):
+        raise ValueError(f"recorded {condition_id} evidence schema changed")
+    if evidence.get("tier") != expected["evidence_tier"] or not all(
+        isinstance(evidence.get(field), str) and evidence[field].strip()
+        for field in ASR_REPLAY_EVIDENCE_FIELDS
+    ):
+        raise ValueError(f"recorded {condition_id} evidence value changed")
+
+    if not isinstance(method, Mapping) or set(method) != ASR_REPLAY_METHOD_FIELDS:
+        raise ValueError(f"recorded {condition_id} method schema changed")
+    if not all(
+        isinstance(method.get(field), str) and method[field].strip()
+        for field in ASR_REPLAY_METHOD_FIELDS
+    ):
+        raise ValueError(f"recorded {condition_id} method value changed")
+
+    if (
+        not isinstance(layers, list)
+        or len(layers) != expected["layer_count"]
+        or not all(_is_replay_integer(layer) and layer >= 0 for layer in layers)
+        or layers != sorted(set(layers))
+    ):
+        raise ValueError(f"recorded {condition_id} layer list changed")
+    expected_layers = [] if condition_id == "baseline" else encoder_layers
+    if layers != expected_layers:
+        raise ValueError(f"recorded {condition_id} layers do not match the encoder")
+
+    if not isinstance(schedule, list) or len(schedule) != expected["schedule_count"]:
+        raise ValueError(f"recorded {condition_id} schedule count changed")
+    previous_end_seconds = 0.0
+    previous_end_position = 0
+    for index, item in enumerate(schedule):
+        if not isinstance(item, Mapping) or set(item) != ASR_REPLAY_SCHEDULE_FIELDS:
+            raise ValueError(
+                f"recorded {condition_id} schedule item {index} schema changed"
+            )
+        phone = item.get("phone")
+        start_seconds = item.get("start_seconds")
+        end_seconds = item.get("end_seconds")
+        start_position = item.get("start_position")
+        end_position = item.get("end_position")
+        if (
+            not isinstance(phone, str)
+            or not 1 <= len(phone) <= 3
+            or phone != phone.strip().upper()
+            or not phone.isalpha()
+            or not _is_replay_number(start_seconds)
+            or not _is_replay_number(end_seconds)
+            or not _is_replay_integer(start_position)
+            or not _is_replay_integer(end_position)
+        ):
+            raise ValueError(
+                f"recorded {condition_id} schedule item {index} has invalid types"
+            )
+        start_seconds = float(start_seconds)
+        end_seconds = float(end_seconds)
+        if (
+            start_seconds < 0.0
+            or start_seconds >= end_seconds
+            or end_seconds > audio_duration_seconds + 1e-8
+            or start_position < 0
+            or start_position >= end_position
+            or start_seconds < previous_end_seconds - 1e-8
+            or start_position < previous_end_position
+        ):
+            raise ValueError(
+                f"recorded {condition_id} schedule item {index} has invalid bounds or order"
+            )
+        if not (
+            math.isclose(
+                start_seconds, start_position * 0.02, rel_tol=0.0, abs_tol=1e-8
+            )
+            and math.isclose(
+                end_seconds, end_position * 0.02, rel_tol=0.0, abs_tol=1e-8
+            )
+        ):
+            raise ValueError(
+                f"recorded {condition_id} schedule item {index} time/position mismatch"
+            )
+        previous_end_seconds = end_seconds
+        previous_end_position = end_position
+
+
+def _validate_replay_safe(
+    value: Any, *, path: str = "$.recorded_intervention_replay"
+) -> None:
+    """Reject recorder-only tensors, media, and private references."""
+
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            normalized = str(key).lower()
+            if normalized in ASR_REPLAY_FORBIDDEN_KEYS or normalized.endswith(
+                "_analysis_id"
+            ):
+                raise ValueError(f"forbidden recorded replay field {path}.{key}")
+            _validate_replay_safe(item, path=f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_replay_safe(item, path=f"{path}[{index}]")
+    elif isinstance(value, str):
+        lowered = value.strip().lower().replace("\\", "/")
+        if (
+            "/users/" in lowered
+            or "artifacts/private/" in lowered
+            or lowered.startswith("data:audio/")
+            or lowered.endswith(
+                (".pt", ".pth", ".npy", ".npz", ".wav", ".flac", ".mp3")
+            )
+        ):
+            raise ValueError(f"private artifact or audio in recorded replay at {path}")
+
+
+def _validate_replay_candidate_bounds(
+    payload: Mapping[str, Any], *, condition_id: str
+) -> None:
+    tokens = payload.get("transcription", {}).get("tokens")
+    if not isinstance(tokens, list) or not tokens:
+        raise ValueError(f"recorded {condition_id} replay has no HEAD sequence")
+    for token in tokens:
+        candidates = token.get("top_tokens") if isinstance(token, Mapping) else None
+        if not isinstance(candidates, list) or not 1 <= len(candidates) <= 5:
+            raise ValueError(f"recorded {condition_id} HEAD candidates are not bounded")
+    for stream_name in ("encoder", "decoder"):
+        cells = payload.get(stream_name, {}).get("cells")
+        if not isinstance(cells, list) or not cells:
+            raise ValueError(
+                f"recorded {condition_id} {stream_name} matrix is incomplete"
+            )
+        for row in cells:
+            if not isinstance(row, list) or not row:
+                raise ValueError(
+                    f"recorded {condition_id} {stream_name} matrix is ragged"
+                )
+            for cell in row:
+                candidates = (
+                    cell.get("top_tokens") if isinstance(cell, Mapping) else None
+                )
+                if not isinstance(candidates, list) or not 1 <= len(candidates) <= 5:
+                    raise ValueError(
+                        f"recorded {condition_id} {stream_name} candidates are not bounded"
+                    )
+                phones = cell.get("phone_signatures")
+                if phones is not None and (
+                    not isinstance(phones, list) or not 1 <= len(phones) <= 5
+                ):
+                    raise ValueError(
+                        f"recorded {condition_id} phone candidates are not bounded"
+                    )
+
+
+def _replay_encoder_geometry(payload: Mapping[str, Any]) -> dict[str, Any]:
+    encoder = payload.get("encoder")
+    if not isinstance(encoder, Mapping):
+        raise ValueError("recorded replay has no encoder matrix")
+    cells = encoder.get("cells")
+    if not isinstance(cells, list) or not cells:
+        raise ValueError("recorded replay encoder matrix is empty")
+    coordinates: list[list[dict[str, Any]]] = []
+    widths: list[int] = []
+    for row in cells:
+        if not isinstance(row, list):
+            raise ValueError("recorded replay encoder matrix is malformed")
+        widths.append(len(row))
+        coordinates.append(
+            [
+                {
+                    "position_index": cell.get("position_index"),
+                    "time_window": cell.get("time_window"),
+                }
+                for cell in row
+            ]
+        )
+    return {
+        "layers": encoder.get("layers"),
+        "pooling": encoder.get("pooling"),
+        "positions": encoder.get("positions"),
+        "time_bins": encoder.get("time_bins"),
+        "widths": widths,
+        "coordinates": coordinates,
+    }
+
+
+def _compose_recorded_replay_report(
+    report: Mapping[str, Any], condition: Mapping[str, Any]
+) -> dict[str, Any]:
+    analysis = condition.get("analysis")
+    payload = dict(report["payload"])
+    if isinstance(analysis, Mapping):
+        payload.update(dict(analysis))
+    return {**report, "payload": payload}
+
+
+def _validate_recorded_intervention_replay(report: Mapping[str, Any]) -> None:
+    replay = report.get("recorded_intervention_replay")
+    if not isinstance(replay, Mapping):
+        raise ValueError("Laurel/Yanny ASR report has no recorded replay")
+    if set(replay) != ASR_REPLAY_ROOT_FIELDS or (
+        replay.get("schema_id") != ASR_REPLAY_SCHEMA_ID
+        or replay.get("schema_version") != 1
+        or replay.get("mode") != ASR_REPLAY_MODE
+        or replay.get("default_condition") != "baseline"
+    ):
+        raise ValueError("recorded ASR replay has an invalid schema")
+    _validate_recorded_replay_source(report.get("source"))
+
+    conditions = replay.get("conditions")
+    if not isinstance(conditions, list) or not all(
+        isinstance(condition, Mapping) for condition in conditions
+    ):
+        raise ValueError("recorded ASR replay has no condition list")
+    if [condition.get("id") for condition in conditions] != list(ASR_REPLAY_CONDITIONS):
+        raise ValueError("recorded ASR replay must contain baseline, Yanny, and Laurel")
+    _validate_replay_safe(replay)
+
+    payload = report.get("payload")
+    if not isinstance(payload, Mapping):
+        raise ValueError("Laurel/Yanny ASR report has no baseline payload")
+    encoder_layers = payload.get("encoder", {}).get("layers")
+    audio_duration = payload.get("audio", {}).get("duration_seconds")
+    if (
+        not isinstance(encoder_layers, list)
+        or not _is_replay_number(audio_duration)
+        or float(audio_duration) <= 0.0
+    ):
+        raise ValueError("recorded ASR replay has invalid encoder or audio bounds")
+    baseline_geometry = _replay_encoder_geometry(payload)
+    for condition in conditions:
+        condition_id = str(condition["id"])
+        expected = ASR_REPLAY_EXPECTED[condition_id]
+        expected_fields = set(ASR_REPLAY_CONDITION_FIELDS)
+        if condition_id != "baseline":
+            expected_fields.add("analysis")
+        if set(condition) != expected_fields:
+            raise ValueError(
+                f"recorded {condition_id} replay has unexpected or missing fields"
+            )
+        if (
+            condition.get("recorded") is not True
+            or condition.get("interpolated") is not False
+            or not _matches_replay_number(
+                condition.get("budget_fraction"), expected["budget_fraction"]
+            )
+            or not _matches_replay_number(
+                condition.get("coefficient_scale"), expected["coefficient_scale"]
+            )
+        ):
+            raise ValueError(f"recorded {condition_id} replay changed")
+        _validate_replay_condition_contract(
+            condition,
+            condition_id=condition_id,
+            encoder_layers=encoder_layers,
+            audio_duration_seconds=float(audio_duration),
+        )
+        if condition_id == "baseline" and "analysis" in condition:
+            raise ValueError("recorded baseline must reuse the root report payload")
+        if condition_id != "baseline" and set(condition.get("analysis", {})) != (
+            ASR_REPLAY_ANALYSIS_FIELDS
+        ):
+            raise ValueError(f"recorded {condition_id} analysis is incomplete")
+
+        composed = _compose_recorded_replay_report(report, condition)
+        payload = composed["payload"]
+        tokens = payload.get("transcription", {}).get("tokens")
+        if not isinstance(tokens, list) or [
+            token.get("id") for token in tokens
+        ] != list(expected["token_ids"]):
+            raise ValueError(f"recorded {condition_id} token sequence changed")
+        if (
+            str(payload.get("transcription", {}).get("text") or "").strip()
+            != expected["text"]
+        ):
+            raise ValueError(f"recorded {condition_id} transcript changed")
+        if _replay_encoder_geometry(payload) != baseline_geometry:
+            raise ValueError(
+                f"recorded {condition_id} encoder layers or geometry changed"
+            )
+        _validate_asr_or_speech(
+            composed,
+            family="asr",
+            expected_rights_status=ASR_REPLAY_RIGHTS_STATUS,
+        )
+        _validate_replay_candidate_bounds(payload, condition_id=condition_id)
+
+
+def _validate_asr_or_speech(
+    report: Mapping[str, Any],
+    *,
+    family: str,
+    expected_rights_status: str = "cleared_with_attribution",
+) -> None:
     if family == "speech":
         _validate_speech_generation_diagnostics(report)
     payload = report["payload"]
@@ -723,8 +1232,10 @@ def _validate_asr_or_speech(report: Mapping[str, Any], *, family: str) -> None:
     values = preview.get("values")
     if not isinstance(values, list) or not 0 < len(values) <= 1024:
         raise ValueError(f"{family} input waveform preview is invalid")
-    if report.get("source", {}).get("rights_status") != "cleared_with_attribution":
-        raise ValueError(f"{family} input audio is not rights-cleared")
+    if report.get("source", {}).get("rights_status") != expected_rights_status:
+        raise ValueError(
+            f"{family} input audio does not have the expected rights status"
+        )
 
 
 def _validate_tts(report: Mapping[str, Any]) -> None:
@@ -919,6 +1430,21 @@ def _validate_site_manifest_integrity(
             raise ValueError(f"site manifest hash mismatch: {path}")
 
 
+def _validate_media_union(site_root: Path, referenced_media: set[Path]) -> None:
+    """Require the union of family references, not identical family audio sets."""
+
+    media = {
+        path.resolve()
+        for path in site_root.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in {".wav", ".mp3", ".m4a", ".ogg", ".opus", ".flac"}
+    }
+    if media != {path.resolve() for path in referenced_media}:
+        raise ValueError(
+            "the static site media set does not match the cleared manifest inputs"
+        )
+
+
 def _require_page(site_root: Path, relative_path: str, *, label: str) -> str:
     path = site_root / relative_path
     if not path.is_file():
@@ -938,9 +1464,7 @@ def _require_markers(html: str, markers: tuple[str, ...], *, label: str) -> None
 def _validate_route_contract(site_root: Path) -> None:
     for relative_path in RETIRED_PUBLIC_TTS_PATHS:
         if (site_root / relative_path).exists():
-            raise ValueError(
-                f"retired public TTS path still exists: {relative_path}"
-            )
+            raise ValueError(f"retired public TTS path still exists: {relative_path}")
     detailed_pages = {
         "asr": (
             "index.html",
@@ -1209,10 +1733,7 @@ def _validate_phone_steering_payload(payload: Mapping[str, Any]) -> None:
             not isinstance(item.get("generated"), Mapping)
             or not isinstance(item.get("decisions"), list)
             or not item["decisions"]
-            or any(
-                not isinstance(decision, Mapping)
-                for decision in item["decisions"]
-            )
+            or any(not isinstance(decision, Mapping) for decision in item["decisions"])
             for item in checkpoints
         ):
             raise ValueError(f"phone steering {name} has an incomplete recorded run")
@@ -1223,10 +1744,8 @@ def _validate_phone_steering_payload(payload: Mapping[str, Any]) -> None:
     yanny_decisions = yanny_recommended.get("decisions")
     if (
         not isinstance(yanny_evidence, Mapping)
-        or yanny_evidence.get("tier")
-        != "open_loop_cross_fit_reproduced"
-        or yanny_recommended.get("generated", {}).get("token_ids")
-        != [575, 7737, 0]
+        or yanny_evidence.get("tier") != "open_loop_cross_fit_reproduced"
+        or yanny_recommended.get("generated", {}).get("token_ids") != [575, 7737, 0]
         or not isinstance(yanny_decisions, list)
         or any(not isinstance(row, Mapping) for row in yanny_decisions)
         or [row.get("rank") for row in yanny_decisions] != [1, 1]
@@ -1247,8 +1766,7 @@ def _validate_phone_steering_payload(payload: Mapping[str, Any]) -> None:
     laurel_decisions = laurel_recommended.get("decisions")
     if (
         not isinstance(laurel_evidence, Mapping)
-        or laurel_evidence.get("tier")
-        != "target_conditioned_clip_specific_existence"
+        or laurel_evidence.get("tier") != "target_conditioned_clip_specific_existence"
         or laurel_recommended.get("generated", {}).get("token_ids") != [43442]
         or not isinstance(laurel_decisions, list)
         or len(laurel_decisions) != 1
@@ -1275,14 +1793,16 @@ def _validate_phone_steering_payload(payload: Mapping[str, Any]) -> None:
         ".wav",
     ):
         if forbidden in serialized:
-            raise ValueError(f"phone steering payload exposes forbidden data: {forbidden}")
+            raise ValueError(
+                f"phone steering payload exposes forbidden data: {forbidden}"
+            )
 
 
 def validate_site(site_root: Path) -> dict[str, int]:
     site_root = site_root.resolve()
     counts: dict[str, int] = {}
     referenced_media: set[Path] = set()
-    audio_urls_by_family: dict[str, list[str]] = {}
+    replay_report_ids: set[str] = set()
     for asset in (
         "assets/explorer.js",
         "assets/explorer.css",
@@ -1331,6 +1851,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         *CROSS_FAMILY_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS,
         *ASR_PHONE_SIGNATURE_SCRIPT_MARKERS,
         *ASR_ARCHITECTURE_SCRIPT_MARKERS,
+        *ASR_RECORDED_REPLAY_SCRIPT_MARKERS,
     ):
         if marker not in explorer_script:
             raise ValueError(
@@ -1350,7 +1871,9 @@ def validate_site(site_root: Path) -> dict[str, int]:
             )
     explorer_css = (site_root / "assets/explorer.css").read_text(encoding="utf-8")
     if ".static-filter" in explorer_css:
-        raise ValueError("static explorer CSS still includes retired token-length filtering")
+        raise ValueError(
+            "static explorer CSS still includes retired token-length filtering"
+        )
     for marker in (
         ".position-timeline.speech-readable",
         ".speech-matrix-window",
@@ -1365,6 +1888,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
         *CROSS_FAMILY_SYNCHRONIZED_SCROLL_CSS_MARKERS,
         *ASR_PHONE_SIGNATURE_CSS_MARKERS,
         *ASR_ARCHITECTURE_CSS_MARKERS,
+        *ASR_RECORDED_REPLAY_CSS_MARKERS,
     ):
         if marker not in explorer_css:
             raise ValueError(
@@ -1420,7 +1944,17 @@ def validate_site(site_root: Path) -> dict[str, int]:
             if family == "tts":
                 _validate_tts(report)
             else:
-                _validate_asr_or_speech(report, family=family)
+                expected_rights_status = (
+                    ASR_REPLAY_RIGHTS_STATUS
+                    if family == "asr"
+                    and report.get("example_id") == "asr-laurel-yanny"
+                    else "cleared_with_attribution"
+                )
+                _validate_asr_or_speech(
+                    report,
+                    family=family,
+                    expected_rights_status=expected_rights_status,
+                )
                 if family == "asr":
                     phone_metadata = report["payload"]["metadata"]["phone_signature"]
                     phone_provenance = lens_provenance["phone_signature"]
@@ -1434,9 +1968,7 @@ def validate_site(site_root: Path) -> dict[str, int]:
                         or phone_metadata["prototype_fit_rows"]
                         != phone_provenance["training_rows"]
                         or phone_metadata["prototype_fit_opened_eval_splits"]
-                        != phone_provenance[
-                            "development_or_test_opened_for_fit"
-                        ]
+                        != phone_provenance["development_or_test_opened_for_fit"]
                     ):
                         raise ValueError(
                             "ASR report phone metadata disagrees with provenance"
@@ -1451,6 +1983,9 @@ def validate_site(site_root: Path) -> dict[str, int]:
                         != lens_provenance["decoder_source_layers"]
                     ):
                         raise ValueError("ASR decoder layers disagree with provenance")
+                    if "recorded_intervention_replay" in report:
+                        _validate_recorded_intervention_replay(report)
+                        replay_report_ids.add(str(report.get("example_id") or ""))
                 audio_path = _validate_audio_reference(
                     site_root,
                     family=family,
@@ -1478,26 +2013,13 @@ def validate_site(site_root: Path) -> dict[str, int]:
             raise ValueError(
                 f"{family} explorer data contains unreferenced or missing JSON files"
             )
-        if family != "tts":
-            audio_urls_by_family[family] = [
-                str(entry["audio_url"]) for entry in reports
-            ]
         counts[family] = len(reports)
 
-    if audio_urls_by_family.get("asr") != audio_urls_by_family.get("speech"):
+    if replay_report_ids != {"asr-laurel-yanny"}:
         raise ValueError(
-            "ASR and speech manifests must use the same ordered input-audio set"
+            "the ASR explorer must publish exactly one Laurel/Yanny recorded replay"
         )
-    media = [
-        path
-        for path in site_root.rglob("*")
-        if path.is_file()
-        and path.suffix.lower() in {".wav", ".mp3", ".m4a", ".ogg", ".opus", ".flac"}
-    ]
-    if {path.resolve() for path in media} != referenced_media:
-        raise ValueError(
-            "the static site media set does not match the cleared manifest inputs"
-        )
+    _validate_media_union(site_root, referenced_media)
     _validate_site_manifest_integrity(site_root, counts=counts)
     return counts
 

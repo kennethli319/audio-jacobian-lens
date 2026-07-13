@@ -287,9 +287,9 @@ def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:
 def test_renderer_contract_requires_synchronized_cross_family_scrolling() -> None:
     assert validator.CROSS_FAMILY_SYNCHRONIZED_SCROLL_SCRIPT_MARKERS == (
         'const scrollableEncoder = family === "asr" && streamName === "encoder";',
-        'const encoderCellWidth = phoneMode ? 28 : 72;',
+        "const encoderCellWidth = phoneMode ? 28 : 72;",
         'const continuous = family === "asr" || family === "speech";',
-        'const windowSize = continuous ? Math.max(tokens.length, 1) : 8;',
+        "const windowSize = continuous ? Math.max(tokens.length, 1) : 8;",
         'All ${count} ${family === "speech" ? "generated text positions" : "tokens"} · scroll horizontally',
         "const ttsCellWidth = 54;",
         'class="position-timeline scrollable',
@@ -300,7 +300,7 @@ def test_renderer_contract_requires_synchronized_cross_family_scrolling() -> Non
         'workspace.querySelectorAll(".speech-matrix-scroll")',
         'matrixScroller.querySelector(`.matrix-cell[data-kind="tts-layer"]',
         'syncSelectionDOM({ reveal: true, behavior: "auto" });',
-        'target.focus({ preventScroll: true });',
+        "target.focus({ preventScroll: true });",
     )
     assert validator.CROSS_FAMILY_SYNCHRONIZED_SCROLL_CSS_MARKERS == (
         ".position-timeline.scrollable",
@@ -343,6 +343,183 @@ def test_renderer_contract_restores_asr_architecture_context() -> None:
     assert validator.ASR_ARCHITECTURE_CSS_MARKERS == (".matrix-architecture",)
 
 
+def test_renderer_contract_requires_recorded_asr_intervention_replay() -> None:
+    assert validator.ASR_RECORDED_REPLAY_SCRIPT_MARKERS == (
+        "recorded_intervention_replay",
+        "audio-jacobian-lens.recorded-asr-intervention-replay",
+        "function composeReplayReport(",
+        "function activateReplayCondition(",
+        'url.searchParams.set("condition", condition.id);',
+        "Cached analyses · never live inference",
+        "function effectiveProvenance()",
+        "Original Laurel/Yanny post",
+    )
+    assert validator.ASR_RECORDED_REPLAY_CSS_MARKERS == (
+        ".recorded-replay",
+        ".replay-condition-buttons",
+        ".replay-active-summary",
+        ".replay-attribution",
+    )
+
+
+def _recorded_replay_condition(condition_id: str) -> dict:
+    expected = validator.ASR_REPLAY_EXPECTED[condition_id]
+    schedules = {
+        "baseline": [],
+        "yanny": [
+            ("Y", 4, 9),
+            ("AE", 9, 18),
+            ("N", 18, 24),
+            ("IY", 24, 34),
+        ],
+        "laurel": [
+            ("L", 4, 9),
+            ("AO", 9, 18),
+            ("R", 18, 22),
+            ("AH", 22, 28),
+            ("L", 28, 34),
+        ],
+    }
+    return {
+        "id": condition_id,
+        "label": "No intervention"
+        if condition_id == "baseline"
+        else condition_id.title(),
+        "recorded": True,
+        "interpolated": False,
+        "generated": {
+            "text": expected["text"],
+            "token_ids": list(expected["token_ids"]),
+            "target_match": expected["target_match"],
+        },
+        "budget_fraction": expected["budget_fraction"],
+        "coefficient_scale": expected["coefficient_scale"],
+        "evidence": {
+            "tier": expected["evidence_tier"],
+            "badge": "Recorded condition",
+            "tone": "neutral",
+            "summary": "A nonempty evidence summary.",
+        },
+        "method": {
+            "kind": "recorded_method",
+            "label": "Recorded method",
+            "description": "A nonempty method description.",
+            "coefficient_policy": "A nonempty coefficient policy.",
+        },
+        "layers": [] if condition_id == "baseline" else [0, 1, 2, 3],
+        "schedule": [
+            {
+                "phone": phone,
+                "start_seconds": start * 0.02,
+                "end_seconds": end * 0.02,
+                "start_position": start,
+                "end_position": end,
+            }
+            for phone, start, end in schedules[condition_id]
+        ],
+    }
+
+
+@pytest.mark.parametrize("condition_id", validator.ASR_REPLAY_CONDITIONS)
+def test_recorded_replay_condition_contract_accepts_exact_schema(
+    condition_id: str,
+) -> None:
+    validator._validate_replay_condition_contract(
+        _recorded_replay_condition(condition_id),
+        condition_id=condition_id,
+        encoder_layers=[0, 1, 2, 3],
+        audio_duration_seconds=0.9255328798,
+    )
+
+
+@pytest.mark.parametrize("nested_field", ("generated", "evidence", "method"))
+def test_recorded_replay_condition_rejects_unknown_nested_fields(
+    nested_field: str,
+) -> None:
+    condition = _recorded_replay_condition("yanny")
+    condition[nested_field]["injected"] = "must not publish"
+
+    with pytest.raises(ValueError, match=f"{nested_field} schema changed"):
+        validator._validate_replay_condition_contract(
+            condition,
+            condition_id="yanny",
+            encoder_layers=[0, 1, 2, 3],
+            audio_duration_seconds=0.9255328798,
+        )
+
+
+def test_recorded_replay_condition_rejects_unknown_schedule_fields() -> None:
+    condition = _recorded_replay_condition("laurel")
+    condition["schedule"][0]["injected"] = 1
+
+    with pytest.raises(ValueError, match="schedule item 0 schema changed"):
+        validator._validate_replay_condition_contract(
+            condition,
+            condition_id="laurel",
+            encoder_layers=[0, 1, 2, 3],
+            audio_duration_seconds=0.9255328798,
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        lambda condition: condition["generated"]["token_ids"].__setitem__(0, True),
+        lambda condition: condition["generated"].__setitem__("target_match", 1),
+        lambda condition: condition["evidence"].__setitem__("summary", 7),
+        lambda condition: condition["method"].__setitem__("kind", []),
+        lambda condition: condition["layers"].pop(),
+        lambda condition: condition["schedule"].pop(),
+        lambda condition: condition["schedule"][0].__setitem__("start_seconds", -0.02),
+        lambda condition: condition["schedule"][1].__setitem__("start_position", 8),
+        lambda condition: condition["schedule"][0].__setitem__("end_seconds", 1.0),
+    ),
+)
+def test_recorded_replay_condition_rejects_wrong_types_counts_and_bounds(
+    mutation,
+) -> None:
+    condition = _recorded_replay_condition("yanny")
+    mutation(condition)
+
+    with pytest.raises(ValueError, match="recorded yanny"):
+        validator._validate_replay_condition_contract(
+            condition,
+            condition_id="yanny",
+            encoder_layers=[0, 1, 2, 3],
+            audio_duration_seconds=0.9255328798,
+        )
+
+
+def _recorded_replay_source() -> dict:
+    return {
+        "audio_url": "/audio-jacobian-lens/audio/laurel-yanny.mp3",
+        "sha256": "1aac3c17d79ab00e7747f7fbaa2e4b1ba05538d9c2666c820d9a3a8444069a49",
+        "source_url": validator.ASR_REPLAY_SOURCE_URL,
+        "license": validator.ASR_REPLAY_LICENSE,
+        "license_url": validator.ASR_REPLAY_LICENSE_URL,
+        "attribution": validator.ASR_REPLAY_ATTRIBUTION,
+        "modification_notice": validator.ASR_REPLAY_MODIFICATION_NOTICE,
+        "rights_status": validator.ASR_REPLAY_RIGHTS_STATUS,
+    }
+
+
+def test_recorded_replay_source_requires_exact_attributed_rights_metadata() -> None:
+    validator._validate_recorded_replay_source(_recorded_replay_source())
+
+    for field, replacement in (
+        ("rights_status", "cleared_with_attribution"),
+        ("source_url", "https://example.invalid/"),
+        ("license", "MIT"),
+        ("license_url", "https://example.invalid/license"),
+        ("attribution", "Generic attribution"),
+        ("modification_notice", "Changed"),
+    ):
+        source = _recorded_replay_source()
+        source[field] = replacement
+        with pytest.raises(ValueError, match="exact report-local source"):
+            validator._validate_recorded_replay_source(source)
+
+
 def test_safe_cache_rejects_private_artifact_paths() -> None:
     with pytest.raises(ValueError, match="private filesystem"):
         validator._validate_safe({"source": "/Users/example/private/lens.pt"})
@@ -360,7 +537,7 @@ def test_asr_manifest_provenance_requires_held_out_train_only_fit() -> None:
                     "sha256": "0" * 64,
                     "public_evaluation_relationship": (
                         "speaker-held-out; public clips use speaker 1272"
-                    )
+                    ),
                 },
                 "decoder": {"artifact": "decoder lens", "sha256": "1" * 64},
                 "phone_signature": {
@@ -479,6 +656,21 @@ def test_audio_reference_requires_matching_url_and_content_hash(
         )
 
 
+def test_media_validation_accepts_distinct_family_inputs_as_exact_union(
+    tmp_path: Path,
+) -> None:
+    asr_audio = tmp_path / "audio" / "asr-only.mp3"
+    speech_audio = tmp_path / "audio" / "speech-only.flac"
+    _write(asr_audio, "asr")
+    _write(speech_audio, "speech")
+
+    validator._validate_media_union(tmp_path, {asr_audio, speech_audio})
+
+    _write(tmp_path / "audio" / "orphan.wav", "orphan")
+    with pytest.raises(ValueError, match="media set"):
+        validator._validate_media_union(tmp_path, {asr_audio, speech_audio})
+
+
 def test_site_manifest_integrity_checks_counts_and_hashes(tmp_path: Path) -> None:
     relative_paths = {
         "assets/explorer.js": "script",
@@ -512,9 +704,11 @@ def test_site_manifest_integrity_checks_counts_and_hashes(tmp_path: Path) -> Non
 
 def test_phone_steering_payload_rejects_interpolation_and_evidence_collapse() -> None:
     payload = json.loads(
-        (Path(__file__).resolve().parents[1] / "data" / "static_phone_steering_v1.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            Path(__file__).resolve().parents[1]
+            / "data"
+            / "static_phone_steering_v1.json"
+        ).read_text(encoding="utf-8")
     )
     validator._validate_phone_steering_payload(payload)
 
@@ -523,13 +717,13 @@ def test_phone_steering_payload_rejects_interpolation_and_evidence_collapse() ->
         validator._validate_phone_steering_payload(payload)
 
     payload = json.loads(
-        (Path(__file__).resolve().parents[1] / "data" / "static_phone_steering_v1.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            Path(__file__).resolve().parents[1]
+            / "data"
+            / "static_phone_steering_v1.json"
+        ).read_text(encoding="utf-8")
     )
-    payload["targets"]["laurel"]["evidence"]["tier"] = (
-        "open_loop_cross_fit_reproduced"
-    )
+    payload["targets"]["laurel"]["evidence"]["tier"] = "open_loop_cross_fit_reproduced"
     with pytest.raises(ValueError, match="Laurel"):
         validator._validate_phone_steering_payload(payload)
 
@@ -537,9 +731,7 @@ def test_phone_steering_payload_rejects_interpolation_and_evidence_collapse() ->
 @pytest.mark.parametrize(
     "mutation",
     (
-        lambda payload: payload["targets"]["yanny"]["checkpoints"].__setitem__(
-            0, None
-        ),
+        lambda payload: payload["targets"]["yanny"]["checkpoints"].__setitem__(0, None),
         lambda payload: payload["targets"]["yanny"].update(
             {"schedule": [{}], "coefficient_heatmap": [None] * 4}
         ),
@@ -554,9 +746,11 @@ def test_phone_steering_payload_rejects_interpolation_and_evidence_collapse() ->
 )
 def test_phone_steering_payload_rejects_malformed_nested_data(mutation) -> None:
     payload = json.loads(
-        (Path(__file__).resolve().parents[1] / "data" / "static_phone_steering_v1.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            Path(__file__).resolve().parents[1]
+            / "data"
+            / "static_phone_steering_v1.json"
+        ).read_text(encoding="utf-8")
     )
     mutation(payload)
 
@@ -752,6 +946,28 @@ def _asr_report() -> dict:
 
 def test_asr_site_validation_accepts_exact_realized_rank_provenance() -> None:
     validator._validate_asr_or_speech(_asr_report(), family="asr")
+
+
+def test_asr_site_validation_does_not_globally_weaken_rights_status() -> None:
+    report = _asr_report()
+    report["source"]["rights_status"] = validator.ASR_REPLAY_RIGHTS_STATUS
+
+    with pytest.raises(ValueError, match="expected rights status"):
+        validator._validate_asr_or_speech(report, family="asr")
+
+    validator._validate_asr_or_speech(
+        report,
+        family="asr",
+        expected_rights_status=validator.ASR_REPLAY_RIGHTS_STATUS,
+    )
+
+
+def test_speech_site_validation_rejects_laurel_yanny_rights_status() -> None:
+    report = _speech_report()
+    report["source"]["rights_status"] = validator.ASR_REPLAY_RIGHTS_STATUS
+
+    with pytest.raises(ValueError, match="expected rights status"):
+        validator._validate_asr_or_speech(report, family="speech")
 
 
 def test_asr_site_validation_rejects_shifted_encoder_token_mapping() -> None:

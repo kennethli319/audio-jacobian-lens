@@ -22,7 +22,8 @@ CATALOG_SCHEMA_VERSION = 2
 _HEX_40 = re.compile(r"^[0-9a-f]{40}$")
 _HEX_64 = re.compile(r"^[0-9a-f]{64}$")
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-_UTTERANCE_ID = re.compile(r"^[0-9]+-[0-9]+-[0-9]+$")
+_SOURCE_ITEM_ID = re.compile(r"^(?:[0-9]+-[0-9]+-[0-9]+|[a-z0-9]+(?:-[a-z0-9]+)*)$")
+_AUDIO_SUFFIXES = {".flac", ".mp3"}
 _LFM_FIT_RELATIONSHIPS = {
     "held_out_from_one_clip_fit",
     "in_sample_integration",
@@ -31,7 +32,7 @@ _LFM_FIT_RELATIONSHIPS = {
 
 @dataclass(frozen=True)
 class StaticAudioSource:
-    """Pinned source and redistribution metadata for the input FLAC files."""
+    """Pinned source and redistribution metadata for the default input set."""
 
     dataset_id: str
     dataset_revision: str
@@ -44,22 +45,31 @@ class StaticAudioSource:
 
 
 @dataclass(frozen=True)
+class StaticAudioSourceOverride:
+    """Per-input rights metadata for a sample outside the default dataset."""
+
+    license: str
+    license_url: str
+    source_url: str
+    attribution: str
+    modification_notice: str
+
+
+@dataclass(frozen=True)
 class StaticAudioSample:
-    """One ordered ASR and speech-to-speech explorer input."""
+    """One ordered explorer input with a pinned local filename and hash."""
 
     slug: str
     title: str
     description: str
     utterance_id: str
+    filename: str
     reference_transcript: str
     duration_seconds: float
     sha256: str
     lfm_fit_relationship: str
+    source_override: StaticAudioSourceOverride | None = None
     featured_views: tuple[str, ...] = ()
-
-    @property
-    def filename(self) -> str:
-        return f"{self.slug}.flac"
 
 
 @dataclass(frozen=True)
@@ -83,6 +93,16 @@ class StaticExplorerCatalog:
     audio_source: StaticAudioSource
     audio_samples: tuple[StaticAudioSample, ...]
     tts_examples: tuple[StaticTTSExample, ...]
+    asr_audio_samples: tuple[StaticAudioSample, ...] | None = None
+
+    def audio_samples_for_family(self, family: str) -> tuple[StaticAudioSample, ...]:
+        """Return the ordered input set for one public explorer family."""
+
+        if family == "asr":
+            return self.asr_audio_samples or self.audio_samples
+        if family == "speech":
+            return self.audio_samples
+        raise ValueError(f"unsupported static explorer family: {family}")
 
 
 def _mapping(value: Any, *, label: str) -> Mapping[str, Any]:
@@ -138,15 +158,54 @@ def _audio_source(value: Any) -> StaticAudioSource:
     )
 
 
-def _audio_sample(value: Any, *, index: int) -> StaticAudioSample:
-    label = f"audio_samples[{index}]"
+def _audio_source_override(
+    value: Any, *, label: str
+) -> StaticAudioSourceOverride | None:
+    if value is None:
+        return None
+    source = _mapping(value, label=label)
+    return StaticAudioSourceOverride(
+        license=_text(source.get("license"), label=f"{label}.license"),
+        license_url=_text(source.get("license_url"), label=f"{label}.license_url"),
+        source_url=_text(source.get("source_url"), label=f"{label}.source_url"),
+        attribution=_text(source.get("attribution"), label=f"{label}.attribution"),
+        modification_notice=_text(
+            source.get("modification_notice"),
+            label=f"{label}.modification_notice",
+        ),
+    )
+
+
+def _audio_filename(value: Any, *, slug: str, label: str) -> str:
+    filename = _text(value, label=label)
+    path = PurePosixPath(filename)
+    if (
+        path.is_absolute()
+        or len(path.parts) != 1
+        or path.name != filename
+        or path.stem != slug
+        or path.suffix.lower() not in _AUDIO_SUFFIXES
+    ):
+        raise ValueError(
+            f"{label} must match the sample slug and use a supported audio suffix"
+        )
+    return filename
+
+
+def _audio_sample(value: Any, *, index: int, collection: str) -> StaticAudioSample:
+    label = f"{collection}[{index}]"
     source = _mapping(value, label=label)
     slug = _text(source.get("slug"), label=f"{label}.slug")
     if not _SLUG.fullmatch(slug):
         raise ValueError(f"{label}.slug is not URL-safe")
     utterance_id = _text(source.get("utterance_id"), label=f"{label}.utterance_id")
-    if not _UTTERANCE_ID.fullmatch(utterance_id):
+    if not _SOURCE_ITEM_ID.fullmatch(utterance_id):
         raise ValueError(f"{label}.utterance_id is invalid")
+    filename = _audio_filename(
+        source.get("filename", f"{slug}.flac"),
+        slug=slug,
+        label=f"{label}.filename",
+    )
     sha256 = _text(source.get("sha256"), label=f"{label}.sha256")
     if not _HEX_64.fullmatch(sha256):
         raise ValueError(f"{label}.sha256 must be a lowercase SHA-256 hash")
@@ -176,6 +235,7 @@ def _audio_sample(value: Any, *, index: int) -> StaticAudioSample:
         title=_text(source.get("title"), label=f"{label}.title"),
         description=_text(source.get("description"), label=f"{label}.description"),
         utterance_id=utterance_id,
+        filename=filename,
         reference_transcript=_text(
             source.get("reference_transcript"),
             label=f"{label}.reference_transcript",
@@ -183,6 +243,9 @@ def _audio_sample(value: Any, *, index: int) -> StaticAudioSample:
         duration_seconds=float(duration),
         sha256=sha256,
         lfm_fit_relationship=relationship,
+        source_override=_audio_source_override(
+            source.get("source_override"), label=f"{label}.source_override"
+        ),
         featured_views=featured,
     )
 
@@ -235,11 +298,18 @@ def load_static_explorer_catalog(path: str | Path) -> StaticExplorerCatalog:
     if report_count <= 0:
         raise ValueError("reports_per_family must be positive")
 
+    raw_audio_samples = _list(root.get("audio_samples"), label="audio_samples")
     audio_samples = tuple(
-        _audio_sample(value, index=index)
-        for index, value in enumerate(
-            _list(root.get("audio_samples"), label="audio_samples")
-        )
+        _audio_sample(value, index=index, collection="audio_samples")
+        for index, value in enumerate(raw_audio_samples)
+    )
+    raw_asr_audio_samples = _list(
+        root.get("asr_audio_samples", raw_audio_samples),
+        label="asr_audio_samples",
+    )
+    asr_audio_samples = tuple(
+        _audio_sample(value, index=index, collection="asr_audio_samples")
+        for index, value in enumerate(raw_asr_audio_samples)
     )
     tts_examples = tuple(
         _tts_example(value, index=index)
@@ -249,9 +319,14 @@ def load_static_explorer_catalog(path: str | Path) -> StaticExplorerCatalog:
     )
     if len(audio_samples) != report_count:
         raise ValueError("audio_samples count does not match reports_per_family")
+    if len(asr_audio_samples) != report_count:
+        raise ValueError("asr_audio_samples count does not match reports_per_family")
     if len(tts_examples) != report_count:
         raise ValueError("tts_examples count does not match reports_per_family")
     _require_unique([item.slug for item in audio_samples], label="audio sample slug")
+    _require_unique(
+        [item.slug for item in asr_audio_samples], label="ASR audio sample slug"
+    )
     _require_unique(
         [item.utterance_id for item in audio_samples],
         label="audio sample utterance_id",
@@ -259,14 +334,24 @@ def load_static_explorer_catalog(path: str | Path) -> StaticExplorerCatalog:
     _require_unique(
         [item.sha256 for item in audio_samples], label="audio sample SHA-256"
     )
+    _require_unique(
+        [item.utterance_id for item in asr_audio_samples],
+        label="ASR audio sample utterance_id",
+    )
+    _require_unique(
+        [item.sha256 for item in asr_audio_samples], label="ASR audio sample SHA-256"
+    )
     _require_unique([item.example_id for item in tts_examples], label="TTS example id")
-    in_sample = [
-        item
-        for item in audio_samples
-        if item.lfm_fit_relationship == "in_sample_integration"
-    ]
-    if len(in_sample) != 1:
-        raise ValueError("the LFM catalog must identify exactly one in-sample input")
+    for family, samples in (("speech", audio_samples), ("ASR", asr_audio_samples)):
+        in_sample = [
+            item
+            for item in samples
+            if item.lfm_fit_relationship == "in_sample_integration"
+        ]
+        if len(in_sample) != 1:
+            raise ValueError(
+                f"the {family} catalog must identify exactly one in-sample input"
+            )
 
     return StaticExplorerCatalog(
         reports_per_family=report_count,
@@ -277,4 +362,5 @@ def load_static_explorer_catalog(path: str | Path) -> StaticExplorerCatalog:
         audio_source=_audio_source(root.get("audio_source")),
         audio_samples=audio_samples,
         tts_examples=tts_examples,
+        asr_audio_samples=asr_audio_samples,
     )

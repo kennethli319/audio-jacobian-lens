@@ -9,6 +9,7 @@ import pytest
 from jlens.static_explorer_catalog import (
     StaticAudioSample,
     StaticAudioSource,
+    StaticAudioSourceOverride,
     StaticExplorerCatalog,
 )
 from scripts import export_static_explorer as exporter
@@ -395,6 +396,7 @@ def _mini_catalog(audio_values: list[bytes]) -> StaticExplorerCatalog:
             title=f"Sample {index}",
             description=f"Description {index}",
             utterance_id=f"1-2-{index:04d}",
+            filename=f"sample-{index}.flac",
             reference_transcript=f"Reference {index}.",
             duration_seconds=0.2,
             sha256=sha256(value).hexdigest(),
@@ -420,6 +422,115 @@ def _mini_catalog(audio_values: list[bytes]) -> StaticExplorerCatalog:
         audio_samples=samples,
         tts_examples=(),
     )
+
+
+def test_source_payload_uses_per_sample_filename_and_rights_override() -> None:
+    sample = StaticAudioSample(
+        slug="outside-sample",
+        title="Outside sample",
+        description="A separately licensed input",
+        utterance_id="source-audio-s7",
+        filename="outside-sample.mp3",
+        reference_transcript="Example.",
+        duration_seconds=0.5,
+        sha256="a" * 64,
+        lfm_fit_relationship="held_out_from_one_clip_fit",
+        source_override=StaticAudioSourceOverride(
+            license="CC BY 4.0",
+            license_url="https://license.example/",
+            source_url="https://source.example/",
+            attribution="Source attribution",
+            modification_notice="Reproduced unchanged.",
+        ),
+    )
+    source = StaticAudioSource(
+        dataset_id="example/dataset",
+        dataset_revision="1" * 40,
+        parquet_path="clean/example.parquet",
+        upstream_collection="Example collection",
+        license="different default license",
+        license_url="https://default.example/license",
+        source_url="https://default.example/source",
+        attribution="Default attribution",
+    )
+
+    payload = exporter._source_payload(sample, source)
+
+    assert payload["audio_url"].endswith("/outside-sample.mp3")
+    assert payload["repository_path"] == "samples/outside-sample.mp3"
+    assert payload["license"] == "CC BY 4.0"
+    assert payload["rights_status"] == "attributed_under_source_page_license"
+    assert payload["source_url"] == "https://source.example/"
+    assert payload["attribution"] == "Source attribution"
+    assert payload["modification_notice"] == "Reproduced unchanged."
+
+
+def test_source_payload_keeps_default_collection_as_cleared() -> None:
+    catalog = _mini_catalog([b"default-source"])
+
+    payload = exporter._source_payload(catalog.audio_samples[0], catalog.audio_source)
+
+    assert payload["rights_status"] == "cleared_with_attribution"
+
+
+def test_catalog_selects_distinct_asr_and_speech_audio_sets() -> None:
+    catalog = _mini_catalog([b"speech"])
+    asr_sample = StaticAudioSample(
+        slug="asr-only",
+        title="ASR only",
+        description="ASR replacement",
+        utterance_id="asr-only-input",
+        filename="asr-only.mp3",
+        reference_transcript="ASR.",
+        duration_seconds=0.2,
+        sha256=sha256(b"asr").hexdigest(),
+        lfm_fit_relationship="in_sample_integration",
+        source_override=StaticAudioSourceOverride(
+            license="CC BY 4.0",
+            license_url="https://license.example/",
+            source_url="https://source.example/",
+            attribution="Separate source attribution.",
+            modification_notice="MP3 reproduced byte-for-byte unchanged.",
+        ),
+    )
+    catalog = StaticExplorerCatalog(
+        reports_per_family=catalog.reports_per_family,
+        curated_findings_policy=catalog.curated_findings_policy,
+        audio_source=catalog.audio_source,
+        audio_samples=catalog.audio_samples,
+        tts_examples=catalog.tts_examples,
+        asr_audio_samples=(asr_sample,),
+    )
+
+    assert [sample.slug for sample in catalog.audio_samples_for_family("asr")] == [
+        "asr-only"
+    ]
+    assert [sample.slug for sample in catalog.audio_samples_for_family("speech")] == [
+        "sample-0"
+    ]
+    assert exporter._selected_slugs(catalog, None, family="asr") == {"asr-only"}
+    assert exporter._selected_slugs(catalog, None, family="speech") == {"sample-0"}
+
+    provenance = {"rights": {}, "rights_policy": {}}
+    asr_provenance = exporter._detailed_provenance(provenance, catalog, family="asr")
+    speech_provenance = exporter._detailed_provenance(
+        provenance, catalog, family="speech"
+    )
+    assert asr_provenance["rights"]["source_collection"].endswith(
+        "1 individually attributed input"
+    )
+    assert asr_provenance["rights"]["source_url"] == exporter.PUBLIC_CATALOG_URL
+    assert (
+        "Per-report source metadata is authoritative"
+        in asr_provenance["rights"]["attribution"]
+    )
+    assert "Separate source attribution" in asr_provenance["rights"]["attribution"]
+    assert (
+        "MP3 reproduced byte-for-byte unchanged"
+        in asr_provenance["rights"]["modification_notice"]
+    )
+    assert speech_provenance["rights"]["source_url"] == ("https://example.test/source")
+    assert speech_provenance["rights"]["attribution"] == "Example attribution"
 
 
 def test_selective_export_preserves_existing_reports_and_rebuilds_ordered_manifest(
@@ -471,6 +582,131 @@ def test_selective_export_preserves_existing_reports_and_rebuilds_ordered_manife
     assert second_manifest["report_count"] == 2
     assert second_manifest["reports"][1]["summary"] == "Description 1"
     assert second_manifest["reports"][1]["reference_transcript"] == "Reference 1."
+
+
+def _catalog_with_recorded_replay_sample(audio: bytes) -> StaticExplorerCatalog:
+    base = _mini_catalog([audio])
+    sample = StaticAudioSample(
+        slug=exporter.RECORDED_REPLAY_SAMPLE_SLUG,
+        title="Laurel or Yanny?",
+        description="Recorded intervention replay",
+        utterance_id="bosker-audio-s7",
+        filename="laurel-yanny.mp3",
+        reference_transcript="Ambiguous source clip.",
+        duration_seconds=0.2,
+        sha256=sha256(audio).hexdigest(),
+        lfm_fit_relationship="held_out_from_one_clip_fit",
+        source_override=StaticAudioSourceOverride(
+            license="CC BY 4.0",
+            license_url="https://creativecommons.org/licenses/by/4.0/",
+            source_url="https://hrbosker.github.io/demos/laurel-yanny/",
+            attribution="Hans Rutger Bosker, Audio S7.",
+            modification_notice="Reproduced byte-for-byte unchanged.",
+        ),
+    )
+    return StaticExplorerCatalog(
+        reports_per_family=1,
+        curated_findings_policy=base.curated_findings_policy,
+        audio_source=base.audio_source,
+        audio_samples=base.audio_samples,
+        tts_examples=(),
+        asr_audio_samples=(sample,),
+    )
+
+
+def test_fresh_laurel_yanny_export_signals_required_replay_publisher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audio = b"ambiguous-source-audio"
+    catalog = _catalog_with_recorded_replay_sample(audio)
+    samples_dir = tmp_path / "samples"
+    samples_dir.mkdir()
+    (samples_dir / "laurel-yanny.mp3").write_bytes(audio)
+    monkeypatch.setattr(exporter, "_analyze", lambda *_args, **_kwargs: _raw_payload())
+
+    exporter.export_family(
+        family="asr",
+        endpoint="http://unused.test",
+        samples_dir=samples_dir,
+        output_dir=tmp_path / "reports",
+        provenance={},
+        catalog=catalog,
+        selected_slugs={exporter.RECORDED_REPLAY_SAMPLE_SLUG},
+        resume=False,
+        catalog_sha256="0" * 64,
+    )
+
+    message = capsys.readouterr().err
+    assert "does not yet contain its recorded intervention replay" in message
+    assert "scripts/publish_static_asr_replay.py immediately" in message
+    assert "scripts/validate_static_explorer_site.py" in message
+
+
+def test_routine_asr_export_preserves_manifest_bound_recorded_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    audio = b"ambiguous-source-audio"
+    catalog = _catalog_with_recorded_replay_sample(audio)
+    samples_dir = tmp_path / "samples"
+    samples_dir.mkdir()
+    (samples_dir / "laurel-yanny.mp3").write_bytes(audio)
+    output_dir = tmp_path / "reports"
+    monkeypatch.setattr(exporter, "_analyze", lambda *_args, **_kwargs: _raw_payload())
+    exporter.export_family(
+        family="asr",
+        endpoint="http://unused.test",
+        samples_dir=samples_dir,
+        output_dir=output_dir,
+        provenance={},
+        catalog=catalog,
+        selected_slugs={exporter.RECORDED_REPLAY_SAMPLE_SLUG},
+        resume=False,
+        catalog_sha256="0" * 64,
+    )
+    capsys.readouterr()
+
+    report_path = output_dir / "laurel-yanny.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report[exporter.RECORDED_REPLAY_FIELD] = {
+        "schema_id": exporter.RECORDED_REPLAY_SCHEMA_ID,
+        "schema_version": 1,
+    }
+    exporter._write_json(report_path, report)
+    manifest_path = output_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["reports"][0]["sha256"] = exporter._sha256(report_path)
+    manifest["reports"][0]["bytes"] = report_path.stat().st_size
+    exporter._write_json(manifest_path, manifest)
+    recorded_bytes = report_path.read_bytes()
+    monkeypatch.setattr(
+        exporter,
+        "_analyze",
+        lambda *_args, **_kwargs: pytest.fail(
+            "a routine export must not overwrite an integrated replay"
+        ),
+    )
+
+    rebuilt = exporter.export_family(
+        family="asr",
+        endpoint="http://unused.test",
+        samples_dir=samples_dir,
+        output_dir=output_dir,
+        provenance={},
+        catalog=catalog,
+        selected_slugs={exporter.RECORDED_REPLAY_SAMPLE_SLUG},
+        resume=False,
+        catalog_sha256="0" * 64,
+    )
+
+    assert report_path.read_bytes() == recorded_bytes
+    assert rebuilt["reports"][0]["sha256"] == exporter._sha256(report_path)
+    output = capsys.readouterr()
+    assert "manifest-bound recorded replay" in output.out
+    assert "does not yet contain" not in output.err
 
 
 def test_selective_export_does_not_replace_manifest_until_catalog_is_complete(

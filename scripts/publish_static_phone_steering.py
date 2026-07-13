@@ -78,14 +78,14 @@ def _public_html(source: str) -> str:
             '        <a href="./">Speech</a>\n'
             '        <a href="./chatterbox">TTS</a>\n'
             '        <a class="active" href="./steering.html" aria-current="page">Steering</a>\n'
-            '      </nav>'
+            "      </nav>"
         ),
         (
             '<nav class="site-nav" aria-label="Model explorers">\n'
             '        <a href="../">ASR</a>\n'
             '        <a href="../speech/">Speech</a>\n'
             '        <a class="active" href="./" aria-current="page">Steering</a>\n'
-            '      </nav>'
+            "      </nav>"
         ),
     )
     return body
@@ -116,9 +116,7 @@ def publish(*, source_root: Path, site_root: Path, published_on: str) -> None:
         shutil.copyfile(source_path, destination_path)
         published_paths.append(destination_relative)
 
-    source_html = (source_root / "web" / "steering.html").read_text(
-        encoding="utf-8"
-    )
+    source_html = (source_root / "web" / "steering.html").read_text(encoding="utf-8")
     destination_html = site_root / "steering" / "index.html"
     destination_html.parent.mkdir(parents=True, exist_ok=True)
     destination_html.write_text(_public_html(source_html), encoding="utf-8")
@@ -143,13 +141,13 @@ def publish(*, source_root: Path, site_root: Path, published_on: str) -> None:
     )
     if addition.strip() not in interaction:
         manifest["interaction_boundary"] = interaction + addition
-    media = str(manifest.get("media_policy") or "").rstrip()
-    media_addition = (
-        " The external Laurel/Yanny source recording is linked but not embedded "
-        "or redistributed."
+    manifest["media_policy"] = (
+        "The detailed explorers contain ten ASR reports and ten speech-to-speech "
+        "reports. Their referenced media comprises ten CC BY 4.0 LibriSpeech "
+        "FLACs plus the unchanged Laurel/Yanny Audio S7 MP3 reproduced from "
+        "Hans Rutger Bosker's demo using that page's CC BY 4.0 notice. Generated "
+        "LFM and Chatterbox audio remains excluded pending derived-output review."
     )
-    if media_addition.strip() not in media:
-        manifest["media_policy"] = media + media_addition
     payload = str(manifest.get("payload_policy") or "").rstrip()
     payload_addition = (
         " The steering payload contains only recorded schedules, scalar "

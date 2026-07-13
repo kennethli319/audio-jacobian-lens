@@ -21,17 +21,15 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
         "media_policy": "Cleared inputs only.",
         "payload_policy": "Reduced reports only.",
     }
-    (tmp_path / "site-manifest.json").write_text(
-        json.dumps(manifest), encoding="utf-8"
-    )
+    (tmp_path / "site-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
     publish(source_root=ROOT, site_root=tmp_path, published_on="2026-07-13")
 
     page = (tmp_path / "steering" / "index.html").read_text(encoding="utf-8")
     assert 'name="robots" content="noindex,nofollow"' in page
     assert 'href="https://kennethli319.github.io/audio-jacobian-lens/steering/"' in page
-    assert f'../assets/steering.js?v={ASSET_VERSION}' in page
-    assert f'../assets/steering.css?v={ASSET_VERSION}' in page
+    assert f"../assets/steering.js?v={ASSET_VERSION}" in page
+    assert f"../assets/steering.css?v={ASSET_VERSION}" in page
     assert 'data-results-url="../data/phone-steering-results.json"' in page
     assert '<nav class="site-nav" aria-label="Model explorers">' in page
     assert "PREVIEW · STATIC REPLAY" in page
@@ -43,9 +41,7 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
     assert "<audio" not in page
 
     data = json.loads(
-        (tmp_path / "data" / "phone-steering-results.json").read_text(
-            encoding="utf-8"
-        )
+        (tmp_path / "data" / "phone-steering-results.json").read_text(encoding="utf-8")
     )
     assert data["mode"] == "static_recorded_checkpoints"
     assert data["source"]["media_included"] is False
@@ -56,6 +52,8 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
     assert published_manifest["routes"]["recorded_interventions"] == [PUBLIC_ROUTE]
     assert published_manifest["publication_mode"] == "public_linked_noindex_review"
     assert "TTS" not in published_manifest["description"]
+    assert "Audio S7 MP3" in published_manifest["media_policy"]
+    assert "linked but not embedded" not in published_manifest["media_policy"]
     for relative_path in (
         "assets/steering.css",
         "assets/steering.js",

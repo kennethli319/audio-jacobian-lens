@@ -47,6 +47,9 @@ except ModuleNotFoundError:
 SCHEMA_ID = "audio-jacobian-lens.cached-explorer-report"
 MANIFEST_SCHEMA_ID = "audio-jacobian-lens.cached-explorer-manifest"
 FILTER_SCHEMA_ID = "audio-jacobian-lens.cached-explorer-filter-cache"
+RECORDED_REPLAY_SCHEMA_ID = "audio-jacobian-lens.recorded-asr-intervention-replay"
+RECORDED_REPLAY_FIELD = "recorded_intervention_replay"
+RECORDED_REPLAY_SAMPLE_SLUG = "laurel-yanny"
 SCHEMA_VERSION = 1
 WAVEFORM_PREVIEW_POINTS = 1024
 FORBIDDEN_KEYS = {
@@ -159,9 +162,44 @@ PHONE_SIGNATURE_METADATA_FIELDS = {
     "training_unit",
 }
 PUBLIC_PHONE_INVENTORY = (
-    "AA", "AE", "AH", "AO", "AW", "AY", "B", "CH", "D", "DH", "EH",
-    "ER", "EY", "F", "G", "HH", "IH", "IY", "K", "L", "M", "N",
-    "NG", "OW", "P", "R", "S", "SH", "T", "TH", "UW", "V", "W", "Z",
+    "AA",
+    "AE",
+    "AH",
+    "AO",
+    "AW",
+    "AY",
+    "B",
+    "CH",
+    "D",
+    "DH",
+    "EH",
+    "ER",
+    "EY",
+    "F",
+    "G",
+    "HH",
+    "IH",
+    "IY",
+    "K",
+    "L",
+    "M",
+    "N",
+    "NG",
+    "OW",
+    "P",
+    "R",
+    "S",
+    "SH",
+    "T",
+    "TH",
+    "UW",
+    "V",
+    "W",
+    "Z",
+)
+PUBLIC_CATALOG_URL = (
+    "https://github.com/kennethli319/audio-jacobian-lens/blob/main/"
+    "data/static_explorer_catalog_v2.json"
 )
 
 STREAM_FIELDS = {
@@ -281,9 +319,7 @@ def _validate_phone_signature_view(report: Mapping[str, Any]) -> None:
         raise ValueError("ASR encoder pooling geometry is missing")
     try:
         pooling_matches = all(
-            math.isclose(
-                float(pooling.get(field)), expected, rel_tol=0, abs_tol=1e-9
-            )
+            math.isclose(float(pooling.get(field)), expected, rel_tol=0, abs_tol=1e-9)
             for field, expected in expected_pooling.items()
         )
     except (TypeError, ValueError):
@@ -297,10 +333,8 @@ def _validate_phone_signature_view(report: Mapping[str, Any]) -> None:
     if (
         metadata.get("signature_top_k") != 100
         or metadata.get("display_unit") != "pooled_encoder_window"
-        or metadata.get("method")
-        != "nearest_frozen_top_k_j_signature_phone_prototype"
-        or metadata.get("training_unit")
-        != "aligned_native_20_ms_phone_midpoint_state"
+        or metadata.get("method") != "nearest_frozen_top_k_j_signature_phone_prototype"
+        or metadata.get("training_unit") != "aligned_native_20_ms_phone_midpoint_state"
         or not str(metadata.get("interpretation") or "").strip()
         or not math.isclose(
             float(metadata.get("effective_display_window_seconds") or 0),
@@ -908,30 +942,109 @@ def _write_json(
 def _source_payload(
     sample: StaticAudioSample, source: StaticAudioSource
 ) -> dict[str, Any]:
-    return {
+    sample_source = sample.source_override
+    payload = {
         "audio_url": f"/audio-jacobian-lens/audio/{sample.filename}",
         "repository_path": f"samples/{sample.filename}",
         "sha256": sample.sha256,
         "utterance_id": sample.utterance_id,
         "reference_transcript": sample.reference_transcript,
-        "license": source.license,
-        "rights_status": "cleared_with_attribution",
-        "attribution": source.attribution,
-        "source_url": source.source_url,
-        "license_url": source.license_url,
+        "license": sample_source.license if sample_source else source.license,
+        "rights_status": (
+            "attributed_under_source_page_license"
+            if sample_source
+            else "cleared_with_attribution"
+        ),
+        "attribution": (
+            sample_source.attribution if sample_source else source.attribution
+        ),
+        "source_url": sample_source.source_url if sample_source else source.source_url,
+        "license_url": (
+            sample_source.license_url if sample_source else source.license_url
+        ),
         "lfm_fit_relationship": sample.lfm_fit_relationship,
     }
+    if sample_source:
+        payload["modification_notice"] = sample_source.modification_notice
+    return payload
 
 
 def _detailed_provenance(
-    source: Mapping[str, Any], catalog: StaticExplorerCatalog
+    source: Mapping[str, Any],
+    catalog: StaticExplorerCatalog,
+    *,
+    family: str,
 ) -> dict[str, Any]:
     """Replace count-specific curated rights text for the ten-report bundle."""
 
     provenance = copy.deepcopy(dict(source))
     audio_source = catalog.audio_source
     count = catalog.reports_per_family
+    samples = catalog.audio_samples_for_family(family)
+    source_overrides = [sample for sample in samples if sample.source_override]
     rights = provenance.get("rights")
+    rights_policy = provenance.get("rights_policy")
+    if source_overrides:
+        default_count = count - len(source_overrides)
+        source_collection = (
+            f"{default_count} {audio_source.upstream_collection} inputs plus "
+            f"{len(source_overrides)} individually attributed input"
+            f"{'s' if len(source_overrides) != 1 else ''}"
+        )
+        attribution_parts = [
+            "Per-report source metadata is authoritative.",
+            f"{default_count} inputs: {audio_source.attribution}",
+        ]
+        modification_parts = [
+            f"The {default_count} published input FLAC files are copied "
+            "without modification from the pinned catalog source."
+        ]
+        licenses = {audio_source.license}
+        license_urls = {audio_source.license_url}
+        for sample in source_overrides:
+            sample_source = sample.source_override
+            if sample_source is None:  # pragma: no cover - narrowed above
+                continue
+            licenses.add(sample_source.license)
+            license_urls.add(sample_source.license_url)
+            attribution_parts.append(
+                f"{sample.title} ({sample.filename}): {sample_source.attribution}"
+            )
+            modification_parts.append(sample_source.modification_notice)
+        license_summary = (
+            next(iter(licenses)) if len(licenses) == 1 else "Per-report licenses"
+        )
+        license_url = (
+            next(iter(license_urls)) if len(license_urls) == 1 else PUBLIC_CATALOG_URL
+        )
+        attribution = " ".join(attribution_parts)
+        modification_notice = " ".join(modification_parts)
+        if isinstance(rights, dict):
+            rights.update(
+                {
+                    "source_collection": source_collection,
+                    "license": license_summary,
+                    "license_url": license_url,
+                    "source_url": PUBLIC_CATALOG_URL,
+                    "attribution": attribution,
+                    "modification_notice": modification_notice,
+                }
+            )
+        if isinstance(rights_policy, dict):
+            rights_policy.update(
+                {
+                    "included_audio": (
+                        f"The {count} source-input audio files are distributed "
+                        f"under {license_summary} with attribution; per-report "
+                        "source metadata is authoritative."
+                    ),
+                    "attribution": attribution,
+                    "source_url": PUBLIC_CATALOG_URL,
+                    "license_url": license_url,
+                }
+            )
+        return provenance
+
     if isinstance(rights, dict):
         rights.update(
             {
@@ -946,7 +1059,6 @@ def _detailed_provenance(
                 ),
             }
         )
-    rights_policy = provenance.get("rights_policy")
     if isinstance(rights_policy, dict):
         rights_policy.update(
             {
@@ -1378,6 +1490,60 @@ def _stage_existing_file(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
+def _existing_recorded_replay_slugs(
+    *, family: str, samples: Iterable[StaticAudioSample], output_dir: Path
+) -> set[str]:
+    """Find manifest-bound ASR reports whose replay must never be erased.
+
+    The replay publisher owns the integrated intervention extension. A routine
+    base-report refresh may preserve that immutable report, but must not
+    silently replace it with the unsteered analysis returned by the ASR server.
+    Full manifest and report validation still happens in ``export_family``.
+    """
+
+    if family != "asr":
+        return set()
+    result: set[str] = set()
+    for sample in samples:
+        report_path = output_dir / f"{sample.slug}.json"
+        if not report_path.is_file():
+            continue
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                f"invalid cached report JSON while checking replay: {report_path}"
+            ) from error
+        if not isinstance(report, Mapping):
+            raise ValueError(
+                f"cached report must be an object while checking replay: {report_path}"
+            )
+        if RECORDED_REPLAY_FIELD not in report:
+            continue
+        replay = report[RECORDED_REPLAY_FIELD]
+        if (
+            not isinstance(replay, Mapping)
+            or replay.get("schema_id") != RECORDED_REPLAY_SCHEMA_ID
+        ):
+            raise ValueError(
+                f"cached ASR replay has an invalid identity: {report_path}"
+            )
+        result.add(sample.slug)
+    return result
+
+
+def _report_has_recorded_replay(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    return isinstance(report, Mapping) and isinstance(
+        report.get(RECORDED_REPLAY_FIELD), Mapping
+    )
+
+
 def _promote_staged_family(
     *,
     stage_dir: Path,
@@ -1433,11 +1599,17 @@ def export_family(
     catalog_sha256: str,
 ) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
-    for sample in catalog.audio_samples:
+    samples = catalog.audio_samples_for_family(family)
+    for sample in samples:
         _validate_sample_file(samples_dir / sample.filename, sample)
-    requested_provenance = _detailed_provenance(provenance, catalog)
-    all_slugs = {sample.slug for sample in catalog.audio_samples}
-    needs_reuse = resume or selected_slugs != all_slugs
+    requested_provenance = _detailed_provenance(provenance, catalog, family=family)
+    all_slugs = {sample.slug for sample in samples}
+    recorded_replay_slugs = _existing_recorded_replay_slugs(
+        family=family,
+        samples=samples,
+        output_dir=output_dir,
+    )
+    needs_reuse = resume or selected_slugs != all_slugs or bool(recorded_replay_slugs)
     if needs_reuse:
         reuse_provenance, reuse_entries = _load_reuse_manifest(
             family=family,
@@ -1453,11 +1625,13 @@ def export_family(
         stage_dir = Path(temporary)
         changed_filenames: set[str] = set()
         missing: list[str] = []
-        for sample in catalog.audio_samples:
+        for sample in samples:
             example_id = f"{family}-{sample.slug}"
             manifest_entry = reuse_entries.get(example_id)
-            should_reuse = sample.slug not in selected_slugs or (
-                resume and manifest_entry is not None
+            should_reuse = (
+                sample.slug in recorded_replay_slugs
+                or sample.slug not in selected_slugs
+                or (resume and manifest_entry is not None)
             )
             if should_reuse:
                 if reuse_provenance is None:
@@ -1486,7 +1660,12 @@ def export_family(
                             output_dir / f"{sample.slug}.filters.json",
                             stage_dir / f"{sample.slug}.filters.json",
                         )
-                    print(f"kept {example_id} (manifest-bound report)")
+                    reason = (
+                        "manifest-bound recorded replay"
+                        if sample.slug in recorded_replay_slugs
+                        else "manifest-bound report"
+                    )
+                    print(f"kept {example_id} ({reason})")
                     continue
             _write_fresh_report(
                 family=family,
@@ -1508,7 +1687,7 @@ def export_family(
 
         reports: list[dict[str, Any]] = []
         report_payloads: list[Mapping[str, Any]] = []
-        for sample in catalog.audio_samples:
+        for sample in samples:
             entry = _validate_existing_report(
                 family=family,
                 sample=sample,
@@ -1526,7 +1705,7 @@ def export_family(
             )
         if len(reports) != catalog.reports_per_family:
             raise RuntimeError(f"{family} report count does not match the catalog")
-        final_provenance = _detailed_provenance(provenance, catalog)
+        final_provenance = _detailed_provenance(provenance, catalog, family=family)
         if family == "speech":
             _derive_speech_generation_provenance(final_provenance, report_payloads)
         for report in report_payloads:
@@ -1555,6 +1734,17 @@ def export_family(
             output_dir=output_dir,
             changed_filenames=changed_filenames,
         )
+        if family == "asr" and RECORDED_REPLAY_SAMPLE_SLUG in all_slugs:
+            replay_path = output_dir / f"{RECORDED_REPLAY_SAMPLE_SLUG}.json"
+            if not _report_has_recorded_replay(replay_path):
+                print(
+                    "ASR base reports are complete, but asr-laurel-yanny does "
+                    "not yet contain its recorded intervention replay. Run "
+                    "scripts/publish_static_asr_replay.py immediately, then "
+                    "run scripts/validate_static_explorer_site.py before "
+                    "publishing.",
+                    file=sys.stderr,
+                )
         return manifest
 
 
@@ -1601,9 +1791,12 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _selected_slugs(
-    catalog: StaticExplorerCatalog, requested: list[str] | None
+    catalog: StaticExplorerCatalog,
+    requested: list[str] | None,
+    *,
+    family: str,
 ) -> set[str]:
-    available = {sample.slug for sample in catalog.audio_samples}
+    available = {sample.slug for sample in catalog.audio_samples_for_family(family)}
     if not requested:
         return available
     selected: set[str] = set()
@@ -1625,11 +1818,11 @@ def _selected_slugs(
 def main() -> None:
     args = _parser().parse_args()
     catalog = load_static_explorer_catalog(args.catalog)
-    selected_slugs = _selected_slugs(catalog, args.only)
     families = args.family or ["asr", "speech"]
     endpoints = {"asr": args.asr_url, "speech": args.speech_url}
     provenance_source = json.loads(args.provenance_source.read_text(encoding="utf-8"))
     for family in families:
+        selected_slugs = _selected_slugs(catalog, args.only, family=family)
         provenance = provenance_source["families"][family]["provenance"]
         export_family(
             family=family,
