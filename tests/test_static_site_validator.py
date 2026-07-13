@@ -165,7 +165,7 @@ def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:
     assert validator.ASR_DECODER_HIERARCHY_SCRIPT_MARKERS == (
         'const asrDecoderCell = family === "asr" && kind === "decoder";',
         'data-value-role="top-candidate"',
-        'realizedBadge = asrDecoderCell ? "realized out" : "out";',
+        'realizedBadge = asrDecoderCell || (family === "asr" && kind === "head")',
         'const cellWidth = family === "asr" ? 92 : 82;',
         "renderSpeechRows(),",
         "Decoder boxes show each layer's top candidate",

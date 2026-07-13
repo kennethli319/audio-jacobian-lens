@@ -15,7 +15,7 @@ SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260712-17"
+EXPLORER_ASSET_VERSION = "20260712-19"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -46,7 +46,7 @@ SPEECH_TERMINATION_CSS_MARKERS = (".generation-status.capped",)
 ASR_DECODER_HIERARCHY_SCRIPT_MARKERS = (
     'const asrDecoderCell = family === "asr" && kind === "decoder";',
     'data-value-role="top-candidate"',
-    'realizedBadge = asrDecoderCell ? "realized out" : "out";',
+    'realizedBadge = asrDecoderCell || (family === "asr" && kind === "head")',
     'const cellWidth = family === "asr" ? 92 : 82;',
     "renderSpeechRows(),",
     "Decoder boxes show each layer's top candidate",
@@ -1058,7 +1058,6 @@ def validate_site(site_root: Path) -> dict[str, int]:
         "cell?.realized_token",
         'class="realized-rank-badge"',
         "showASRRealizedRank",
-        "realized_rank_by_max_length",
         "expectedReportCount = 10",
         "payload.report_count !== expectedReportCount",
         'id="sample-search"',
@@ -1073,7 +1072,20 @@ def validate_site(site_root: Path) -> dict[str, int]:
                 "static explorer is missing the readable speech-band contract: "
                 f"{marker}"
             )
+    for retired_marker in (
+        'id="static-filter-toggle"',
+        "function renderFilterControl()",
+        "function mergeLengthBuckets(",
+        "async function toggleFilter(",
+    ):
+        if retired_marker in explorer_script:
+            raise ValueError(
+                "static explorer still exposes retired token-length filtering: "
+                f"{retired_marker}"
+            )
     explorer_css = (site_root / "assets/explorer.css").read_text(encoding="utf-8")
+    if ".static-filter" in explorer_css:
+        raise ValueError("static explorer CSS still includes retired token-length filtering")
     for marker in (
         ".position-timeline.speech-readable",
         ".speech-matrix-window",
