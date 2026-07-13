@@ -192,6 +192,10 @@ Status: **in progress**
   token IDs with exact scoped ranks/denominators and raw lens scores; HEAD uses
   actual probability and log probability. Keep the full right inspector pinned
   until the user explicitly selects a different coordinate.
+- [x] Keep the static ASR decoder sequence in one continuous, contained
+  horizontal scroller so long token runs preserve their left-to-right order
+  without causing page-level overflow. Retain eight-token bands for the much
+  longer speech-to-speech responses.
 - [x] Add real encoder pooling overlap: 100 ms windows with a default 20 ms
   overlap, a zero-overlap control, exact range metadata, and adaptive widening
   only beyond the 100-bin display safety limit.
@@ -1159,6 +1163,17 @@ mixing but may increase boundary noise. A phone label remains the nearest
 prototype after pooling—not a framewise vote, phoneme boundary, local-only
 receptive field, calibrated probability, or causal attribution.
 
+### 2026-07-12 — Keep the ASR decoder token sequence continuous
+
+The static ASR decoder previously split the emitted sequence into separate
+eight-token bands. It now renders every ASR output token in one fixed-width
+layer matrix inside a contained horizontal scroller. Pointer, focus, selection,
+tooltip, realized-rank, filtering, and HEAD behavior remain unchanged. The much
+longer speech-to-speech responses retain their eight-token bands, so this
+shared-renderer change does not reintroduce the earlier readability problem on
+that page. Long ASR transcripts scroll inside the decoder panel rather than
+widening the page.
+
 ## Work log
 
 ### 2026-07-10
@@ -1865,3 +1880,9 @@ receptive field, calibrated probability, or causal attribution.
 - Final 100 ms release gate: 345 tests passed with three optional skips; Ruff,
   JavaScript syntax, whitespace, exact static hashes, and all 10/10/10 cached
   report contracts passed.
+- Replaced the static ASR decoder's separate eight-token bands with one
+  continuous horizontally scrollable layer matrix. All token columns, top
+  candidates, realized ranks, HEAD probabilities, tooltips, filters, and
+  synchronized selections are preserved; speech-to-speech keeps its existing
+  eight-token bands. Bumped the public explorer asset version and extended the
+  static validator to lock in this family-specific layout contract.

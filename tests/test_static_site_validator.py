@@ -167,6 +167,8 @@ def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:
         'data-value-role="top-candidate"',
         'realizedBadge = asrDecoderCell ? "realized out" : "out";',
         'const cellWidth = family === "asr" ? 92 : 82;',
+        'const windowSize = family === "asr" ? Math.max(tokens.length, 1) : 8;',
+        "All ${count} tokens · scroll horizontally",
         "renderSpeechRows(),",
         "Decoder boxes show each layer's top candidate",
     )

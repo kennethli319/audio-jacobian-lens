@@ -15,7 +15,7 @@ SITE_PREFIX = "/audio-jacobian-lens/"
 PUBLIC_BASE = "https://kennethli319.github.io/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech", "tts")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260712-14"
+EXPLORER_ASSET_VERSION = "20260712-15"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -48,6 +48,8 @@ ASR_DECODER_HIERARCHY_SCRIPT_MARKERS = (
     'data-value-role="top-candidate"',
     'realizedBadge = asrDecoderCell ? "realized out" : "out";',
     'const cellWidth = family === "asr" ? 92 : 82;',
+    'const windowSize = family === "asr" ? Math.max(tokens.length, 1) : 8;',
+    "All ${count} tokens · scroll horizontally",
     "renderSpeechRows(),",
     "Decoder boxes show each layer's top candidate",
 )
@@ -1030,7 +1032,6 @@ def validate_site(site_root: Path) -> dict[str, int]:
         raise ValueError("static explorer does not preserve ?sample selection")
     for marker in (
         "function renderSpeechRows()",
-        "const windowSize = 8",
         'class="speech-matrix-window"',
         "cell?.realized_token",
         'class="realized-rank-badge"',
