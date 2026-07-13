@@ -32,6 +32,15 @@ The earlier Laurel/Yanny causal experiment remains in `causal.html`,
 `causal.js`, and `docs/CAUSAL_TRACE.md` as a reproducible project artifact; it
 is no longer the primary public-facing study page.
 
+`/steering` opens the newer backend-free Phone Steering Replay. It uses a
+sanitized copy of `data/static_phone_steering_v1.json` and exposes only recorded
+Yanny and Laurel checkpoints: phone spans, scalar encoder coefficients, free
+outputs, full-head ranks/probabilities, and compact controls. The strength
+control snaps to those saved runs and never interpolates model behavior. No
+source audio, fitted tensor, upload, or inference endpoint is included. The
+equal-strength cross-fit Yanny result and target-conditioned Laurel existence
+result are intentionally presented with different evidence labels.
+
 ## Interaction model
 
 The primary lens views deliberately avoid a horizontally scrolling matrix.

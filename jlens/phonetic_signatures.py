@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,30 @@ import numpy as np
 import torch
 
 from jlens.cross_lens import CrossJacobianLens
+
+
+@dataclass(frozen=True)
+class PhonePrototypePullback:
+    """One phone-prototype readout objective pulled into encoder space.
+
+    ``direction`` is the local gradient of a fitted readout-logit contrast, not
+    a phone probability or evidence that Whisper causally uses the prototype.
+    Callers may propose it as an additive residual intervention and must measure
+    the resulting model computation separately.
+    """
+
+    direction: torch.Tensor
+    layer: int
+    target_phone: str
+    objective_value: float
+    target_readout_score: float
+    other_mean_readout_score: float
+    competing_phone_count: int
+    gradient_l2_norm: float
+    objective_kind: str = (
+        "target_phone_prototype_minus_other_phone_mean_readout_logit"
+    )
+    is_probability: bool = False
 
 
 def _hash_tensor(digest: Any, tensor: torch.Tensor) -> None:
@@ -195,6 +220,117 @@ class PhoneSignaturePrototypes:
             raise ValueError(
                 "phone prototypes were fitted from a different encoder lens"
             )
+
+    def prototype_logit_pullback(
+        self,
+        model: Any,
+        encoder_lens: CrossJacobianLens,
+        reference_residual: torch.Tensor,
+        *,
+        layer: int,
+        target_phone: str,
+    ) -> PhonePrototypePullback:
+        """Pull a dense phone-prototype contrast into encoder coordinates.
+
+        The scalar objective is the target prototype's dot product with the
+        target-mean-relative J-readout logits minus the mean corresponding
+        score of every other fitted phone prototype. Its gradient is taken with
+        respect to the actual reference encoder residual through the centered
+        encoder transport and the model's normal final norm and unembedding.
+
+        This deliberately uses the complete fitted vocabulary-space prototype,
+        rather than a decoded-token or BPE proxy. The result is only a proposed
+        local causal intervention direction; it is not a probability, a
+        calibrated phone score, or proof that the model uses this direction.
+        """
+        self.validate(model=model, encoder_lens=encoder_lens)
+        if layer not in self.prototypes:
+            raise ValueError(f"phone prototypes contain no layer {layer}")
+        if target_phone not in self.labels:
+            raise ValueError(f"phone prototypes contain no label {target_phone!r}")
+        if len(self.labels) < 2:
+            raise ValueError("phone prototype contrast requires at least two labels")
+        if encoder_lens.source_means is None or encoder_lens.target_mean is None:
+            raise ValueError("phone prototype pullback requires a centered encoder lens")
+        if (
+            reference_residual.ndim != 1
+            or reference_residual.shape[0] != encoder_lens.source_dim
+        ):
+            raise ValueError(
+                "reference_residual must have shape [encoder_lens.source_dim]"
+            )
+        if not bool(torch.isfinite(reference_residual).all()):
+            raise ValueError("reference_residual contains non-finite values")
+
+        target_index = self.labels.index(target_phone)
+        with torch.enable_grad():
+            source = (
+                reference_residual.detach()
+                .to(dtype=torch.float32)
+                .clone()
+                .requires_grad_(True)
+            )
+            target_mean = encoder_lens.target_mean.to(
+                device=source.device, dtype=source.dtype
+            )
+            with torch.no_grad():
+                baseline_logits = model.unembed(target_mean.unsqueeze(0)).float()
+            transported = encoder_lens.transport(source.unsqueeze(0), layer)
+            logits = model.unembed(transported).float()
+            expected_shape = (1, self.vocab_size)
+            if tuple(logits.shape) != expected_shape:
+                raise ValueError(
+                    f"model unembedding returned shape {tuple(logits.shape)}, "
+                    f"expected {expected_shape}"
+                )
+            if tuple(baseline_logits.shape) != expected_shape:
+                raise ValueError(
+                    "model unembedding returned an invalid target-mean baseline shape"
+                )
+            if not bool(torch.isfinite(logits).all()) or not bool(
+                torch.isfinite(baseline_logits).all()
+            ):
+                raise ValueError("phone prototype readout logits are non-finite")
+
+            prototypes = self.prototypes[layer].to(
+                device=logits.device, dtype=logits.dtype
+            )
+            readout_logits = logits - baseline_logits.to(logits.device)
+            scores = (readout_logits @ prototypes.T)[0]
+            other_mask = torch.ones(
+                len(self.labels), device=scores.device, dtype=torch.bool
+            )
+            other_mask[target_index] = False
+            target_score = scores[target_index]
+            other_mean_score = scores[other_mask].mean()
+            objective = target_score - other_mean_score
+            if not bool(torch.isfinite(objective)):
+                raise ValueError("phone prototype pullback objective is non-finite")
+            try:
+                (gradient,) = torch.autograd.grad(objective, source)
+            except RuntimeError as error:
+                raise ValueError(
+                    "model unembedding must preserve gradients for phone pullback"
+                ) from error
+
+        direction = gradient.detach()
+        if direction.ndim != 1 or direction.shape[0] != encoder_lens.source_dim:
+            raise ValueError("phone prototype pullback returned an invalid direction")
+        if not bool(torch.isfinite(direction).all()):
+            raise ValueError("phone prototype pullback direction is non-finite")
+        gradient_norm = float(direction.float().norm().cpu())
+        if gradient_norm <= 1e-12:
+            raise ValueError("phone prototype pullback direction has zero norm")
+        return PhonePrototypePullback(
+            direction=direction,
+            layer=layer,
+            target_phone=target_phone,
+            objective_value=float(objective.detach().cpu()),
+            target_readout_score=float(target_score.detach().cpu()),
+            other_mean_readout_score=float(other_mean_score.detach().cpu()),
+            competing_phone_count=len(self.labels) - 1,
+            gradient_l2_norm=gradient_norm,
+        )
 
     @torch.no_grad()
     def score_layer(

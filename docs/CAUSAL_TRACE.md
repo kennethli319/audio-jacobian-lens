@@ -4,6 +4,59 @@ This experiment tests a causal edit in Whisper. It is not a claim that Whisper
 uses the same perceptual mechanism as people, and it is not a way to edit an
 encoder "token distribution": the encoder has no vocabulary softmax.
 
+## Fitted-phone follow-up
+
+The first public trace below used vocabulary-token and token-prefix directions.
+It changed downstream computation but stopped at `Yay!`, not `Yanny`. A later
+development-only follow-up uses the distributed fitted Phone Signature instead.
+For each requested phone, it differentiates the complete phone-prototype
+readout contrast back through the matching encoder lens and final decoder
+normalization to obtain a proposed direction in Whisper's 384-dimensional
+encoder residual space. The edit is added to real post-block encoder states;
+the remaining encoder, decoder, output head, and ordinary greedy generation are
+then rerun without an LM-head bias, forced token, decoder edit, or weight update.
+
+The primary recorded condition places `Y / AE / N / IY` over 0.08–0.68 seconds
+at encoder L0–L3 with one equal coefficient for all 16 phone/layer directions.
+At a 3.5% aggregate edited-reference residual-norm budget, free generation
+changes from `Lily!` to `Yanny!` with ordinary token IDs `[575, 7737, 0]`.
+Whisper represents the target with two decisions, so there is no honest single
+"Yanny rank":
+
+| Condition | ` Y` | conditional `anny` | joint path | free generation |
+|---|---:|---:|---:|---|
+| Baseline | #3, 12.3331% | #42, 0.26564% | 0.032761% | `Lily!` |
+| 3.1884155% | #1, 49.4310% | #2, 5.70938% | 2.82221% | `Yelly!` |
+| 3.1884766% | #1, 49.4315% | #1, 5.70967% | 2.82238% | `Yanny!` |
+| **3.5%** | **#1, 51.5962%** | **#1, 7.37133%** | **3.80332%** | **`Yanny!`** |
+
+The 3.5% recipe was frozen before the main checks. Replacing only the fitted
+phone directions with an independently fitted lens still returns `Yanny!`;
+fresh CPU and MPS runs agree on the ordinary token IDs and ranks. None of ten
+random schedules at the same coordinates and exact norm generates Yanny, and
+their conditional `anny` ranks remain #38–#55. This is stronger than the old
+near-miss, but the phone order and timing were developed after examining this
+clip. Wrong-time, reverse-sign, unrelated-order, spectral, held-out-audio, and
+larger null-control gates remain open.
+
+A separate `L / AO / R / AH / L` phone-basis search also produces exact
+`Laurel`. Its evidence level is deliberately lower: 20 nonnegative phone/layer
+coefficients were optimized directly against the desired final-head token. At
+the recommended recorded point, a 14.5292% aggregate edit moves token 43442
+from baseline rank #2,463 / 0.0010898% to rank #1 / 10.6043% and free generation
+returns `Laurel`. Three separately optimized matched random bases fail even at
+51.6–58.6% budgets, but the frozen coefficients do not preserve the exact flip
+under the independent fitted lens (`Lori`, with `Laurel` at #10). This is a
+clip-specific existence result, not a cross-fit Laurel knob.
+
+The backend-free [public steering replay](https://kennethli319.github.io/audio-jacobian-lens/steering/)
+contains only sanitized recorded checkpoints, schedules, scalar coefficients,
+ranks, probabilities, and compact controls. It does not interpolate unmeasured
+strengths, run a model, publish fitted tensors, or redistribute the source
+recording.
+
+## Historical BPE/token-direction trace
+
 For one post-block encoder residual layer ℓ and a contiguous raw 20 ms
 position span \\(S\\), the runner adds
 
@@ -17,7 +70,7 @@ decoder, final normalization, and output head are rerun. The saved JSON records
 per-position L2 state changes at every encoder and decoder layer plus final
 logit change.
 
-## Candidate outcome
+### Candidate outcome
 
 The primary candidate outcome is the total teacher-forced token-path log
 probability. For candidate text \\(c\\) with tokenizer pieces
@@ -113,9 +166,10 @@ adds the L2 edit, then does the same at L3 before decoding. The requested
 `--strength` is a total budget and is divided by `sqrt(number_of_layers)`, so a
 three-layer schedule is comparable in aggregate norm to a single-layer run.
 The archived `web/causal.html` study records exploratory single- and
-multi-layer results separately from the ordinary lens explorer. The public
-`/causal` route now aliases the evidence Showcase; serve `web/` directly and
-open `/causal.html` when reproducing this historical display.
+multi-layer results separately from the ordinary lens explorer. Serve `web/`
+directly and open `/causal.html` when reproducing this historical display. The
+new fitted-phone result is a separate method and must not be retroactively
+attributed to these BPE/prefix runs.
 
 Each `comparison_set` row now records both
 `restricted_total_log_probability_softmax` and the retained
@@ -127,13 +181,14 @@ actual model softmax at the first generated decoder position. Candidates that
 share that first BPE piece, such as `Yay!` and `Yanny`, necessarily have the
 same first-token probability.
 
-The recorded target buttons in `causal.html` display a fixed predeclared 20%,
+The historical target buttons in `causal.html` display a fixed predeclared 20%,
 40%, 80%, and 120% total-budget sweep for both directions. They demonstrate a
 limitation of the current J-lens steering proposal: the Yanny direction reached
 `Yay!` but not `Yanny`, and the Laurel direction left the local model manifold
 before producing `Laurel`. Do not interpret a larger budget as evidence of
-successful semantic control; inspect the generated text, candidate values, and
-matched controls together.
+successful semantic control for that method; inspect the generated text,
+candidate values, and matched controls together. The later fitted-phone
+follow-up above supersedes this as the current one-clip steering result.
 
 For time-localized edits, the tokenizer-faithful path is now the default.
 Give a selected span with `--start-seconds` and `--end-seconds`, and the runner

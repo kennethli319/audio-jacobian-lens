@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Interactive replay of recorded Whisper phone-signature steering experiments." />
+    <meta name="theme-color" content="#f6f8fb" />
+    <title>Phone Steering Replay · Audio Jacobian Lens</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./steering.css?v=1" />
+    <script src="./steering.js?v=1" defer></script>
+  </head>
+  <body data-results-url="./data/phone-steering-results.json">
+    <a class="skip-link" href="#steering-main">Skip to the experiment</a>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="Audio Jacobian Lens home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><strong>Audio Jacobian Lens</strong><small>Recorded intervention study</small></span>
+      </a>
+      <nav aria-label="Project pages">
+        <a href="./">ASR</a>
+        <a href="./showcase.html">Showcase</a>
+        <a href="./steering.html" aria-current="page">Steering</a>
+      </nav>
+      <span class="static-badge">STATIC REPLAY</span>
+    </header>
+
+    <main id="steering-main">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">WHISPER TINY.EN · ENCODER RESIDUAL INTERVENTION</p>
+          <h1 id="page-title">Plant a phonetic anchor. Watch the final word change.</h1>
+          <p class="hero-copy">Choose a target and replay recorded checkpoints from the Laurel/Yanny experiment. The controls below do not run a model: every value was saved from a real intervention and is shown without interpolation.</p>
+        </div>
+        <aside class="hero-boundary">
+          <strong>No LM-head bias</strong>
+          <span>No token is forced. The edit is applied to encoder residuals, then the remaining encoder, decoder, and ordinary greedy generation run normally.</span>
+        </aside>
+      </section>
+
+      <section class="source-strip" aria-label="Experiment provenance">
+        <div><span>Model</span><strong id="model-label">Loading…</strong></div>
+        <div><span>Baseline</span><strong id="baseline-label">Loading…</strong></div>
+        <div><span>Evidence</span><strong>Single ambiguous clip</strong></div>
+        <a id="source-link" href="https://hrbosker.github.io/demos/laurel-yanny/" target="_blank" rel="noreferrer"><span>Source recording</span><strong>Original demo ↗</strong></a>
+      </section>
+
+      <div id="load-status" class="load-status" role="status" aria-live="polite">
+        <span class="loader" aria-hidden="true"></span>
+        Loading the recorded steering checkpoints…
+      </div>
+
+      <section id="steering-app" class="steering-app" hidden>
+        <section class="target-panel" aria-labelledby="target-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">01 · CHOOSE THE ANCHOR</p>
+              <h2 id="target-title">Which phonetic sequence should the replay favor?</h2>
+            </div>
+            <span id="evidence-badge" class="evidence-badge"></span>
+          </div>
+          <div class="target-buttons" role="group" aria-label="Steering target">
+            <button type="button" data-target="yanny" aria-pressed="true"><span>Steer toward</span><strong>Yanny</strong></button>
+            <button type="button" data-target="laurel" aria-pressed="false"><span>Steer toward</span><strong>Laurel</strong></button>
+          </div>
+          <div class="method-summary">
+            <div><span>Recorded method</span><strong id="method-label"></strong></div>
+            <p id="method-description"></p>
+          </div>
+        </section>
+
+        <section class="schedule-panel" aria-labelledby="schedule-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">02 · PLACE IT IN SOUND AND DEPTH</p>
+              <h2 id="schedule-title">The phone schedule is applied across encoder L0–L3.</h2>
+              <p>Columns are native audio-time spans. Cell intensity shows the recorded coefficient at the selected checkpoint—not a phone probability.</p>
+            </div>
+            <div class="heat-legend" aria-label="Coefficient intensity legend"><span>0</span><i></i><span>larger edit</span></div>
+          </div>
+          <div class="phone-timeline" aria-label="Target phone timing">
+            <div id="timeline-ruler" class="timeline-ruler"></div>
+            <div id="phone-ribbon" class="phone-ribbon"></div>
+          </div>
+          <div id="coefficient-heatmap" class="coefficient-heatmap" role="table" aria-label="Steering coefficients by encoder layer and phone span"></div>
+          <p id="coefficient-note" class="micro-note"></p>
+        </section>
+
+        <section class="checkpoint-panel" aria-labelledby="checkpoint-title">
+          <div class="section-heading checkpoint-heading">
+            <div>
+              <p class="eyebrow">03 · REPLAY A RECORDED DOSE</p>
+              <h2 id="checkpoint-title">Move through the actual decision boundary.</h2>
+              <p>The control snaps to saved model runs. It never estimates a result between checkpoints.</p>
+            </div>
+            <div class="checkpoint-readout">
+              <span>Aggregate edited-residual budget</span>
+              <strong id="budget-value">—</strong>
+            </div>
+          </div>
+          <label class="range-label" for="checkpoint-range"><span>Recorded checkpoint</span><output id="checkpoint-label" for="checkpoint-range">—</output></label>
+          <input id="checkpoint-range" type="range" min="0" max="0" step="1" value="0" disabled />
+          <div id="checkpoint-marks" class="checkpoint-marks" aria-label="Recorded checkpoint shortcuts"></div>
+          <p id="checkpoint-note" class="micro-note"></p>
+        </section>
+
+        <section class="outcome-panel" aria-labelledby="outcome-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">04 · FOLLOW THE RESULT TO THE HEAD</p>
+              <h2 id="outcome-title">What ordinary free generation produced</h2>
+            </div>
+            <span id="outcome-role" class="outcome-role"></span>
+          </div>
+          <div class="transcript-flow" aria-live="polite" aria-atomic="true">
+            <article>
+              <span>No edit</span>
+              <strong id="baseline-transcript">—</strong>
+              <code id="baseline-token-ids">—</code>
+            </article>
+            <i aria-hidden="true">→</i>
+            <article id="selected-outcome-card">
+              <span>Selected checkpoint</span>
+              <strong id="selected-transcript">—</strong>
+              <code id="selected-token-ids">—</code>
+            </article>
+          </div>
+
+          <div class="decision-heading">
+            <div><p class="eyebrow">ACTUAL FULL OUTPUT HEAD</p><h3 id="decision-title">Tokenizer decisions</h3></div>
+            <span id="rank-semantics">Complete vocabulary competition</span>
+          </div>
+          <div id="decision-grid" class="decision-grid"></div>
+          <div id="path-summary" class="path-summary" hidden></div>
+        </section>
+
+        <section class="controls-panel" aria-labelledby="controls-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">05 · ASK WHAT SURVIVED</p>
+              <h2 id="controls-title">Controls and replication checks</h2>
+              <p id="evidence-summary"></p>
+            </div>
+          </div>
+          <div id="control-grid" class="control-grid"></div>
+        </section>
+
+        <section class="interpretation-panel" aria-labelledby="interpretation-title">
+          <p class="eyebrow">INTERPRETATION BOUNDARY</p>
+          <h2 id="interpretation-title">A causal existence result, not a universal word knob.</h2>
+          <div id="caveat-list" class="caveat-list"></div>
+          <p class="source-rights"><strong>Media boundary:</strong> the original Laurel/Yanny audio is not embedded or redistributed here. This page displays only a schematic timing axis and cached numerical results.</p>
+        </section>
+      </section>
+
+      <noscript><p class="load-status error">This replay requires JavaScript to select and render its cached checkpoints.</p></noscript>
+    </main>
+
+    <footer><span>Audio Jacobian Lens</span><span>Recorded values are exploratory and uncalibrated.</span></footer>
+  </body>
+</html>

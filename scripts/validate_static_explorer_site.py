@@ -29,6 +29,8 @@ FINDINGS_ROUTES = {
 LEGACY_EXPLORER_ROUTES = {
     family: f"{SITE_PREFIX}explorer/{family}/" for family in FAMILIES
 }
+STEERING_ROUTE = f"{SITE_PREFIX}steering/"
+STEERING_ASSET_VERSION = "20260713-1"
 FORBIDDEN_KEYS = {
     "analysis_id",
     "parent_analysis_id",
@@ -97,6 +99,26 @@ ASR_PHONE_SIGNATURE_CSS_MARKERS = (
     ".phone-candidate-row",
     ".rights-block",
     ".explorer-tooltip",
+)
+STEERING_SCRIPT_MARKERS = (
+    'data.mode !== "static_recorded_checkpoints"',
+    "checkpoint.recorded !== true || checkpoint.interpolated !== false",
+    "baseline.decisions[targetKey]",
+    "target.evidence?.tone",
+    "target.method?.coefficient_policy",
+    "checkpoint.coefficient_scale",
+    "sequence_probability_product",
+    "fetch(resultsUrl",
+)
+STEERING_CSS_MARKERS = (
+    ".coefficient-heatmap",
+    ".heatmap-cell",
+    ".decision-grid",
+    ".candidate-row.target",
+    ".evidence-badge.strong",
+    ".evidence-badge.limited",
+    "@media (max-width: 560px)",
+    "@media (prefers-reduced-motion: reduce)",
 )
 PHONE_SIGNATURE_FIELDS = {
     "phone",
@@ -874,6 +896,10 @@ def _validate_site_manifest_integrity(
     required = {
         "assets/explorer.js",
         "assets/explorer.css",
+        "assets/steering.js",
+        "assets/steering.css",
+        "data/phone-steering-results.json",
+        "steering/index.html",
         *(f"explorer/data/{family}/manifest.json" for family in FAMILIES),
     }
     if not required.issubset(recorded_hashes):
@@ -1014,11 +1040,38 @@ def _validate_route_contract(site_root: Path) -> None:
         if "assets/app.js" in html:
             raise ValueError(f"{label} uses the findings renderer")
 
+    steering_html = _require_page(
+        site_root, "steering/index.html", label="recorded phone steering replay"
+    )
+    _require_markers(
+        steering_html,
+        (
+            'data-results-url="../data/phone-steering-results.json"',
+            f'src="../assets/steering.js?v={STEERING_ASSET_VERSION}"',
+            f'href="../assets/steering.css?v={STEERING_ASSET_VERSION}"',
+            f'<link rel="canonical" href="{PUBLIC_BASE}steering/"',
+            'data-target="yanny"',
+            'data-target="laurel"',
+            'id="checkpoint-range" type="range"',
+            'href="../"',
+            'href="../speech/"',
+            'href="../tts/"',
+        ),
+        label="recorded phone steering replay",
+    )
+    if (
+        "assets/app.js" in steering_html
+        or "assets/explorer.js" in steering_html
+        or "<audio" in steering_html
+    ):
+        raise ValueError("recorded phone steering replay has an unsafe renderer")
+
     site_manifest = _load(site_root / "site-manifest.json")
     expected_routes = {
         "detailed_cached_explorers": list(CANONICAL_DETAILED_ROUTES.values()),
         "findings": list(FINDINGS_ROUTES.values()),
         "legacy_explorer_aliases": list(LEGACY_EXPLORER_ROUTES.values()),
+        "recorded_interventions": [STEERING_ROUTE],
     }
     routes = site_manifest.get("routes")
     if not isinstance(routes, Mapping):
@@ -1026,6 +1079,175 @@ def _validate_route_contract(site_root: Path) -> None:
     for name, expected in expected_routes.items():
         if routes.get(name) != expected:
             raise ValueError(f"site manifest has an invalid {name} route list")
+
+
+def _validate_phone_steering_payload(payload: Mapping[str, Any]) -> None:
+    def matches_number(value: Any, expected: float) -> bool:
+        try:
+            return math.isclose(float(value), expected)
+        except (TypeError, ValueError, OverflowError):
+            return False
+
+    if (
+        payload.get("schema_id") != "audio-jacobian-lens.phone-steering"
+        or payload.get("schema_version") != 1
+        or payload.get("mode") != "static_recorded_checkpoints"
+    ):
+        raise ValueError("phone steering payload has an invalid schema")
+    source = payload.get("source")
+    if not isinstance(source, Mapping) or source.get("media_included") is not False:
+        raise ValueError("phone steering payload does not exclude source media")
+    baseline = payload.get("baseline")
+    if (
+        not isinstance(baseline, Mapping)
+        or baseline.get("recorded") is not True
+        or baseline.get("interpolated") is not False
+        or baseline.get("generated")
+        != {"text": "Lily!", "token_ids": [20037, 0], "target_match": False}
+    ):
+        raise ValueError("phone steering payload has an invalid baseline")
+    targets = payload.get("targets")
+    if not isinstance(targets, Mapping) or set(targets) != {"yanny", "laurel"}:
+        raise ValueError("phone steering payload has an invalid target set")
+    baseline_decisions = baseline.get("decisions")
+    if (
+        not isinstance(baseline_decisions, Mapping)
+        or set(baseline_decisions) != {"yanny", "laurel"}
+        or any(
+            not isinstance(decisions, list)
+            or not decisions
+            or any(not isinstance(decision, Mapping) for decision in decisions)
+            for decisions in baseline_decisions.values()
+        )
+    ):
+        raise ValueError("phone steering payload has invalid baseline decisions")
+    for name, target in targets.items():
+        if not isinstance(target, Mapping) or target.get("layers") != [0, 1, 2, 3]:
+            raise ValueError(f"phone steering {name} has an invalid layer schedule")
+        schedule = target.get("schedule")
+        heatmap = target.get("coefficient_heatmap")
+        checkpoints = target.get("checkpoints")
+        if (
+            not isinstance(schedule, list)
+            or not schedule
+            or any(
+                not isinstance(segment, Mapping)
+                or not isinstance(segment.get("phone"), str)
+                or not segment["phone"]
+                or not all(
+                    isinstance(segment.get(field), (int, float))
+                    and math.isfinite(float(segment[field]))
+                    for field in (
+                        "start_seconds",
+                        "end_seconds",
+                        "start_position",
+                        "end_position",
+                    )
+                )
+                or float(segment["start_seconds"]) >= float(segment["end_seconds"])
+                or int(segment["start_position"]) != segment["start_position"]
+                or int(segment["end_position"]) != segment["end_position"]
+                or int(segment["start_position"]) >= int(segment["end_position"])
+                for segment in schedule
+            )
+            or not isinstance(heatmap, list)
+            or len(heatmap) != 4
+            or any(not isinstance(row, Mapping) for row in heatmap)
+            or [row.get("layer") for row in heatmap] != [0, 1, 2, 3]
+            or any(
+                not isinstance(row.get("values"), list)
+                or len(row["values"]) != len(schedule)
+                or any(
+                    not isinstance(value, (int, float))
+                    or not math.isfinite(float(value))
+                    for value in row["values"]
+                )
+                for row in heatmap
+            )
+            or not isinstance(checkpoints, list)
+            or any(not isinstance(item, Mapping) for item in checkpoints)
+            or [item.get("id") for item in checkpoints]
+            != ["last_failure", "first_success", "recommended"]
+        ):
+            raise ValueError(f"phone steering {name} has incomplete recorded data")
+        if any(
+            not isinstance(item, Mapping)
+            or item.get("recorded") is not True
+            or item.get("interpolated") is not False
+            for item in checkpoints
+        ):
+            raise ValueError(f"phone steering {name} contains an interpolated run")
+        if any(
+            not isinstance(item.get("generated"), Mapping)
+            or not isinstance(item.get("decisions"), list)
+            or not item["decisions"]
+            or any(
+                not isinstance(decision, Mapping)
+                for decision in item["decisions"]
+            )
+            for item in checkpoints
+        ):
+            raise ValueError(f"phone steering {name} has an incomplete recorded run")
+
+    yanny = targets["yanny"]
+    yanny_recommended = yanny["checkpoints"][2]
+    yanny_evidence = yanny.get("evidence")
+    yanny_decisions = yanny_recommended.get("decisions")
+    if (
+        not isinstance(yanny_evidence, Mapping)
+        or yanny_evidence.get("tier")
+        != "open_loop_cross_fit_reproduced"
+        or yanny_recommended.get("generated", {}).get("token_ids")
+        != [575, 7737, 0]
+        or not isinstance(yanny_decisions, list)
+        or any(not isinstance(row, Mapping) for row in yanny_decisions)
+        or [row.get("rank") for row in yanny_decisions] != [1, 1]
+        or not matches_number(
+            yanny_recommended.get("budget_fraction"),
+            0.03499999945628625,
+        )
+        or not matches_number(
+            yanny_recommended.get("sequence_probability_product"),
+            0.03803320601582527,
+        )
+    ):
+        raise ValueError("phone steering payload changed the verified Yanny result")
+
+    laurel = targets["laurel"]
+    laurel_recommended = laurel["checkpoints"][2]
+    laurel_evidence = laurel.get("evidence")
+    laurel_decisions = laurel_recommended.get("decisions")
+    if (
+        not isinstance(laurel_evidence, Mapping)
+        or laurel_evidence.get("tier")
+        != "target_conditioned_clip_specific_existence"
+        or laurel_recommended.get("generated", {}).get("token_ids") != [43442]
+        or not isinstance(laurel_decisions, list)
+        or len(laurel_decisions) != 1
+        or not isinstance(laurel_decisions[0], Mapping)
+        or laurel_decisions[0].get("rank") != 1
+        or not matches_number(
+            laurel_recommended.get("budget_fraction"),
+            0.1452915875040831,
+        )
+        or not matches_number(
+            laurel_decisions[0].get("probability"),
+            0.10604292899370193,
+        )
+    ):
+        raise ValueError("phone steering payload changed the verified Laurel result")
+    serialized = json.dumps(payload).lower().replace("\\", "/")
+    for forbidden in (
+        "/users/",
+        "artifacts/private/",
+        "data:audio",
+        "audio_url",
+        ".mp3",
+        ".flac",
+        ".wav",
+    ):
+        if forbidden in serialized:
+            raise ValueError(f"phone steering payload exposes forbidden data: {forbidden}")
 
 
 def validate_site(site_root: Path) -> dict[str, int]:
@@ -1038,10 +1260,13 @@ def validate_site(site_root: Path) -> dict[str, int]:
         "assets/explorer.css",
         "assets/app.js",
         "assets/styles.css",
+        "assets/steering.js",
+        "assets/steering.css",
+        "data/phone-steering-results.json",
     ):
         if not (site_root / asset).is_file():
             raise ValueError(f"missing static-site asset: {asset}")
-    for asset in ("assets/explorer.js", "assets/app.js"):
+    for asset in ("assets/explorer.js", "assets/app.js", "assets/steering.js"):
         script = (site_root / asset).read_text(encoding="utf-8")
         if (
             "/api/" in script
@@ -1049,6 +1274,17 @@ def validate_site(site_root: Path) -> dict[str, int]:
             or "method: 'POST'" in script
         ):
             raise ValueError(f"published {asset} contains a live API call")
+    steering_script = (site_root / "assets/steering.js").read_text(encoding="utf-8")
+    steering_css = (site_root / "assets/steering.css").read_text(encoding="utf-8")
+    for marker in STEERING_SCRIPT_MARKERS:
+        if marker not in steering_script:
+            raise ValueError(f"static steering renderer is missing {marker!r}")
+    for marker in STEERING_CSS_MARKERS:
+        if marker not in steering_css:
+            raise ValueError(f"static steering styles are missing {marker!r}")
+    steering_payload = _load(site_root / "data" / "phone-steering-results.json")
+    _validate_safe(steering_payload, reject_artifact_files=True)
+    _validate_phone_steering_payload(steering_payload)
     explorer_script = (site_root / "assets/explorer.js").read_text(encoding="utf-8")
     if 'URLSearchParams(window.location.search).get("sample")' not in explorer_script:
         raise ValueError("static explorer does not preserve ?sample selection")

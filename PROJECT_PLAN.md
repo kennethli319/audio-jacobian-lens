@@ -1,6 +1,6 @@
 # Audio Jacobian Lens: Project Plan
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 This is the continuity document for the project. Read it before making changes,
 update it when a milestone or design decision changes, and append a short entry
@@ -265,6 +265,12 @@ Status: **in progress**
 - [ ] Implement matched encoder-frame and decoder-position ablations.
 - [ ] Test whether surfaced token directions causally affect relevant transcript
   tokens more than matched random directions.
+- [x] Implement a final-normalization-aware pullback from a complete fitted
+  phone-prototype pattern into an actual Whisper encoder residual direction,
+  with a private-only native-frame runner and exact aggregate norm accounting.
+- [ ] Complete the phone-direction causal gate with independently frozen timing,
+  wrong-time, reverse-sign, unrelated-phone, equal-norm BPE, donor-state,
+  spectral-variant, and at least 50-100 random-direction controls.
 - [x] Add corpus/example/version hashes and interruption-safe deterministic
   fitting checkpoints.
 - [ ] Add user-facing fit progress reporting and explicit seed controls.
@@ -520,6 +526,11 @@ Status: **in progress**
   train-only A2 prototypes; publish only five ranked phone labels and cosine
   similarities per encoder cell, keep decoder cells lexical, and expose five
   local candidates on pointer hover, keyboard focus, and click-pinned detail.
+- [x] Publish a sanitized, checkpoint-only fitted-phone steering replay at
+  `/steering/`. Include baseline, last-failure, first-success, and recommended
+  Yanny/Laurel checkpoints; exact raw-head ranks and probabilities, timing,
+  coefficient maps, free generation, and controls; exclude source audio, live
+  inference, private prototype tensors, paths, and optimizer artifacts.
 - [ ] Package the Chatterbox bridge baseline/steered pair after completing the
   conversion/S3/derived-output review.
 - [x] Package the three attributed LibriSpeech inputs with immutable hashes and
@@ -611,12 +622,12 @@ decision log.
   the A2 prototypes use 3,400 train-only aligned states. Prototype tensors,
   occurrence rows, private paths, and the private experiment report remain
   unpublished.
-- Private research results use a separate opt-in microsite contract. Aggregate
-  browser data, HTML, CSS, and JavaScript stay below the ignored
-  `artifacts/private/` tree and are mounted only when the local server receives
-  the explicit experiment-directory option. The mount is loopback-only and is
-  absent from package data, public navigation, the GitHub Pages exporter, and
-  deployed builds until a separate publication decision passes.
+- Raw private research microsites, prototype tensors, occurrence rows, runner
+  outputs, and optimizer artifacts stay below the ignored `artifacts/private/`
+  tree and remain loopback-only. A separate publication decision may approve
+  only a deterministic, schema-validated derivative. The `/steering/` replay is
+  such a derivative: recorded checkpoints and aggregate diagnostics only, with
+  no source audio, live steering, fitted artifacts, or private paths.
 - The live encoder phone-signature mode interprets each cell's complete top-100
   J-readout pattern; it does not relabel the top vocabulary token. Prototype
   artifacts must match the active model and exact encoder-lens content
@@ -625,6 +636,14 @@ decision log.
   34-phone inventory, and the score is sparse-signature cosine similarity—not
   a softmax, calibrated confidence, causal effect, literal encoder head, or a
   single-phone assertion for a pooled window.
+- A phone prototype cannot be injected into Whisper directly: it lives in the
+  51,864-dimensional fitted vocabulary-readout space, while an encoder residual
+  has width 384. The private causal follow-up differentiates a complete
+  target-prototype-minus-other-prototype mean readout-logit objective through
+  the matching centered encoder lens, Whisper's final decoder normalization,
+  and output head. The resulting local gradient is only a proposed residual
+  direction. Same-lens phone-score gains are optimization checks; actual
+  candidate-path changes and independent controls are the causal evidence.
 - Static speech-to-speech pages distribute the cleared input waveform and
   generated text but not generated response audio. Long generated-text
   timelines use one continuous contained horizontal scroller with fixed
@@ -1154,6 +1173,27 @@ paths, or raw experiment tables are serialized. This view is labeled as an
 exploratory fitted readout—not probability, confidence, a causal effect, or a
 claim that each pooled 100 ms window contains exactly one phone.
 
+### 2026-07-12 — Pull a phone signature back before editing a residual
+
+A fitted phone prototype is a sparse pattern in the 51,864-entry decoder
+vocabulary basis, not a 384-dimensional Whisper encoder state and not a phoneme
+softmax. The causal pilot therefore never adds a prototype tensor directly. At
+the unsteered local encoder state, it takes the gradient of the complete target
+prototype's readout-logit score minus the mean score of all other fitted phone
+prototypes through the exact matching centered encoder lens, final decoder
+LayerNorm, and output head. That gradient proposes an encoder residual edit;
+all later model computation is rerun normally.
+
+The current 34-phone public artifact remains frozen. ARPAbet `Y`, required for
+an honest `Y / AE / N / IY` schedule, is fitted only as a separate private
+train-only development extension. A rise in the same phone score used to form
+the direction is partly tautological and cannot pass the causal gate. Complete
+candidate-token likelihood, both Yanny BPE-piece probabilities, free
+generation, independent lens replication, exact-norm random directions,
+wrong-time/reverse-sign controls, and collateral damage remain separate
+outcomes. The private pilot is not added to the public explorer while those
+controls remain incomplete.
+
 ### 2026-07-12 — Return the encoder display grid to 100 ms
 
 The encoder explorer now mean-pools five native 20 ms states per 100 ms cell,
@@ -1186,6 +1226,21 @@ selected-position trace. After each update, only the relevant containers
 adjust their own horizontal scroll positions. The page itself is not scrolled.
 Keyboard matrix navigation suppresses the browser's default page movement
 before the same synchronized reveal runs.
+
+### 2026-07-13 — Publish the bounded replay, not the private experiment
+
+The public fitted-phone steering page is a deterministic replay of a small,
+explicit allowlist of recorded checkpoints. It does not expose the source
+recording, fitted prototype tensors, optimizer traces, runner artifacts, live
+inference, or arbitrary intervention controls. Yanny is presented as the
+primary one-clip result because its equal-strength open-loop recipe crosses the
+ordinary generation boundary, reproduces with a second fitted readout, and is
+not matched by ten exact-budget random schedules. Laurel is presented
+separately as a weaker, target-conditioned existence result whose exact output
+does not survive the same cross-fit replacement. Neither route is described as
+a universal word-control axis. The external perception demonstration is linked
+for context but its audio is not redistributed while reuse terms remain
+unreviewed.
 
 ## Work log
 
@@ -1910,3 +1965,99 @@ before the same synchronized reveal runs.
   text sequence in one continuous matrix; TTS keeps all fitted T3 layers and
   HEAD speech-code positions in one matrix. Their top position timelines and
   selected layer columns auto-reveal together without page-level movement.
+- Added a final-normalization-aware phone-prototype pullback to the stable
+  phonetic-signature core. It differentiates a complete fitted
+  target-versus-other phone readout-logit pattern through the matching centered
+  encoder lens and returns a finite 384-dimensional proposed residual
+  direction. Focused phonetic/Whisper tests, Ruff, and syntax checks pass.
+- Kept the causal follow-up under the ignored private experiment tree. Added
+  deterministic A1/A2 train-only `Y` extensions without modifying the frozen
+  34-phone public bank; on 100 separate development `Y` rows, L2 top-1 is 83%
+  for A1 and 80% for A2 with median rank 1. The locked test remains unopened.
+- Ran the first exact-norm L2 phone-sequence trace on the local Laurel/Yanny
+  clip. An active-region `Y / AE / N / IY` schedule raised the actual ordinary-
+  token Yanny path by 10.45x at a 10% aggregate residual budget while raising
+  both `p(" Y")` and conditional `p("anny" | " Y")`; free generation moved from
+  `Lily!` to `Yelly!`, not exact `Yanny`. At 20% the path rose 42.79x but free
+  generation became `Yay!`.
+- Repeated the dose response with the independently fitted A1 lens and obtained
+  10.97x/42.33x path changes at 10%/20%, respectively. At the A2 10% condition,
+  the phone pullback exceeded all 20 exact-norm random schedules on complete
+  Yanny path gain and on each component probability gain; every random control
+  remained `Lily!`. This is preliminary because timing, reverse-sign,
+  wrong-time, spectral, and larger random-control gates remain open.
+- A uniform full-clip Yanny timing hypothesis remained directionally positive
+  but was weaker, documenting timing sensitivity. A uniform
+  `L / AO / R / AH / L` schedule increased the actual Laurel token probability
+  5.05x at 10% and 9.27x at 20%, changing free text to `Lary!` and `L'Ory!`
+  rather than exact `Laurel`. Higher Yanny budgets eventually caused repetitive
+  degeneration, so no successful target-word generation is claimed.
+- Added exact raw final-output-head ranks over all 51,864 entries to every
+  teacher-forced candidate piece. `Yanny` is two pieces and has no single token
+  rank: baseline ` Y` / conditional `anny` ranks are #3 / #42, improving to
+  #1 / #10 at 10%, #1 / #5 at 20%, and #1 / #4 at 30%. The second-step `ay`
+  competitor remains #1 at 20-30%, explaining the free `Yay!` result. The
+  single ` Laurel` token improves from #2,463 at baseline to #443 at 10% and
+  #320 at 20%, before distribution-wide distortion moves it to #403 at 30%; it
+  is never freely generated in that open-loop equal-strength sweep.
+- Ran a private target-conditioned search restricted to 20 fitted phone-
+  prototype pullback directions: `L / AO / R / AH / L` over active 0.08-0.68 s
+  spans at encoder L0-L3. Optimizing only nonnegative coefficients against the
+  actual ` Laurel` final-head probability crosses the literal generation
+  boundary between ray scales 0.688 and 0.689. At 0.689 the ordinary generated
+  token is exactly ID 43442 (` Laurel`), rank #1 / 51,864 at 9.5166%, with an
+  exact aggregate delta/reference fraction of 14.3008%; 0.700 gives a clearer
+  #1 margin at 10.6043% and 14.5292% aggregate budget. This is a clip-overfit
+  existence result because the coefficient optimizer sees the desired final
+  token; it is not independent evidence for a native Laurel control axis.
+- Froze the lowest exact A2 recipe before controls. Replacing its phone
+  directions with the independently fitted A1 directions, without retuning,
+  moves ` Laurel` from baseline #2,463 to #10 at 1.6588% but freely generates
+  `Lori`, so the exact boundary does not transfer. Three independently
+  optimized matched active-span random 20-direction bases fail to generate
+  Laurel even at 51.6-58.6% aggregate budgets, reaching only ranks #64, #87,
+  and #131. These small controls support phone-basis specificity on this clip
+  but do not replace wrong-time, reverse-sign, larger-random, spectral, or
+  held-out-audio evaluation. All search assets remain ignored and private.
+- Corrected the Yanny phone timing to the active 0.08-0.68 s word region and
+  applied equal-strength `Y / AE / N / IY` fitted pullbacks at encoder L0-L3.
+  This clean open-loop recipe requires no per-basis coefficient optimization:
+  at an exact 3.1884155% aggregate budget it still generates `Yelly!`, with
+  conditional `anny` rank #2, while 3.1884766% crosses the boundary to ordinary
+  IDs `[575, 7737, 0]` (`Yanny!`) with both pieces rank #1. The recommended
+  3.5% point gives `p(" Y") = 51.5962%`, conditional `p("anny") = 7.37133%`,
+  and a 3.80332% two-piece path—116.09x the baseline path.
+- Froze the equal-strength Yanny recipe before validation. Replacing only the
+  fitted phone directions with the independently trained A1 directions still
+  generates the same `[575, 7737, 0]` sequence at both the boundary and 3.5%; a
+  fresh CPU run matches MPS. None of ten exact-3.5%-budget random schedules
+  generates Yanny, and their conditional `anny` ranks remain #38-55. A separate
+  target-conditioned 16-coefficient search lowers the numerical boundary to
+  2.29367%, but it is retained only as an overfit existence result; the
+  equal-strength cross-fit 3.5% condition is the primary finding. Timing,
+  reverse-sign, unrelated-order, spectral-variant, and held-out-audio controls
+  remain open, and every new asset remains ignored/private.
+- Final phone-pullback implementation gate: 353 tests passed with three
+  optional skips; repository Ruff, JavaScript syntax, whitespace, private-runner
+  Ruff, and private-runner syntax checks passed. No deployment or public-site
+  file changed.
+
+### 2026-07-13
+
+- Added a sanitized `static_phone_steering_v1` publication payload and a
+  backend-free `/steering/` replay. Visitors can switch between Yanny and Laurel
+  and select only the baseline, last-failure, first-success, and recommended
+  recorded checkpoints. The page shows the phone schedule, L0-L3 coefficient
+  map, raw final-head ranks/probabilities and top candidates, token IDs, free
+  generation, controls, and caveats without redistributing the source audio.
+- Rewrote the personal-site article's former `Yay!` near-miss section around the
+  exact but asymmetric results: the equal-strength cross-fit Yanny route is the
+  primary preliminary finding, while Laurel is a target-conditioned,
+  non-transferring existence result. Added a direct link to the recorded replay.
+- Added a deterministic publication helper, package data, local `/steering`
+  route, static-payload and frontend tests, manifest hashes, and release
+  validation that rejects interpolation, media, private paths, live API calls,
+  or collapsed Yanny/Laurel evidence labels.
+- Final publication gate: 372 tests passed with three optional skips; full Ruff,
+  all JavaScript syntax checks, whitespace checks, steering source/runtime data
+  parity, and the strict 10/10/10 static-site validator passed.

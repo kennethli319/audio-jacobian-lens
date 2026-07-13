@@ -207,11 +207,13 @@ class WhisperDecoderCausalTrace:
 
 @dataclass(frozen=True)
 class CandidateSequenceScore:
-    """Teacher-forced probability summary for one complete text candidate."""
+    """Teacher-forced final-head summary for one complete text candidate."""
 
     text: str
     token_ids: tuple[int, ...]
     token_log_probabilities: tuple[float, ...]
+    token_ranks: tuple[int, ...]
+    rank_denominator: int
     total_log_probability: float
     mean_log_probability: float
 
@@ -450,19 +452,30 @@ def score_candidate_text(
         context = nullcontext()
     with context:
         outputs = model.forward(candidate_inputs)
-    log_probabilities = model.output_head(outputs.last_hidden_state).float().log_softmax(
-        dim=-1
-    )
+    logits = model.output_head(outputs.last_hidden_state).float()
+    log_probabilities = logits.log_softmax(dim=-1)
     candidate_targets = candidate_inputs.decoder_target_ids[:, candidate_start:]
+    candidate_logits = logits[:, candidate_start:]
+    selected_logits = candidate_logits.gather(
+        -1, candidate_targets.unsqueeze(-1)
+    ).squeeze(-1)
     selected = log_probabilities[:, candidate_start:].gather(
         -1, candidate_targets.unsqueeze(-1)
     ).squeeze(-1)
     token_log_probabilities = tuple(float(value) for value in selected[0].cpu())
+    token_ranks = tuple(
+        int(value)
+        for value in (
+            (candidate_logits > selected_logits.unsqueeze(-1)).sum(dim=-1) + 1
+        )[0].cpu()
+    )
     total = sum(token_log_probabilities)
     return CandidateSequenceScore(
         text=text,
         token_ids=token_ids,
         token_log_probabilities=token_log_probabilities,
+        token_ranks=token_ranks,
+        rank_denominator=int(candidate_logits.shape[-1]),
         total_log_probability=total,
         mean_log_probability=total / len(token_ids),
     )

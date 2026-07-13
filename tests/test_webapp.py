@@ -115,6 +115,18 @@ def test_app_serves_showcase_and_legacy_causal_alias(tmp_path):
     assert "legacy causal archive" not in legacy.text
 
 
+def test_app_serves_recorded_phone_steering_replay(tmp_path):
+    (tmp_path / "index.html").write_text("index", encoding="utf-8")
+    steering = '<body data-results-url="./data/phone-steering-results.json">replay</body>'
+    (tmp_path / "steering.html").write_text(steering, encoding="utf-8")
+    client = TestClient(create_app(None, web_dir=tmp_path))
+
+    response = client.get("/steering")
+
+    assert response.status_code == 200
+    assert response.text == steering
+
+
 def test_showcase_is_static_evidence_with_all_three_model_paths():
     web_dir = Path(__file__).resolve().parents[1] / "web"
     response = TestClient(create_app(None, web_dir=web_dir)).get("/showcase")

@@ -54,6 +54,9 @@ def _score_payload(score) -> dict[str, Any]:
         "token_probabilities": [
             math.exp(value) for value in score.token_log_probabilities
         ],
+        "token_ranks": list(score.token_ranks),
+        "rank_denominator": score.rank_denominator,
+        "rank_kind": "raw_output_head_full_vocabulary",
         "total_log_probability": score.total_log_probability,
         "mean_log_probability": score.mean_log_probability,
     }

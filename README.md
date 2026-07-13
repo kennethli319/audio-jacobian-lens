@@ -24,7 +24,7 @@ workspace for asking when output-relevant information becomes readable inside
 automatic speech recognition, speech-to-speech, and text-to-speech models—and
 whether carefully chosen residual interventions can change the resulting path.
 
-This repository currently contains four connected workspaces:
+This repository currently contains five connected workspaces:
 
 | Track | What is implemented | Current evidence boundary | Local page |
 |---|---|---|---|
@@ -32,16 +32,18 @@ This repository currently contains four connected workspaces:
 | **LFM2.5 speech-to-speech** | Apple-silicon MLX generation, generated-speech playback, fitted readouts over the 16-layer language backbone | The retained lens is a one-clip integration pilot. It does not explain the FastConformer, audio adapter, acoustic codebooks, or played waveform | [`:8001/`](http://127.0.0.1:8001/) |
 | **Chatterbox TTS** | Corpus-fitted T3 acoustic-code readouts, per-run text sensitivity and attention, forced-code branches, and residual steering with suffix regeneration | The ten-prompt rank-128 pilot is encouraging but incomplete; acoustic-code IDs are not words or phonemes, and the current work does not attribute S3Gen or waveform samples | [`:8002/chatterbox`](http://127.0.0.1:8002/chatterbox) |
 | **Static review** | Primary full cached ASR, speech-to-speech, and TTS explorers with every saved layer/position cell, plus secondary curated findings pages that explain the experiments | Backend-free and safe to serve as static files. Each detailed explorer has ten reports; ten CC BY 4.0 LibriSpeech inputs are packaged, while generated LFM/Chatterbox audio and live steering remain excluded | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
+| **Phonetic steering replay** | A static, checkpoint-only replay of fitted phone-prototype encoder interventions on the Laurel/Yanny clip, including phone timing, per-layer coefficients, raw output ranks, free generation, and controls | The equal-strength Yanny recipe is the stronger one-clip result and reproduces with a second fitted lens; the Laurel route is target-conditioned and does not transfer exactly. Neither is a universal word-control axis | [Public replay](https://kennethli319.github.io/audio-jacobian-lens/steering/) |
 
 The public review opens directly into the detailed ASR explorer. Speech and TTS
 use the canonical `/speech/` and `/tts/` routes. The shorter experimental
 stories live under `/findings/`, and the earlier `/explorer/{family}/` URLs
 remain functional aliases for saved links, including `?sample=...` selections.
 
-The older Laurel/Yanny steering study is retained as a reproducible archive in
-[`web/causal.html`](web/causal.html) and
-[`docs/CAUSAL_TRACE.md`](docs/CAUSAL_TRACE.md). The public `/causal` route now
-aliases the evidence Showcase.
+The older BPE/prefix Laurel/Yanny steering study is retained as a historical
+baseline in [`web/causal.html`](web/causal.html). The fitted-phone follow-up is
+summarized in [`docs/CAUSAL_TRACE.md`](docs/CAUSAL_TRACE.md) and replayed from
+recorded, sanitized checkpoints on the public steering page. The source audio
+is not redistributed while its reuse terms remain unreviewed.
 
 ## Start here: plans, evidence, and design contracts
 
@@ -58,7 +60,7 @@ changes the state of the project.
 | [`docs/PILOT_RESULTS.md`](docs/PILOT_RESULTS.md) | Failure-inclusive Whisper Tiny pilot results, including the corrected negative encoder finding |
 | [`docs/MLX_LFM.md`](docs/MLX_LFM.md) | Pinned LFM2.5 MLX environment, projected-lens implementation, serving policy, and unfinished validation work |
 | [`docs/CHATTERBOX.md`](docs/CHATTERBOX.md) | T3 sequence structure, fitted speech-code lens, local trace, intervention semantics, pilot evaluation, and model boundaries |
-| [`docs/CAUSAL_TRACE.md`](docs/CAUSAL_TRACE.md) | Archived Whisper residual-steering protocol, matched controls, tokenizer-faithful schedules, and negative results |
+| [`docs/CAUSAL_TRACE.md`](docs/CAUSAL_TRACE.md) | Whisper residual-steering protocol, historical BPE/prefix results, fitted-phone follow-up, controls, and remaining causal gates |
 | [`samples/README.md`](samples/README.md) | Bundled LibriSpeech provenance, licenses, utterance IDs, and attribution |
 
 ### What is established so far
@@ -78,6 +80,11 @@ changes the state of the project.
   curated findings available as a secondary interpretation layer. Public
   fitted-artifact and generated-audio distribution remain gated by the
   provenance reviews recorded in the plan.
+- On one development Laurel/Yanny clip, an equal-strength fitted-phone schedule
+  changes ordinary Whisper generation from `Lily!` to tokenizer-faithful
+  `Yanny!`, reproduces with a second fitted phone lens, and is not matched by ten
+  exact-budget random schedules. A separate exact Laurel route is explicitly
+  target-conditioned and does not transfer exactly across lens fits.
 
 The project is based on
 [`anthropics/jacobian-lens`](https://github.com/anthropics/jacobian-lens), the
@@ -153,6 +160,11 @@ curation records with their exact rank semantics, failure controls, and rights
 status. See
 [`docs/STATIC_SHOWCASE_CURATION.md`](docs/STATIC_SHOWCASE_CURATION.md) before
 adding or replacing a public example.
+
+The recorded fitted-phone intervention replay is available at
+[http://127.0.0.1:8000/steering](http://127.0.0.1:8000/steering). It is also
+backend-free: the controls select only measured Yanny and Laurel checkpoints,
+not interpolated strengths or new inference runs.
 
 For live analysis, fit or supply a compatible lens and start:
 
@@ -427,6 +439,28 @@ model confidence or a human perceptual mechanism. See
 [the causal-trace protocol](docs/CAUSAL_TRACE.md) for the local command and
 interpretation rules.
 
+A separate experimental follow-up now tests the fitted distributed phone signatures
+themselves rather than BPE pieces. Because a phone prototype lives in the
+51,864-dimensional readout basis, the implementation differentiates its
+complete prototype score through the matching centered encoder lens, final
+decoder normalization, and output head to propose a real 384-dimensional
+encoder edit. On the first development-only Laurel/Yanny trace, this direction
+raised both Whisper pieces of `Yanny`. The initial one-layer timing hypothesis
+reached `Yelly!`/`Yay!`; a later post-hoc active-region, equal-strength
+all-encoder-layer schedule generated tokenizer-faithful `Yanny!` on this clip
+and survived replacement with an independently fitted phone lens. Ten matched
+random schedules failed, but timing, reverse-sign, wrong-time, spectral,
+larger-control, and held-out-audio gates remain open. The raw audio, extended
+prototypes, optimizer and runner outputs, and detailed report stay under the
+ignored private experiment tree and remain unpublished. A sanitized,
+checkpoint-only derivative is available in the [public steering
+replay](https://kennethli319.github.io/audio-jacobian-lens/steering/): it contains
+recorded aggregate diagnostics, not source audio, live inference, fitted
+artifacts, or private paths. The equal-strength cross-fit Yanny result is the
+primary finding; the exact Laurel route is target-conditioned and fails exact
+cross-fit transfer. The current boundary is recorded in
+[`PROJECT_PLAN.md`](PROJECT_PLAN.md).
+
 ## Fit a Whisper lens
 
 The fitting CLI consumes JSON Lines with paths relative to the manifest:
@@ -601,6 +635,9 @@ separate static-site checkout with:
 
 .venv/bin/python scripts/export_static_tts_explorer.py \
   --site-root ../kennethli319.github.io/audio-jacobian-lens
+
+.venv/bin/python scripts/publish_static_phone_steering.py \
+  --site-root ../kennethli319.github.io/audio-jacobian-lens
 ```
 
 ASR and speech-to-speech are captured sequentially. Chatterbox generation is
@@ -667,7 +704,9 @@ This verifies the canonical explorer, findings, and legacy-alias hierarchy;
 the correct renderer on every no-index page; all 30 detailed reports and the
 separate 3×3 findings bundle; matrices, trace coverage, hashes, ten cleared
 input files; and the absence of model API calls, generated audio, or ephemeral
-analysis identifiers.
+analysis identifiers. It also locks the steering payload to recorded-only
+checkpoints, excludes source media and private artifacts, verifies its asset
+hashes, and preserves the different evidence labels for Yanny and Laurel.
 
 ## Development
 
@@ -678,6 +717,7 @@ node --check web/app.js
 node --check web/chatterbox.js
 node --check web/causal.js
 node --check web/showcase.js
+node --check web/steering.js
 node --check web/workspace-nav.js
 git diff --check
 ```

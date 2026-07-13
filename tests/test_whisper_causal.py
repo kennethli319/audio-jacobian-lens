@@ -371,6 +371,9 @@ def test_candidate_scores_exclude_prefix_and_support_intervention():
     baseline = score_candidate_text(model, inputs, " Yanny")
     assert candidate_text_token_ids(model, " Laurel") == [5]
     assert baseline.token_ids == (3, 4)
+    assert len(baseline.token_ranks) == 2
+    assert all(1 <= rank <= baseline.rank_denominator for rank in baseline.token_ranks)
+    assert baseline.rank_denominator == model.vocab_size
     assert baseline.mean_log_probability == pytest.approx(
         baseline.total_log_probability / 2
     )

@@ -20,6 +20,8 @@ def test_candidate_outcomes_makes_total_path_primary_and_retains_mean(monkeypatc
             text=" A",
             token_ids=(0,),
             token_log_probabilities=(-2.0,),
+            token_ranks=(2,),
+            rank_denominator=3,
             total_log_probability=-2.0,
             mean_log_probability=-2.0,
         ),
@@ -27,6 +29,8 @@ def test_candidate_outcomes_makes_total_path_primary_and_retains_mean(monkeypatc
             text=" B",
             token_ids=(1, 2),
             token_log_probabilities=(-1.1, -1.1),
+            token_ranks=(1, 3),
+            rank_denominator=3,
             total_log_probability=-2.2,
             mean_log_probability=-1.1,
         ),
@@ -61,6 +65,10 @@ def test_candidate_outcomes_makes_total_path_primary_and_retains_mean(monkeypatc
     assert first["restricted_mean_log_probability_softmax"] < second[
         "restricted_mean_log_probability_softmax"
     ]
+    assert first["token_ranks"] == [2]
+    assert second["token_ranks"] == [1, 3]
+    assert first["rank_denominator"] == 3
+    assert first["rank_kind"] == "raw_output_head_full_vocabulary"
 
 
 def test_span_from_seconds_maps_to_exact_20ms_positions():

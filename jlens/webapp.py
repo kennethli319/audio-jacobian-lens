@@ -920,6 +920,13 @@ def create_app(
             def legacy_causal_study_fallback() -> FileResponse:
                 return FileResponse(legacy_causal_page)
 
+        steering_page = static_dir / "steering.html"
+        if steering_page.is_file():
+
+            @app.get("/steering")
+            def phone_steering_replay() -> FileResponse:
+                return FileResponse(steering_page)
+
         if (static_dir / "chatterbox.html").is_file():
 
             @app.get("/chatterbox")

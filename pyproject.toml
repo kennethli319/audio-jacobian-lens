@@ -73,10 +73,14 @@ jlens = ["data/*"]
     "web/showcase.css",
     "web/showcase.html",
     "web/showcase.js",
+    "web/steering.css",
+    "web/steering.html",
+    "web/steering.js",
     "web/styles.css",
     "web/workspace-nav.js",
 ]
 "share/jlens/web/data" = [
+    "web/data/phone-steering-results.json",
     "web/data/showcase-examples.json",
 ]
 "share/jlens/samples" = [

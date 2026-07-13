@@ -93,10 +93,26 @@ def _build_route_fixture(site_root: Path) -> None:
             ),
         )
 
+    _write(
+        site_root / "steering" / "index.html",
+        _noindex('data-results-url="../data/phone-steering-results.json"')
+        + (
+            f'<link rel="canonical" href="{validator.PUBLIC_BASE}steering/">'
+            '<link rel="stylesheet" href="../assets/steering.css'
+            f'?v={validator.STEERING_ASSET_VERSION}">'
+            '<script src="../assets/steering.js'
+            f'?v={validator.STEERING_ASSET_VERSION}"></script>'
+            'data-target="yanny" data-target="laurel" '
+            'id="checkpoint-range" type="range" '
+            'href="../" href="../speech/" href="../tts/"'
+        ),
+    )
+
     routes = {
         "detailed_cached_explorers": list(validator.CANONICAL_DETAILED_ROUTES.values()),
         "findings": list(validator.FINDINGS_ROUTES.values()),
         "legacy_explorer_aliases": list(validator.LEGACY_EXPLORER_ROUTES.values()),
+        "recorded_interventions": [validator.STEERING_ROUTE],
     }
     _write(site_root / "site-manifest.json", json.dumps({"routes": routes}))
 
@@ -149,6 +165,19 @@ def test_route_contract_rejects_stale_explorer_asset_version(
     page.write_text(html, encoding="utf-8")
 
     with pytest.raises(ValueError, match="canonical speech"):
+        validator._validate_route_contract(tmp_path)
+
+
+def test_route_contract_rejects_stale_steering_asset_version(tmp_path: Path) -> None:
+    _build_route_fixture(tmp_path)
+    page = tmp_path / "steering" / "index.html"
+    html = page.read_text(encoding="utf-8").replace(
+        f"steering.js?v={validator.STEERING_ASSET_VERSION}",
+        "steering.js?v=stale",
+    )
+    page.write_text(html, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="recorded phone steering replay"):
         validator._validate_route_contract(tmp_path)
 
 
@@ -359,6 +388,10 @@ def test_site_manifest_integrity_checks_counts_and_hashes(tmp_path: Path) -> Non
     relative_paths = {
         "assets/explorer.js": "script",
         "assets/explorer.css": "styles",
+        "assets/steering.js": "steering script",
+        "assets/steering.css": "steering styles",
+        "data/phone-steering-results.json": "steering data",
+        "steering/index.html": "steering page",
         "explorer/data/asr/manifest.json": "asr",
         "explorer/data/speech/manifest.json": "speech",
         "explorer/data/tts/manifest.json": "tts",
@@ -381,6 +414,60 @@ def test_site_manifest_integrity_checks_counts_and_hashes(tmp_path: Path) -> Non
     _write(tmp_path / "site-manifest.json", json.dumps(site_manifest))
     with pytest.raises(ValueError, match="report counts"):
         validator._validate_site_manifest_integrity(tmp_path, counts=counts)
+
+
+def test_phone_steering_payload_rejects_interpolation_and_evidence_collapse() -> None:
+    payload = json.loads(
+        (Path(__file__).resolve().parents[1] / "data" / "static_phone_steering_v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    validator._validate_phone_steering_payload(payload)
+
+    payload["targets"]["yanny"]["checkpoints"][0]["interpolated"] = True
+    with pytest.raises(ValueError, match="interpolated"):
+        validator._validate_phone_steering_payload(payload)
+
+    payload = json.loads(
+        (Path(__file__).resolve().parents[1] / "data" / "static_phone_steering_v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    payload["targets"]["laurel"]["evidence"]["tier"] = (
+        "open_loop_cross_fit_reproduced"
+    )
+    with pytest.raises(ValueError, match="Laurel"):
+        validator._validate_phone_steering_payload(payload)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        lambda payload: payload["targets"]["yanny"]["checkpoints"].__setitem__(
+            0, None
+        ),
+        lambda payload: payload["targets"]["yanny"].update(
+            {"schedule": [{}], "coefficient_heatmap": [None] * 4}
+        ),
+        lambda payload: payload["targets"]["yanny"]["checkpoints"][2].update(
+            {"decisions": "not-a-list"}
+        ),
+        lambda payload: payload["targets"]["yanny"]["checkpoints"][2].update(
+            {"generated": "not-an-object", "budget_fraction": None}
+        ),
+        lambda payload: payload["baseline"].update({"decisions": {}}),
+    ),
+)
+def test_phone_steering_payload_rejects_malformed_nested_data(mutation) -> None:
+    payload = json.loads(
+        (Path(__file__).resolve().parents[1] / "data" / "static_phone_steering_v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    mutation(payload)
+
+    with pytest.raises(ValueError, match="phone steering payload|phone steering yanny"):
+        validator._validate_phone_steering_payload(payload)
 
 
 def _ranked_token(token_id: int, *, rank: int, score: float | None = None) -> dict:
