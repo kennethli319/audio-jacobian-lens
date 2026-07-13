@@ -20,6 +20,24 @@ def _noindex(body: str) -> str:
     )
 
 
+def _resource_links() -> str:
+    return (
+        '<nav class="resource-links" aria-label="Project resources">'
+        f'<a class="resource-link hf-space-link" href="{validator.LIVE_ASR_SPACE_URL}" '
+        'target="_blank" rel="noreferrer" '
+        'aria-label="Open the live ASR explorer on Hugging Face Spaces">'
+        "LIVE ASR · HF SPACE ↗</a>"
+        f'<a class="resource-link notes-link" href="{validator.PROJECT_NOTES_URL}" '
+        'target="_blank" rel="noreferrer" '
+        'aria-label="Read the Audio Jacobian Lens project notes">'
+        "NOTES ↗</a>"
+        f'<a class="repo-link resource-link" href="{validator.SOURCE_REPOSITORY_URL}" '
+        'target="_blank" rel="noreferrer" '
+        'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy">'
+        "GitHub · self-host ↗</a></nav>"
+    )
+
+
 def _build_route_fixture(site_root: Path) -> None:
     canonical = {
         "asr": (
@@ -59,12 +77,7 @@ def _build_route_fixture(site_root: Path) -> None:
             + (f'<script src="{script}?v={validator.EXPLORER_ASSET_VERSION}"></script>')
             + 'aria-label="Audio Jacobian Lens home"'
             + 'class="site-nav" aria-label="Model explorers"'
-            + (
-                f'<a class="repo-link" href="{validator.SOURCE_REPOSITORY_URL}" '
-                'target="_blank" rel="noreferrer" '
-                'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy">'
-                "GitHub · self-host ↗</a>"
-            )
+            + _resource_links()
             + '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
             + "".join(links),
         )
@@ -98,10 +111,7 @@ def _build_route_fixture(site_root: Path) -> None:
                 f'?v={validator.EXPLORER_ASSET_VERSION}"></script>'
                 'aria-label="Audio Jacobian Lens home" '
                 'class="site-nav" aria-label="Model explorers" '
-                f'<a class="repo-link" href="{validator.SOURCE_REPOSITORY_URL}" '
-                'target="_blank" rel="noreferrer" '
-                'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy">'
-                "GitHub · self-host ↗</a>"
+                f'{_resource_links()}'
                 '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
                 'href="../../" href="../../speech/"'
             ),
@@ -232,6 +242,63 @@ def test_route_contract_requires_source_repository_link(
         "explorer/speech/index.html",
     ),
 )
+@pytest.mark.parametrize(
+    "required_url",
+    (
+        validator.LIVE_ASR_SPACE_URL,
+        validator.PROJECT_NOTES_URL,
+    ),
+)
+def test_route_contract_requires_reciprocal_resource_links(
+    tmp_path: Path, relative_path: str, required_url: str
+) -> None:
+    _build_route_fixture(tmp_path)
+    page = tmp_path / relative_path
+    html = page.read_text(encoding="utf-8").replace(
+        required_url,
+        "https://example.invalid/missing-resource",
+        1,
+    )
+    page.write_text(html, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="explorer"):
+        validator._validate_route_contract(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "index.html",
+        "speech/index.html",
+        "explorer/asr/index.html",
+        "explorer/speech/index.html",
+    ),
+)
+def test_route_contract_requires_resource_link_group(
+    tmp_path: Path, relative_path: str
+) -> None:
+    _build_route_fixture(tmp_path)
+    page = tmp_path / relative_path
+    html = page.read_text(encoding="utf-8").replace(
+        'class="resource-links" aria-label="Project resources"',
+        'class="missing-resource-links" aria-label="Missing resources"',
+        1,
+    )
+    page.write_text(html, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="explorer"):
+        validator._validate_route_contract(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "index.html",
+        "speech/index.html",
+        "explorer/asr/index.html",
+        "explorer/speech/index.html",
+    ),
+)
 def test_route_contract_rejects_removed_findings_link_in_explorer_header(
     tmp_path: Path, relative_path: str
 ) -> None:
@@ -297,6 +364,14 @@ def test_renderer_contract_requires_honest_speech_cap_warning() -> None:
         "response may be truncated",
     )
     assert validator.SPEECH_TERMINATION_CSS_MARKERS == (".generation-status.capped",)
+
+
+def test_shared_styles_contract_requires_reciprocal_resource_links() -> None:
+    assert validator.RESOURCE_LINK_CSS_MARKERS == (
+        ".resource-links",
+        ".resource-link",
+        ".hf-space-link",
+    )
 
 
 def test_renderer_contract_requires_readable_asr_decoder_hierarchy() -> None:

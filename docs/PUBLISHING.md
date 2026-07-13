@@ -19,9 +19,11 @@ or performs inference.
 - TTS/Chatterbox is local-only. A release containing a TTS route, TTS report
   cache, or TTS navigation item must fail validation.
 
-The primary header contains ASR and Speech links plus the GitHub/self-hosting
-link. Do not add the retired standalone steering page or hidden findings pages
-back to that menu.
+The primary header contains ASR and Speech links plus reciprocal resource tags
+for the live ASR Hugging Face Space, the project notes, and the GitHub
+self-hosting repository. Keep those tags on both canonical explorers and both
+saved-link aliases. Do not add the retired standalone steering page or hidden
+findings pages back to that menu.
 
 ## Prerequisites
 

@@ -18,9 +18,11 @@ PUBLIC_CATALOG_URL = (
     "data/static_explorer_catalog_v2.json"
 )
 SOURCE_REPOSITORY_URL = "https://github.com/kennethli319/audio-jacobian-lens"
+LIVE_ASR_SPACE_URL = "https://kennethli319-audio-jacobian-lens.hf.space/"
+PROJECT_NOTES_URL = "https://kennethli319.github.io/notes/audio-jacobian-lens/"
 FAMILIES = ("asr", "speech")
 EXPECTED_REPORT_COUNT = 10
-EXPLORER_ASSET_VERSION = "20260713-23"
+EXPLORER_ASSET_VERSION = "20260713-24"
 CANONICAL_DETAILED_ROUTES = {
     "asr": SITE_PREFIX,
     "speech": f"{SITE_PREFIX}speech/",
@@ -141,6 +143,11 @@ ASR_RECORDED_REPLAY_CSS_MARKERS = (
     ".replay-attribution",
     ".sample-tag",
     ".matrix-panel .replay-active-summary",
+)
+RESOURCE_LINK_CSS_MARKERS = (
+    ".resource-links",
+    ".resource-link",
+    ".hf-space-link",
 )
 STEERING_SCRIPT_MARKERS = (
     'data.mode !== "static_recorded_checkpoints"',
@@ -1534,7 +1541,16 @@ def _validate_route_contract(site_root: Path) -> None:
                 f'<link rel="canonical" href="{PUBLIC_BASE}{CANONICAL_DETAILED_ROUTES[family].removeprefix(SITE_PREFIX)}">',
                 'aria-label="Audio Jacobian Lens home"',
                 'class="site-nav" aria-label="Model explorers"',
-                'class="repo-link"',
+                'class="resource-links" aria-label="Project resources"',
+                'class="resource-link hf-space-link"',
+                f'href="{LIVE_ASR_SPACE_URL}"',
+                'aria-label="Open the live ASR explorer on Hugging Face Spaces"',
+                "LIVE ASR · HF SPACE ↗",
+                'class="resource-link notes-link"',
+                f'href="{PROJECT_NOTES_URL}"',
+                'aria-label="Read the Audio Jacobian Lens project notes"',
+                "NOTES ↗",
+                'class="repo-link resource-link"',
                 f'href="{SOURCE_REPOSITORY_URL}"',
                 'target="_blank" rel="noreferrer"',
                 'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy"',
@@ -1592,7 +1608,16 @@ def _validate_route_contract(site_root: Path) -> None:
                 f'<link rel="canonical" href="{PUBLIC_BASE}{canonical_suffix}">',
                 'aria-label="Audio Jacobian Lens home"',
                 'class="site-nav" aria-label="Model explorers"',
-                'class="repo-link"',
+                'class="resource-links" aria-label="Project resources"',
+                'class="resource-link hf-space-link"',
+                f'href="{LIVE_ASR_SPACE_URL}"',
+                'aria-label="Open the live ASR explorer on Hugging Face Spaces"',
+                "LIVE ASR · HF SPACE ↗",
+                'class="resource-link notes-link"',
+                f'href="{PROJECT_NOTES_URL}"',
+                'aria-label="Read the Audio Jacobian Lens project notes"',
+                "NOTES ↗",
+                'class="repo-link resource-link"',
                 f'href="{SOURCE_REPOSITORY_URL}"',
                 'target="_blank" rel="noreferrer"',
                 'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy"',
@@ -1889,6 +1914,13 @@ def validate_site(site_root: Path) -> dict[str, int]:
                 f"{retired_marker}"
             )
     explorer_css = (site_root / "assets/explorer.css").read_text(encoding="utf-8")
+    shared_css = (site_root / "assets/styles.css").read_text(encoding="utf-8")
+    for marker in RESOURCE_LINK_CSS_MARKERS:
+        if marker not in shared_css:
+            raise ValueError(
+                "static explorer shared CSS is missing the reciprocal resource-link "
+                f"contract: {marker}"
+            )
     if ".static-filter" in explorer_css:
         raise ValueError(
             "static explorer CSS still includes retired token-length filtering"

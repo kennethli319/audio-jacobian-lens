@@ -286,6 +286,13 @@ def test_explorer_uses_shared_light_navigation_without_dead_inline_study():
     assert "Encoder-to-decoder extension" in response.text
     assert "It does not establish" in response.text
     assert 'href="./chatterbox"' in response.text
+    assert 'class="resource-links" aria-label="Project resources"' in response.text
+    assert 'href="https://kennethli319.github.io/audio-jacobian-lens/"' in response.text
+    assert 'href="https://kennethli319.github.io/notes/audio-jacobian-lens/"' in response.text
+    assert 'href="https://github.com/kennethli319/audio-jacobian-lens"' in response.text
+    assert "Static explorer ↗" in response.text
+    assert "Notes ↗" in response.text
+    assert "GitHub ↗" in response.text
 
     script = (web_dir / "app.js").read_text(encoding="utf-8")
     assert "How J-lens applies to speech-to-speech" in script
