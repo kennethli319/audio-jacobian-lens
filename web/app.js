@@ -4,7 +4,10 @@ const API = Object.freeze({
   status: "/api/status",
   samples: "/api/samples",
   analyze: "/api/analyze",
+  analysisJobs: "/api/analysis/jobs",
 });
+
+const ANALYSIS_JOB_POLL_INTERVAL_MS = 750;
 
 const MAX_RECORD_SECONDS = 30;
 const RECORD_AUTO_STOP_SECONDS = 29;
@@ -207,6 +210,8 @@ const state = {
   audioUrl: "",
   recordUrl: "",
   requestController: null,
+  analysisQueue: null,
+  activeAnalysisJob: null,
   progressTimer: null,
   progressHideTimer: null,
   progressStartedAt: 0,
@@ -277,6 +282,16 @@ function formatScore(score) {
 
 function formatProbability(probability) {
   return `${Math.round(clamp(probability) * 100)}%`;
+}
+
+function formatApproximateWait(seconds) {
+  const value = finiteNumberOrNull(seconds);
+  if (value === null) return null;
+  const safe = Math.max(0, value);
+  if (safe < 2) return "a few seconds";
+  if (safe < 60) return `about ${Math.ceil(safe)} seconds`;
+  const minutes = Math.ceil(safe / 60);
+  return `about ${minutes} minute${minutes === 1 ? "" : "s"}`;
 }
 
 function formatProbabilityPrecise(probability, digits = 3) {
@@ -794,6 +809,17 @@ function recordingInProgress() {
   return state.recordingPending || state.mediaRecorder?.state === "recording";
 }
 
+function analysisQueueCapability(value) {
+  if (!value || typeof value !== "object" || value.enabled !== true) return null;
+  return {
+    enabled: true,
+    capacity: Math.max(0, Math.trunc(asFiniteNumber(value.capacity))),
+    queued: Math.max(0, Math.trunc(asFiniteNumber(value.queued))),
+    running: Math.max(0, Math.trunc(asFiniteNumber(value.running))),
+    averageSeconds: finiteNumberOrNull(value.average_seconds ?? value.estimated_job_seconds),
+  };
+}
+
 async function checkBackendStatus() {
   elements.statusDot.className = "status-dot";
   elements.statusText.textContent = "Checking backend…";
@@ -806,14 +832,19 @@ async function checkBackendStatus() {
     document.body.dataset.asrOnly = payload.asr_only === true ? "true" : "false";
     elements.hostedNotice.hidden = payload.asr_only !== true;
     state.serverMode = isMlxLfmInfo(payload) ? "speech" : "asr";
+    state.analysisQueue = analysisQueueCapability(payload.analysis_queue);
     applyBackendBranding(payload);
     const ready = payload.ready ?? payload.ok ?? true;
     const model = payload.model_id || payload.model || "Audio backend";
     elements.statusDot.className = `status-dot ${ready ? "online" : "offline"}`;
     elements.statusText.textContent = ready ? "Backend ready" : "Backend not ready";
     elements.statusButton.setAttribute("aria-label", `Backend status: ${ready ? "ready" : "not ready"}. Refresh status.`);
-    elements.statusButton.title = `${model}: ${payload.message || (ready ? "ready" : "not ready")}. Click to refresh.`;
+    const queueDetail = state.analysisQueue
+      ? ` Queue active${state.analysisQueue.capacity ? ` with ${state.analysisQueue.capacity} waiting slots` : ""}.`
+      : "";
+    elements.statusButton.title = `${model}: ${payload.message || (ready ? "ready" : "not ready")}.${queueDetail} Click to refresh.`;
   } catch (error) {
+    state.analysisQueue = null;
     elements.statusDot.className = "status-dot offline";
     elements.statusText.textContent = "Demo available";
     elements.statusButton.setAttribute("aria-label", "Backend unavailable. Synthetic demo is available. Refresh status.");
@@ -921,6 +952,11 @@ function selectFile(file, { kind = "upload", title = file?.name, detail = "" } =
   announce(`${title || file.name} selected.`);
 }
 
+function defaultAnalysisProgressDescription() {
+  if (state.serverMode === "speech") return "LFM2.5 is generating speech and computing projected internal vocabulary readouts.";
+  return "Whisper is transcribing and computing internal vocabulary readouts.";
+}
+
 function startProgress() {
   window.clearInterval(state.progressTimer);
   window.clearTimeout(state.progressHideTimer);
@@ -930,6 +966,7 @@ function startProgress() {
   elements.progressTrack.setAttribute("aria-label", "Audio analysis is in progress");
   elements.progressLabel.textContent = "Analyzing audio…";
   elements.progressTime.textContent = "00:00";
+  elements.progressDescription.textContent = defaultAnalysisProgressDescription();
   state.progressTimer = window.setInterval(() => {
     elements.progressTime.textContent = formatTime(Math.floor((Date.now() - state.progressStartedAt) / 1000), false);
   }, 1000);
@@ -981,30 +1018,183 @@ function validateAnalysis(payload) {
   return payload;
 }
 
+function abortError() {
+  const error = new Error("Analysis polling was cancelled.");
+  error.name = "AbortError";
+  return error;
+}
+
+function delayWithSignal(milliseconds, signal) {
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener("abort", cancel);
+      resolve();
+    }, milliseconds);
+    const cancel = () => {
+      window.clearTimeout(timeout);
+      reject(abortError());
+    };
+    signal.addEventListener("abort", cancel, { once: true });
+  });
+}
+
+function responseErrorMessage(payload, response) {
+  const detail = payload?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail.trim();
+  if (detail && typeof detail === "object") {
+    const nested = detail.message || detail.error || detail.detail;
+    if (typeof nested === "string" && nested.trim()) return nested.trim();
+  }
+  for (const value of [payload?.error, payload?.message]) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return `Request failed with status ${response.status}.`;
+}
+
+async function responseJson(response, endpointName) {
+  let payload;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    throw new Error(`${endpointName} returned ${response.status} without JSON.`);
+  }
+  if (response.ok) return payload;
+  if (response.status === 429) {
+    const detail = payload?.detail && typeof payload.detail === "object" ? payload.detail : payload;
+    const retryHeader = finiteNumberOrNull(response.headers.get("Retry-After"));
+    const retrySeconds = finiteNumberOrNull(detail?.retry_after_seconds ?? payload?.retry_after_seconds) ?? retryHeader;
+    const wait = formatApproximateWait(retrySeconds);
+    throw new Error(`The analysis queue is full${wait ? `; it should have room in ${wait}` : ""}. Please try again shortly.`);
+  }
+  throw new Error(responseErrorMessage(payload, response));
+}
+
+function updateQueuedAnalysisProgress(job) {
+  const jobState = String(job?.state || "queued").toLowerCase();
+  if (jobState === "queued") {
+    const position = Math.trunc(asFiniteNumber(job.queue_position));
+    elements.progressLabel.textContent = position > 0 ? `Waiting in queue · #${position}` : "Waiting in queue…";
+    elements.progressTrack.setAttribute("aria-label", position > 0
+      ? `Audio analysis is waiting at queue position ${position}`
+      : "Audio analysis is waiting in the queue");
+    const wait = formatApproximateWait(job.estimated_wait_seconds);
+    elements.progressDescription.textContent = wait
+      ? `Expected to start in ${wait}. Queue position and timing are estimates based on recent analyses.`
+      : "Your audio is safely queued. Queue position and timing update while you wait.";
+    return;
+  }
+  if (jobState === "running") {
+    elements.progressLabel.textContent = "Analyzing audio…";
+    elements.progressTrack.setAttribute("aria-label", "Audio analysis is running");
+    const elapsed = Math.max(0, asFiniteNumber(job.elapsed_seconds));
+    const serverEstimate = finiteNumberOrNull(job.estimated_wait_seconds);
+    const averageEstimate = finiteNumberOrNull(state.analysisQueue?.averageSeconds);
+    const remaining = serverEstimate ?? (averageEstimate === null ? null : Math.max(0, averageEstimate - elapsed));
+    const wait = formatApproximateWait(remaining);
+    elements.progressDescription.textContent = wait
+      ? `${defaultAnalysisProgressDescription()} Approximately ${wait} remaining.`
+      : defaultAnalysisProgressDescription();
+  }
+}
+
+async function analyzeWithLegacyEndpoint(formData, signal) {
+  const response = await fetch(API.analyze, {
+    method: "POST",
+    body: formData,
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  return responseJson(response, "The analysis endpoint");
+}
+
+async function analyzeWithQueue(formData, signal) {
+  const submissionResponse = await fetch(API.analysisJobs, {
+    method: "POST",
+    body: formData,
+    headers: { Accept: "application/json" },
+    signal,
+  });
+  let job = await responseJson(submissionResponse, "The analysis queue");
+  const jobId = String(job.id || "");
+  const statusUrl = job.status_url || (jobId ? `${API.analysisJobs}/${encodeURIComponent(jobId)}` : null);
+  let resultUrl = job.result_url || (jobId ? `${API.analysisJobs}/${encodeURIComponent(jobId)}/result` : null);
+  if (!jobId || !statusUrl || !resultUrl) throw new Error("The analysis queue returned an incomplete job reference.");
+  state.activeAnalysisJob = { id: jobId, statusUrl, resultUrl };
+
+  while (true) {
+    if (signal.aborted) throw abortError();
+    const jobState = String(job.state || "").toLowerCase();
+    if (jobState === "queued" || jobState === "running") {
+      updateQueuedAnalysisProgress(job);
+      await delayWithSignal(ANALYSIS_JOB_POLL_INTERVAL_MS, signal);
+      const statusResponse = await fetch(statusUrl, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal,
+      });
+      job = await responseJson(statusResponse, "The analysis job status endpoint");
+      resultUrl = job.result_url || resultUrl;
+      state.activeAnalysisJob.resultUrl = resultUrl;
+      continue;
+    }
+    if (jobState === "succeeded" || jobState === "completed") {
+      const resultResponse = await fetch(resultUrl, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal,
+      });
+      const payload = await responseJson(resultResponse, "The analysis job result endpoint");
+      return payload.result || payload.analysis || payload;
+    }
+    if (jobState === "failed") throw new Error(responseErrorMessage(job, { status: 500 }));
+    if (jobState === "cancelled" || jobState === "canceled") throw new Error("The queued analysis was cancelled before it completed.");
+    throw new Error(`The analysis queue returned an unknown job state: ${jobState || "missing"}.`);
+  }
+}
+
+function cancelActiveAnalysisJob({ keepalive = false } = {}) {
+  const active = state.activeAnalysisJob;
+  if (!active?.statusUrl) return;
+  state.activeAnalysisJob = null;
+  fetch(active.statusUrl, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    keepalive,
+  }).catch(() => {});
+}
+
 async function analyzeSelectedFile() {
   if (!state.selectedFile || state.loading) return;
   clearError();
   setLoading(true);
   startProgress();
+  cancelActiveAnalysisJob();
   state.requestController?.abort();
   state.requestController = new AbortController();
   const formData = new FormData();
   formData.append("audio", state.selectedFile, state.selectedFile.name);
   formData.append("time_bin_overlap_seconds", elements.encoderOverlapSeconds.value);
   try {
-    const response = await fetch(API.analyze, { method: "POST", body: formData, headers: { Accept: "application/json" }, signal: state.requestController.signal });
-    let payload;
-    try { payload = await response.json(); } catch (error) { throw new Error(`The analysis endpoint returned ${response.status} without JSON.`); }
-    if (!response.ok) throw new Error(payload.detail || payload.error || payload.message || `Analysis failed with status ${response.status}.`);
+    const payload = state.analysisQueue?.enabled
+      ? await analyzeWithQueue(formData, state.requestController.signal)
+      : await analyzeWithLegacyEndpoint(formData, state.requestController.signal);
     renderResult(validateAnalysis(payload), "live");
     finishProgress(true);
     announce("Audio-model analysis is ready.");
   } catch (error) {
-    if (error.name !== "AbortError") {
+    if (error.name === "AbortError") {
+      cancelActiveAnalysisJob();
+    } else {
+      // A lost polling/result request should not leave an abandoned upload
+      // waiting for model time when the browser can still cancel it.
+      cancelActiveAnalysisJob();
       finishProgress(false);
       showError(`${error.message} The synthetic interface demo remains available.`);
     }
   } finally {
+    state.activeAnalysisJob = null;
     state.requestController = null;
     setLoading(false);
   }
@@ -1441,6 +1631,42 @@ function timelineTooltipCandidate(candidate, options) {
   };
 }
 
+function outputHeadCandidates(token) {
+  return (Array.isArray(token?.top_tokens) ? token.top_tokens : [])
+    .map((candidate, index) => ({ ...candidate, rank: candidate.rank ?? index + 1 }))
+    .sort((left, right) => asFiniteNumber(right.probability, -Infinity) - asFiniteNumber(left.probability, -Infinity));
+}
+
+function realizedRankForCell(kind, cell, layer) {
+  const realized = cell?.realized_token;
+  if (!realized || typeof realized !== "object") return null;
+  const filter = tokenLengthFilterSettings(kind, layer);
+  if (filter.active) {
+    const filteredRank = finiteNumberOrNull(cell?.realized_rank_by_max_length?.[String(filter.limit)]);
+    if (filteredRank === null) return null;
+    const denominator = finiteNumberOrNull(
+      state.result?.metadata?.display_vocabulary?.maximum_decoded_character_length_counts?.[String(filter.limit)],
+    );
+    return {
+      rank: Math.trunc(filteredRank),
+      denominator: denominator === null ? null : Math.trunc(denominator),
+    };
+  }
+  const rank = timelineRankDetails(realized, { kind, layer });
+  return rank.rank === null ? null : { rank: rank.rank, denominator: rank.denominator };
+}
+
+function appendTimelineCellLabel(button, label, { realizedRank = null } = {}) {
+  button.classList.add("candidate-label-cell");
+  button.append(createElement("span", "lens-timeline-cell-label", label));
+  if (realizedRank?.rank !== null && realizedRank?.rank !== undefined) {
+    const badge = createElement("span", "lens-timeline-cell-rank", `R#${realizedRank.rank}`);
+    const denominator = realizedRank.denominator;
+    badge.title = `Realized-token rank #${realizedRank.rank}${denominator === null || denominator === undefined ? "" : ` of ${denominator}`}`;
+    button.append(badge);
+  }
+}
+
 function phoneTooltipCandidate(candidate, denominator) {
   return {
     token: candidate.phone,
@@ -1463,11 +1689,9 @@ function timelineTooltipDetails(kind, layerIndex, columnIndex) {
     const token = state.result?.transcription?.tokens?.[tokenIndex];
     if (!token) return null;
     const rank = timelineRankDetails(token, { isHead: true });
-    const reported = (Array.isArray(token.top_tokens) ? token.top_tokens : [])
-      .map((candidate, index) => ({ ...candidate, rank: candidate.rank ?? index + 1 }))
-      .sort((left, right) => asFiniteNumber(right.probability, -Infinity) - asFiniteNumber(left.probability, -Infinity));
+    const reported = outputHeadCandidates(token);
     const candidates = (reported.length ? reported : [token])
-      .slice(0, 3)
+      .slice(0, 5)
       .map((candidate) => timelineTooltipCandidate(candidate, { isHead: true }));
     const probability = finiteNumberOrNull(token.probability);
     const logProbability = finiteNumberOrNull(token.log_probability);
@@ -1509,7 +1733,7 @@ function timelineTooltipDetails(kind, layerIndex, columnIndex) {
         { label: "Character-length filter", value: "Paused in phone view" },
       ],
       candidatesLabel: "Nearest phone prototypes",
-      candidates: signatures.slice(0, 3).map((candidate) => phoneTooltipCandidate(candidate, denominator)),
+      candidates: signatures.slice(0, 5).map((candidate) => phoneTooltipCandidate(candidate, denominator)),
     };
   }
   const tokens = tokensForCell(kind, cell, layer);
@@ -1533,7 +1757,7 @@ function timelineTooltipDetails(kind, layerIndex, columnIndex) {
       { label: "Token filter", value: filterSummary },
     ],
     candidates: tokens
-      .slice(0, 3)
+      .slice(0, 5)
       .map((candidate) => timelineTooltipCandidate(candidate, { kind, layer, metric: view.metric })),
   };
 }
@@ -1665,12 +1889,19 @@ function renderTimelineRow(view, layerIndex) {
     if (phoneMode) {
       const denominator = phoneSignatureCandidateCount(cell);
       button.classList.add("phone-signature-cell");
-      button.append(createElement("span", "", topSignature.phone));
+      appendTimelineCellLabel(button, topSignature.phone);
       description = `Encoder layer ${layer}, ${lensContext(view.kind, column, columnIndex)}. Nearest frozen phone prototype ${topSignature.phone}, cosine similarity ${formatScore(topSignature.similarity)}, rank #${topSignature.rank}${denominator ? ` of ${denominator}` : ""}. Exploratory fitted readout, not probability or confidence.`;
     } else {
       const rankLabel = timelineRankLabel(topToken, { kind: view.kind, layer });
       const filterState = timelineFilterState(view.kind, layer);
-      description = `${streamDisplayName(view.kind)} layer ${layer}, ${lensContext(view.kind, column, columnIndex)}. Top candidate ${visibleToken(topToken.text)}, token ID ${topToken.id ?? "unknown"}, ${timelineCandidateScoreLabel(topToken, { metric: view.metric })}, ${rankLabel}. ${filterState}.`;
+      const realizedRank = realizedRankForCell(view.kind, cell, layer);
+      appendTimelineCellLabel(button, visibleToken(topToken.text), {
+        realizedRank,
+      });
+      const realizedRankDescription = realizedRank
+        ? ` Realized-token rank #${realizedRank.rank}${realizedRank.denominator === null ? "" : ` of ${realizedRank.denominator}`}.`
+        : "";
+      description = `${streamDisplayName(view.kind)} layer ${layer}, ${lensContext(view.kind, column, columnIndex)}. Top candidate ${visibleToken(topToken.text)}, token ID ${topToken.id ?? "unknown"}, ${timelineCandidateScoreLabel(topToken, { metric: view.metric })}, ${rankLabel}.${realizedRankDescription} ${filterState}.`;
     }
     button.setAttribute("aria-label", description);
     button.addEventListener("pointerenter", (event) => {
@@ -1724,8 +1955,17 @@ function renderOutputHeadTimelineRow(view) {
     button.style.setProperty("--timeline-intensity", probability.toFixed(6));
     button.setAttribute("aria-pressed", "false");
     button.tabIndex = -1;
+    const headCandidates = outputHeadCandidates(token);
+    if (headCandidates.length) {
+      appendTimelineCellLabel(button, visibleToken(headCandidates[0].text), {
+        realizedRank: timelineRankDetails(token, { isHead: true }),
+      });
+    }
     const rankLabel = timelineRankLabel(token, { isHead: true });
-    const description = `Whisper LM head, ${lensContext("decoder", column, columnIndex)}. Realized token ${visibleToken(token.text)}, token ID ${token.id ?? "unknown"}, ${timelineCandidateScoreLabel(token, { isHead: true })}, ${rankLabel}. Unfiltered full model vocabulary.`;
+    const headCandidateDescription = headCandidates.length
+      ? ` Top candidate ${visibleToken(headCandidates[0].text)}, token ID ${headCandidates[0].id ?? "unknown"}.`
+      : "";
+    const description = `Whisper LM head, ${lensContext("decoder", column, columnIndex)}.${headCandidateDescription} Realized token ${visibleToken(token.text)}, token ID ${token.id ?? "unknown"}, ${timelineCandidateScoreLabel(token, { isHead: true })}, ${rankLabel}. Unfiltered full model vocabulary.`;
     button.setAttribute("aria-label", description);
     button.addEventListener("pointerenter", (event) => {
       if (event.pointerType !== "touch") showTimelineTooltip(button, timelineTooltipDetails("head", null, columnIndex), { mode: "pointer" });
@@ -1761,6 +2001,12 @@ function renderCompactTimeline(kind, view) {
   hideTimelineTooltip();
   container.replaceChildren();
   container.classList.toggle("logical-token-axis", kind === "decoder" && !state.timing.showRanges);
+  const minimumCellWidth = kind === "encoder" ? 28 : 92;
+  container.style.setProperty("--timeline-track-min-width", `${Math.max(0, view.columns.length * minimumCellWidth)}px`);
+  const scroller = createElement("div", "lens-timeline-scroll");
+  scroller.addEventListener("scroll", () => {
+    if (state.timelineTooltip.chart === container) hideTimelineTooltip();
+  }, { passive: true });
   const axis = createElement("div", "lens-timeline-axis");
   axis.append(createElement("span", "lens-timeline-row-label", kind === "decoder" && !state.timing.showRanges ? "Order" : "Time"));
   const ticks = createElement("div", "lens-timeline-axis-track");
@@ -1771,9 +2017,10 @@ function renderCompactTimeline(kind, view) {
     ticks.append(createElement("span", "", "0.00 s"), createElement("span", "", `${(duration / 2).toFixed(2)} s`), createElement("span", "", `${duration.toFixed(2)} s`));
   }
   axis.append(ticks);
-  container.append(axis);
-  view.layers.forEach((_, layerIndex) => container.append(renderTimelineRow(view, layerIndex)));
-  if (kind === "decoder") container.append(renderOutputHeadTimelineRow(view));
+  scroller.append(axis);
+  view.layers.forEach((_, layerIndex) => scroller.append(renderTimelineRow(view, layerIndex)));
+  if (kind === "decoder") scroller.append(renderOutputHeadTimelineRow(view));
+  container.append(scroller);
   container.onpointerleave = (event) => {
     if (event.pointerType !== "touch" && state.timelineTooltip.mode === "pointer") hideTimelineTooltip();
   };
@@ -1894,6 +2141,38 @@ function updateCompactTimelineSelection(view) {
   }
 }
 
+function revealTimelineColumn(view, columnIndex, { behavior = "auto" } = {}) {
+  if (!view || !Number.isInteger(columnIndex)) return;
+  const target = view.cellButtons.find((button) => (
+    Number(button.dataset.columnIndex) === columnIndex
+    && Number(button.dataset.layerIndex) === view.pinnedLayerIndex
+  )) || view.headButtons.find((button) => Number(button.dataset.columnIndex) === columnIndex);
+  if (!target) return;
+  const reveal = () => {
+    const scroller = target.closest(".lens-timeline-scroll");
+    if (!scroller?.isConnected) return;
+    const track = target.parentElement;
+    const targetStart = (track?.offsetLeft || 0) + target.offsetLeft;
+    const targetEnd = targetStart + target.offsetWidth;
+    const visibleStart = scroller.scrollLeft + 56;
+    const visibleEnd = scroller.scrollLeft + scroller.clientWidth - 16;
+    let destination = scroller.scrollLeft;
+    if (targetStart < visibleStart) destination = targetStart - 64;
+    else if (targetEnd > visibleEnd) destination = targetEnd - scroller.clientWidth + 24;
+    destination = Math.max(0, Math.min(scroller.scrollWidth - scroller.clientWidth, destination));
+    if (Math.abs(destination - scroller.scrollLeft) > 0.5) {
+      if (behavior === "auto") scroller.scrollLeft = destination;
+      else scroller.scrollTo({ left: destination, behavior });
+    }
+  };
+  window.requestAnimationFrame(() => {
+    reveal();
+    // Synchronized encoder/decoder updates can change the page geometry in the
+    // same frame. A post-event pass also wins over native focus auto-scrolling.
+    window.setTimeout(reveal, 32);
+  });
+}
+
 function selectTimelineCoordinate(kind, layerIndex, columnIndex, { focusCell = false, announceChange = false } = {}) {
   const view = kind === "head" ? state.views.decoder : state.views[kind];
   if (!view || !view.columns[columnIndex]) return;
@@ -1967,6 +2246,7 @@ function showStreamPosition(kind, index, { pin = false, announceChange = false, 
   label.textContent = lensContext(kind, column, safeIndex);
   if (kind === "encoder" && pin) updateEncoderSliderAria(safeIndex);
   updateCompactTimelineSelection(view);
+  revealTimelineColumn(view, safeIndex);
   if (updateInspector) inspectTimelineCell(kind, view.pinnedLayerIndex, safeIndex, { pin: false });
   if (announceChange) announce(`${kind === "encoder" ? "Audio slice" : "Token position"} selected. Layer comparison updated.`);
 }
@@ -2256,6 +2536,7 @@ function updatePlaybackUi() {
 
 function resetAnalysis() {
   hideTimelineTooltip();
+  cancelActiveAnalysisJob();
   state.requestController?.abort();
   window.clearInterval(state.progressTimer);
   window.clearTimeout(state.progressHideTimer);
@@ -2301,6 +2582,7 @@ function resetAnalysis() {
 function loadDemo() {
   if (recordingInProgress()) return;
   clearError();
+  cancelActiveAnalysisJob();
   state.requestController?.abort();
   finishProgress(false);
   setLoading(false);
@@ -3025,6 +3307,7 @@ function bindEvents() {
   window.addEventListener("beforeunload", () => {
     if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
     if (state.recordUrl) URL.revokeObjectURL(state.recordUrl);
+    cancelActiveAnalysisJob({ keepalive: true });
     state.requestController?.abort();
     stopMediaTracks();
   });

@@ -13,6 +13,7 @@ import re
 import sys
 import threading
 import warnings
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Protocol
@@ -20,9 +21,23 @@ from urllib.parse import urlsplit
 
 import torch
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 
+from jlens.analysis_queue import (
+    AnalysisJobCancelledError,
+    AnalysisJobFailedError,
+    AnalysisJobNotFoundError,
+    AnalysisJobNotReadyError,
+    AnalysisJobQueue,
+    AnalysisQueueFullError,
+)
 from jlens.audio_io import (
     AUDIO_PREPROCESSING_VERSION,
     DecodedAudio,
@@ -158,9 +173,7 @@ def _manifest_samples(directory: Path, payload: Any) -> list[BundledAudioSample]
         sample_id = raw_entry.get("id")
         filename = raw_entry.get("file")
         title = raw_entry.get("title")
-        if not isinstance(sample_id, str) or not SAMPLE_ID_PATTERN.fullmatch(
-            sample_id
-        ):
+        if not isinstance(sample_id, str) or not SAMPLE_ID_PATTERN.fullmatch(sample_id):
             raise ValueError(
                 f"sample manifest entry {index} has an invalid id: {sample_id!r}"
             )
@@ -192,9 +205,7 @@ def _manifest_samples(directory: Path, payload: Any) -> list[BundledAudioSample]
                 duration_seconds=duration,
                 media_type=SAMPLE_MEDIA_TYPES[path.suffix.lower()],
                 badge=_optional_manifest_text(raw_entry, "badge"),
-                recommended_for=_optional_manifest_text(
-                    raw_entry, "recommended_for"
-                ),
+                recommended_for=_optional_manifest_text(raw_entry, "recommended_for"),
             )
         )
     return samples
@@ -475,7 +486,9 @@ class WhisperAnalysisBackend:
         token_timestamps = generated.get("token_timestamps")
         if token_timestamps is not None:
             token_timestamps = token_timestamps.cpu()
-        special_ids = set(int(token_id) for token_id in self.model.tokenizer.all_special_ids)
+        special_ids = set(
+            int(token_id) for token_id in self.model.tokenizer.all_special_ids
+        )
         has_ordinary_target = any(
             int(token_id) not in special_ids for token_id in sequence_ids[0, 1:]
         )
@@ -507,12 +520,42 @@ def create_app(
     chatterbox_backend: ChatterboxBackend | None = None,
     phonetic_experiment_dir: str | Path | None = None,
     asr_only: bool = False,
+    analysis_queue_capacity: int = 0,
+    analysis_queue_initial_seconds: float = 6.0,
 ) -> FastAPI:
-    app = FastAPI(title="Audio Jacobian Lens", docs_url="/api/docs")
-    sample_catalog = load_sample_catalog(samples_dir)
-    private_phonetic_site = _phonetic_experiment_directory(
-        phonetic_experiment_dir
+    if analysis_queue_capacity < 0:
+        raise ValueError("analysis queue capacity cannot be negative")
+    if analysis_queue_capacity and backend is None:
+        raise ValueError("analysis queue requires a model backend")
+    if analysis_queue_capacity and getattr(backend, "requires_server_thread", False):
+        raise ValueError(
+            "analysis queue is not compatible with a backend that requires the server thread"
+        )
+    analysis_queue = (
+        None
+        if analysis_queue_capacity == 0 or backend is None
+        else AnalysisJobQueue(
+            backend,
+            capacity=analysis_queue_capacity,
+            initial_estimate_seconds=analysis_queue_initial_seconds,
+        )
     )
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        try:
+            yield
+        finally:
+            if analysis_queue is not None:
+                analysis_queue.close()
+
+    app = FastAPI(
+        title="Audio Jacobian Lens",
+        docs_url="/api/docs",
+        lifespan=lifespan,
+    )
+    sample_catalog = load_sample_catalog(samples_dir)
+    private_phonetic_site = _phonetic_experiment_directory(phonetic_experiment_dir)
 
     @app.middleware("http")
     async def protect_local_analysis(request: Request, call_next):
@@ -541,7 +584,11 @@ def create_app(
             "/api/chatterbox/branch",
             "/api/chatterbox/residual-branch",
         }
-        if request.url.path in protected_paths:
+        protected_analysis_job = (
+            request.url.path == "/api/analysis/jobs"
+            or request.url.path.startswith("/api/analysis/jobs/")
+        )
+        if request.url.path in protected_paths or protected_analysis_job:
             origin = request.headers.get("origin")
             host = request.headers.get("host", "")
             if origin and urlsplit(origin).netloc != host:
@@ -550,7 +597,7 @@ def create_app(
                     status_code=403,
                 )
             content_length = request.headers.get("content-length")
-            if content_length is not None:
+            if request.method == "POST" and content_length is not None:
                 try:
                     too_large = int(content_length) > (
                         MAX_UPLOAD_BYTES + MAX_MULTIPART_OVERHEAD
@@ -575,21 +622,23 @@ def create_app(
             }
         payload = dict(backend.status())
         payload["asr_only"] = asr_only
+        if analysis_queue is not None:
+            payload["analysis_queue"] = analysis_queue.status()
         return payload
 
     @app.get("/api/samples")
     def list_samples() -> dict[str, Any]:
         return {
-            "samples": [
-                sample.public_metadata() for sample in sample_catalog.values()
-            ]
+            "samples": [sample.public_metadata() for sample in sample_catalog.values()]
         }
 
     @app.get("/api/samples/{sample_id:path}")
     def get_sample(sample_id: str) -> FileResponse:
         sample = sample_catalog.get(sample_id)
         if sample is None:
-            raise HTTPException(status_code=404, detail="Bundled audio sample not found")
+            raise HTTPException(
+                status_code=404, detail="Bundled audio sample not found"
+            )
         return FileResponse(
             sample.path,
             media_type=sample.media_type,
@@ -690,8 +739,7 @@ def create_app(
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "unknown Chatterbox branch field(s): "
-                    + ", ".join(unknown_fields)
+                    "unknown Chatterbox branch field(s): " + ", ".join(unknown_fields)
                 ),
             )
         analysis_id = payload.get("analysis_id")
@@ -770,9 +818,7 @@ def create_app(
         target_code_id = payload.get("target_code_id")
         layers = payload.get("layers")
         forward_span = payload.get("forward_span")
-        max_relative_residual_norm = payload.get(
-            "max_relative_residual_norm"
-        )
+        max_relative_residual_norm = payload.get("max_relative_residual_norm")
         if (
             not isinstance(analysis_id, str)
             or not analysis_id
@@ -796,8 +842,7 @@ def create_app(
                 detail="layers must be a non-empty list of integers",
             )
         if any(
-            isinstance(layer, bool) or not isinstance(layer, int)
-            for layer in layers
+            isinstance(layer, bool) or not isinstance(layer, int) for layer in layers
         ):
             raise HTTPException(
                 status_code=400, detail="layers must contain only integers"
@@ -818,9 +863,7 @@ def create_app(
         ):
             raise HTTPException(
                 status_code=400,
-                detail=(
-                    "max_relative_residual_norm must be finite and in (0, 2.0]"
-                ),
+                detail=("max_relative_residual_norm must be finite and in (0, 2.0]"),
             )
         try:
             return chatterbox_backend.residual_branch(
@@ -860,10 +903,25 @@ def create_app(
             payload = audio.file.read(MAX_UPLOAD_BYTES + 1)
             if len(payload) > MAX_UPLOAD_BYTES:
                 raise ValueError("audio upload exceeds the 64 MB limit")
-            return backend.analyze(
+            if analysis_queue is None:
+                return backend.analyze(
+                    payload,
+                    time_bin_overlap_seconds=time_bin_overlap_seconds,
+                )
+            job = analysis_queue.submit(
                 payload,
                 time_bin_overlap_seconds=time_bin_overlap_seconds,
             )
+            return analysis_queue.wait(job["id"])
+        except AnalysisQueueFullError as exc:
+            raise HTTPException(
+                status_code=429,
+                detail=str(exc),
+                headers={"Retry-After": "6"},
+            ) from exc
+        except AnalysisJobFailedError as exc:
+            status_code = 400 if exc.client_error else 500
+            raise HTTPException(status_code=status_code, detail=str(exc)) from exc
         except AnalysisBusyError as exc:
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except ValueError as exc:
@@ -873,6 +931,86 @@ def create_app(
             raise HTTPException(
                 status_code=500, detail=f"Audio analysis failed: {exc}"
             ) from exc
+
+    if analysis_queue is not None:
+
+        @app.post("/api/analysis/jobs", status_code=202)
+        def submit_analysis_job(
+            audio: Annotated[UploadFile, File()],
+            time_bin_overlap_seconds: Annotated[float | None, Form()] = None,
+        ) -> JSONResponse:
+            try:
+                payload = audio.file.read(MAX_UPLOAD_BYTES + 1)
+                if len(payload) > MAX_UPLOAD_BYTES:
+                    raise ValueError("audio upload exceeds the 64 MB limit")
+                job = analysis_queue.submit(
+                    payload,
+                    time_bin_overlap_seconds=time_bin_overlap_seconds,
+                )
+            except AnalysisQueueFullError as exc:
+                retry_after = max(
+                    1,
+                    math.ceil(analysis_queue.status()["average_seconds"]),
+                )
+                raise HTTPException(
+                    status_code=429,
+                    detail=str(exc),
+                    headers={"Retry-After": str(retry_after)},
+                ) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return JSONResponse(
+                job,
+                status_code=202,
+                headers={
+                    "Cache-Control": "no-store",
+                    "Location": job["status_url"],
+                },
+            )
+
+        @app.get("/api/analysis/jobs/{job_id}")
+        def analysis_job_status(job_id: str) -> JSONResponse:
+            try:
+                job = analysis_queue.get(job_id)
+            except AnalysisJobNotFoundError as exc:
+                raise HTTPException(
+                    status_code=404,
+                    detail="analysis job was not found or has expired",
+                ) from exc
+            return JSONResponse(job, headers={"Cache-Control": "no-store"})
+
+        @app.get("/api/analysis/jobs/{job_id}/result")
+        def analysis_job_result(job_id: str) -> Response:
+            try:
+                result = analysis_queue.result(job_id)
+            except AnalysisJobNotFoundError as exc:
+                raise HTTPException(
+                    status_code=404,
+                    detail="analysis job was not found or has expired",
+                ) from exc
+            except AnalysisJobNotReadyError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            except AnalysisJobCancelledError as exc:
+                raise HTTPException(status_code=410, detail=str(exc)) from exc
+            except AnalysisJobFailedError as exc:
+                status_code = 422 if exc.client_error else 500
+                raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+            return Response(
+                content=result,
+                media_type="application/json",
+                headers={"Cache-Control": "no-store"},
+            )
+
+        @app.delete("/api/analysis/jobs/{job_id}")
+        def cancel_analysis_job(job_id: str) -> JSONResponse:
+            try:
+                job = analysis_queue.cancel(job_id)
+            except AnalysisJobNotFoundError as exc:
+                raise HTTPException(
+                    status_code=404,
+                    detail="analysis job was not found or has expired",
+                ) from exc
+            return JSONResponse(job, headers={"Cache-Control": "no-store"})
 
     if backend is not None and getattr(backend, "requires_server_thread", False):
 
@@ -900,9 +1038,7 @@ def create_app(
     else:
         source_checkout = Path(__file__).resolve().parent.parent / "web"
         installed_data = Path(sys.prefix) / "share" / "jlens" / "web"
-        static_dir = (
-            source_checkout if source_checkout.is_dir() else installed_data
-        )
+        static_dir = source_checkout if source_checkout.is_dir() else installed_data
     if private_phonetic_site is not None:
 
         @app.get("/experiments/phonetic-signatures", include_in_schema=False)
@@ -977,6 +1113,26 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _nonnegative_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("value must be an integer") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("value cannot be negative")
+    return parsed
+
+
+def _positive_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("value must be a number") from exc
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("value must be a positive finite number")
+    return parsed
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Serve the local Audio Jacobian Lens explorer"
@@ -1022,6 +1178,21 @@ def _parser() -> argparse.ArgumentParser:
         "--asr-only",
         action="store_true",
         help="hide non-ASR workspace links in the hosted explorer",
+    )
+    parser.add_argument(
+        "--analysis-queue-capacity",
+        type=_nonnegative_int,
+        default=0,
+        help=(
+            "maximum waiting Whisper analyses; 0 keeps the direct local API "
+            "(one additional job may be running)"
+        ),
+    )
+    parser.add_argument(
+        "--analysis-queue-initial-seconds",
+        type=_positive_float,
+        default=6.0,
+        help="initial per-analysis duration estimate shown before timing samples exist",
     )
     parser.add_argument("--web-dir")
     parser.add_argument(
@@ -1096,6 +1267,8 @@ def main() -> None:
         samples_dir=args.samples_dir,
         phonetic_experiment_dir=args.phonetic_experiment_dir,
         asr_only=args.asr_only,
+        analysis_queue_capacity=args.analysis_queue_capacity,
+        analysis_queue_initial_seconds=args.analysis_queue_initial_seconds,
     )
     import uvicorn
 

@@ -6,16 +6,25 @@ relative endpoints resolve correctly.
 
 ## API surface
 
-- `GET /api/status` reports backend readiness.
+- `GET /api/status` reports backend readiness and, when enabled, bounded queue
+  capacity, current waiting/running counts, and the recent duration estimate.
 - `GET /api/samples` returns
   `{samples: [{id, title, description, transcript, duration_seconds, filename,
   media_type, audio_url}]}`. Selecting a sample fetches `audio_url` and sends
   the resulting audio through the normal analysis request. An empty or missing
   sample catalog degrades to a quiet empty state.
-- `POST /api/analyze` accepts multipart form data with audio in the `audio`
-  field and optional `time_bin_overlap_seconds` (default `0.02`; use `0` for
-  non-overlapping windows). Uploads, prepared samples, and microphone recordings
-  all use this endpoint.
+- `POST /api/analysis/jobs` is the hosted asynchronous path. It accepts the
+  same multipart fields, returns an opaque job ID and status/result URLs, and
+  is polled by the browser so queue position and approximate wait remain
+  visible without holding one HTTP request open.
+- `GET /api/analysis/jobs/{id}` reports queued/running/succeeded/failed state,
+  queue position, and estimates. `GET .../{id}/result` returns the completed
+  report; `DELETE .../{id}` cancels a queued job or discards a running result.
+- `POST /api/analyze` is the backward-compatible synchronous path. It accepts
+  multipart form data with audio in the `audio` field and optional
+  `time_bin_overlap_seconds` (default `0.02`; use `0` for non-overlapping
+  windows). When the queue is enabled, it passes through the same FIFO rather
+  than bypassing model serialization.
 
 For a standalone visual preview, serve this directory with any static HTTP
 server and choose **Load synthetic UI demo**. Demo analysis never contacts the
@@ -49,7 +58,10 @@ documented in [`../docs/PUBLISHING.md`](../docs/PUBLISHING.md).
 
 ## Interaction model
 
-The primary lens views deliberately avoid a horizontally scrolling matrix.
+The primary lens views use horizontally scrollable timelines when a sample is
+wider than the viewport. Clicking a position synchronizes the encoder, decoder,
+and output HEAD, then scrolls each timeline in either direction to keep the
+selected position visible.
 The encoder uses one proportional waveform-slice slider and the decoder uses a
 wrapping token navigator. A pinned selection synchronizes the output/LM-head
 token, representative encoder bin, decoder position, waveform overlays, audio

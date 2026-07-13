@@ -173,6 +173,22 @@ def test_entrypoint_rejects_invalid_asr_only_value(tmp_path: Path) -> None:
     assert "JLENS_ASR_ONLY must be true or false" in result.stderr
 
 
+def test_entrypoint_enables_bounded_analysis_queue(tmp_path: Path) -> None:
+    result, arguments = _run_entrypoint(
+        tmp_path,
+        JLENS_ANALYSIS_QUEUE_CAPACITY="4",
+        JLENS_ANALYSIS_QUEUE_INITIAL_SECONDS="4.0",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert arguments[-4:] == [
+        "--analysis-queue-capacity",
+        "4",
+        "--analysis-queue-initial-seconds",
+        "4.0",
+    ]
+
+
 def test_entrypoint_rejects_partial_hub_lens_configuration(tmp_path: Path) -> None:
     result, arguments = _run_entrypoint(
         tmp_path,

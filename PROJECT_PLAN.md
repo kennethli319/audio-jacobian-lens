@@ -2179,3 +2179,18 @@ the article and primary explorers now carry the relevant interpretation.
   ignored `.venv` during Python imports; no repository test failure was
   observed, but the environment must be rebuilt before claiming a fresh full
   suite pass for this documentation-only change.
+- Replaced the hosted Whisper backend's immediate concurrent-request rejection
+  with an opt-in bounded FIFO: one model analysis runs at a time, up to four
+  uploads wait in memory, aggregate waiting audio is capped at 64 MB, raw audio
+  is released as soon as work starts, and completed reports expire after ten
+  minutes. The asynchronous job API exposes queue position and an adaptive
+  recent-duration ETA while the legacy synchronous endpoint enters the same
+  queue rather than bypassing serialization.
+- Updated the live explorer workflow to submit and poll queued analysis jobs,
+  show `Waiting in queue · #N`, and replace the initial estimate with an EWMA of
+  successful run times. Queue-full responses remain bounded and actionable;
+  this is availability protection, not authentication or per-user fairness.
+- Made compact layer grids self-describing: encoder cells keep their top phone
+  prototype in phone mode and their top lexical readout in ordinary mode, while
+  decoder J-lens cells show their top lexical candidate alongside the smaller
+  realized-token rank marker. Hover/click retains the full ranked inspector.

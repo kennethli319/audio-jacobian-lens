@@ -58,6 +58,13 @@ The container accepts these environment variables:
   Whisper analysis itself.
 - `JLENS_DEVICE`, `JLENS_TOP_K`, `JLENS_TIME_BIN_SECONDS`, and
   `JLENS_TIME_BIN_OVERLAP_SECONDS` override serving defaults.
+- `JLENS_ANALYSIS_QUEUE_CAPACITY` enables a bounded FIFO for Whisper analysis.
+  The value is the number of waiting jobs; one additional job may be running.
+  Keep Uvicorn at one process so every request shares the same loaded model and
+  queue.
+- `JLENS_ANALYSIS_QUEUE_INITIAL_SECONDS` seeds the approximate browser wait
+  estimate. Successful analyses replace it with an exponentially weighted
+  recent average.
 
 A fitted lens is a separately licensed artifact. Inspect its metadata and
 confirm the rights to its fitting corpus before uploading it anywhere.
@@ -88,6 +95,8 @@ JLENS_LENS_FILENAME=<combined-lens-filename.pt>
 JLENS_LENS_REVISION=<immutable artifact commit>
 JLENS_PHONE_SIGNATURES_FILENAME=<matching-phone-prototypes.pt>
 JLENS_ASR_ONLY=true
+JLENS_ANALYSIS_QUEUE_CAPACITY=4
+JLENS_ANALYSIS_QUEUE_INITIAL_SECONDS=4
 ```
 
 If the artifact repository is private, add a read-scoped `HF_TOKEN` as a Space
@@ -139,14 +148,23 @@ and [embedding](https://huggingface.co/docs/hub/spaces-embed) guides.
 
 The localhost statement that audio is processed locally does not apply to a
 Space. Uploaded or recorded audio is sent to the Hugging Face-hosted container.
-The application does not intentionally persist uploads or cache analysis
-results, but it returns a normalized waveform for playback and the platform may
-process request metadata under its own terms.
+The application does not write uploads or reports to application storage. With
+the queue enabled, it temporarily retains waiting audio and completed reports
+in process memory as described below. Reports include a normalized waveform for
+playback, and the platform may process request metadata under its own terms.
 
 The public server accepts requests up to 64 MB, limits decoded audio to 30
-seconds, and uses one inference slot. It has no user authentication or general
-rate limiter. Do not invite sensitive uploads until the public notice, access
-policy, abuse controls, and cost limits match the intended audience.
+seconds, and uses one inference slot. Its optional in-memory queue runs one job
+at a time, holds at most the configured number of waiting uploads, caps waiting
+audio at 64 MB total, and retains completed reports for at most ten minutes
+(with earlier eviction under the terminal-result memory bounds). Raw audio is
+dropped when a job starts or is cancelled; completed reports are retained in
+memory only long enough for the submitting browser to fetch them.
+
+The queue protects model memory and gives visitors a position and approximate
+wait; it is not authentication, per-user fairness, or a general rate limiter.
+Do not invite sensitive uploads until the public notice, access policy, abuse
+controls, and cost limits match the intended audience.
 
 Code licensing does not grant rights to model weights, audio, or fitted lenses.
 Bundled sample provenance is recorded in [`../samples/README.md`](../samples/README.md).

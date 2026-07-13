@@ -22,9 +22,7 @@ class _WorkspaceMarkupParser(HTMLParser):
         self.workspace_links: dict[str, str] = {}
         self._active_workspace_link: str | None = None
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
         if tag == "body":
             self.body_workspace = attributes.get("data-workspace")
@@ -47,8 +45,7 @@ def _workspace_markup(path: Path) -> _WorkspaceMarkupParser:
     parser = _WorkspaceMarkupParser()
     parser.feed(path.read_text(encoding="utf-8"))
     parser.workspace_links = {
-        workspace: label.strip()
-        for workspace, label in parser.workspace_links.items()
+        workspace: label.strip() for workspace, label in parser.workspace_links.items()
     }
     return parser
 
@@ -102,9 +99,7 @@ def test_status_reports_asr_only_deployment_mode(tmp_path):
 
 
 def test_backend_status_reports_asr_only_deployment_mode(tmp_path):
-    client = TestClient(
-        create_app(_FakeBackend(), web_dir=tmp_path, asr_only=True)
-    )
+    client = TestClient(create_app(_FakeBackend(), web_dir=tmp_path, asr_only=True))
 
     status = client.get("/api/status").json()
     assert status["ready"] is True
@@ -165,7 +160,9 @@ def test_app_serves_showcase_and_legacy_causal_alias(tmp_path):
 
 def test_app_serves_recorded_phone_steering_replay(tmp_path):
     (tmp_path / "index.html").write_text("index", encoding="utf-8")
-    steering = '<body data-results-url="./data/phone-steering-results.json">replay</body>'
+    steering = (
+        '<body data-results-url="./data/phone-steering-results.json">replay</body>'
+    )
     (tmp_path / "steering.html").write_text(steering, encoding="utf-8")
     client = TestClient(create_app(None, web_dir=tmp_path))
 
@@ -209,9 +206,7 @@ def test_private_phonetic_experiment_requires_explicit_local_mount(tmp_path):
         '<meta name="robots" content="noindex,nofollow">'
         '<body data-experiment="phonetic-signatures">Private results</body>'
     )
-    (experiment_dir / "index.html").write_text(
-        experiment_markup, encoding="utf-8"
-    )
+    (experiment_dir / "index.html").write_text(experiment_markup, encoding="utf-8")
     (experiment_dir / "data.json").write_text(
         '{"status":"private_development"}\n', encoding="utf-8"
     )
@@ -257,7 +252,10 @@ def test_app_serves_the_separate_chatterbox_trace_page():
     response = client.get("/chatterbox")
 
     assert response.status_code == 200
-    assert "speech-code predictions form through T3 and relate to their text context" in response.text
+    assert (
+        "speech-code predictions form through T3 and relate to their text context"
+        in response.text
+    )
     assert 'id="chatterbox-reading-guide"' in response.text
     assert "adapted to text-to-speech" in response.text
     assert "It does not establish" in response.text
@@ -295,6 +293,26 @@ def test_explorer_uses_shared_light_navigation_without_dead_inline_study():
     assert "The FastConformer, audio adapter, codebook heads" in script
 
 
+def test_explorer_uses_server_queue_with_position_eta_and_legacy_fallback():
+    web_dir = Path(__file__).resolve().parents[1] / "web"
+    script = (web_dir / "app.js").read_text(encoding="utf-8")
+
+    assert 'analysisJobs: "/api/analysis/jobs"' in script
+    assert "analysisQueueCapability(payload.analysis_queue)" in script
+    assert "state.analysisQueue?.enabled" in script
+    assert "analyzeWithQueue(formData" in script
+    assert "analyzeWithLegacyEndpoint(formData" in script
+    assert "Waiting in queue · #${position}" in script
+    assert "job.queue_position" in script
+    assert "job.estimated_wait_seconds" in script
+    assert "job.elapsed_seconds" in script
+    assert "averageSeconds" in script
+    assert "delayWithSignal(ANALYSIS_JOB_POLL_INTERVAL_MS, signal)" in script
+    assert 'signal.addEventListener("abort", cancel, { once: true })' in script
+    assert "The analysis queue is full" in script
+    assert "cancelActiveAnalysisJob()" in script
+
+
 def test_workspace_navigation_contract_is_shared_and_packaged():
     root = Path(__file__).resolve().parents[1]
     web_dir = root / "web"
@@ -315,14 +333,11 @@ def test_workspace_navigation_contract_is_shared_and_packaged():
         markup = _workspace_markup(web_dir / filename)
         assert markup.body_workspace == workspace
         assert any(
-            source.startswith("./workspace-nav.js")
-            for source in markup.script_sources
+            source.startswith("./workspace-nav.js") for source in markup.script_sources
         )
         assert markup.workspace_links == expected_links
 
-    navigation_script = (web_dir / "workspace-nav.js").read_text(
-        encoding="utf-8"
-    )
+    navigation_script = (web_dir / "workspace-nav.js").read_text(encoding="utf-8")
     assert "[data-workspace-link]" in navigation_script
     assert "document.body.dataset.workspace" in navigation_script
     assert 'localUrl(8000, "/showcase")' in navigation_script
@@ -353,14 +368,8 @@ def test_explorer_has_a_mode_specific_speech_demo_and_section_numbering():
     assert 'model_family: "lfm2_audio"' in speech_demo
     assert 'streams: ["decoder"]' in speech_demo
     assert 'timing_source: "unavailable"' in speech_demo
-    assert (
-        'elements.decoderSectionLabel.textContent = "04 · LANGUAGE J-LENS"'
-        in script
-    )
-    assert (
-        'elements.decoderSectionLabel.textContent = "05 · DECODER LENS"'
-        in script
-    )
+    assert 'elements.decoderSectionLabel.textContent = "04 · LANGUAGE J-LENS"' in script
+    assert 'elements.decoderSectionLabel.textContent = "05 · DECODER LENS"' in script
 
 
 def test_speech_generated_audio_reports_budget_or_eos_termination():
@@ -431,12 +440,8 @@ def test_asr_explorer_exposes_compact_waveform_aligned_lens_timelines():
         r'(?=[^>]*\brole="group")[^>]*>',
         response.text,
     )
-    assert re.search(
-        r'id="encoder-navigator"[^>]*\bhidden\b', response.text
-    )
-    assert re.search(
-        r'id="decoder-navigator"[^>]*\bhidden\b', response.text
-    )
+    assert re.search(r'id="encoder-navigator"[^>]*\bhidden\b', response.text)
+    assert re.search(r'id="decoder-navigator"[^>]*\bhidden\b', response.text)
     assert "overlapping audio window" in response.text
     assert "target-mean-relative logit deltas" in response.text
     assert "raw J-lens readout logits" in response.text
@@ -470,12 +475,18 @@ def test_asr_compact_timeline_preserves_overlapping_and_token_time_geometry():
     row_start = script.index("function renderTimelineRow(")
     row_end = script.index("function renderOutputHeadTimelineRow(", row_start)
     row = script[row_start:row_end]
-    assert 'createElement("button", `lens-timeline-cell ${view.kind}-timeline-cell`)' in row
+    assert (
+        'createElement("button", `lens-timeline-cell ${view.kind}-timeline-cell`)'
+        in row
+    )
     assert "view.columns.forEach((column, columnIndex)" in row
     assert "timelineCellGeometry(view.kind, column, columnIndex)" in row
     assert "button.style.left = geometry.left" in row
     assert "button.style.width = geometry.width" in row
     assert 'button.setAttribute("aria-label", description)' in row
+    assert "appendTimelineCellLabel(button, topSignature.phone)" in row
+    assert "appendTimelineCellLabel(button, visibleToken(topToken.text)" in row
+    assert "realizedRankForCell(view.kind, cell, layer)" in row
     assert "button.title" not in row
     assert 'button.addEventListener("pointerenter"' in row
     assert 'button.addEventListener("focus"' in row
@@ -489,6 +500,8 @@ def test_asr_compact_timeline_preserves_overlapping_and_token_time_geometry():
     assert 'timelineCellGeometry("decoder", column, columnIndex)' in head
     assert "button.style.left = geometry.left" in head
     assert "button.style.width = geometry.width" in head
+    assert "const headCandidates = outputHeadCandidates(token)" in head
+    assert "appendTimelineCellLabel(button, visibleToken(headCandidates[0].text)" in head
     assert 'button.setAttribute("aria-label", description)' in head
     assert "button.title" not in head
     assert 'button.addEventListener("pointerenter"' in head
@@ -502,6 +515,9 @@ def test_asr_compact_timeline_preserves_overlapping_and_token_time_geometry():
     assert "renderTimelineRow(view, layerIndex)" in compact
     assert "renderOutputHeadTimelineRow(view)" in compact
     assert 'container.classList.toggle("logical-token-axis"' in compact
+    assert 'createElement("div", "lens-timeline-scroll")' in compact
+    assert 'kind === "encoder" ? 28 : 92' in compact
+    assert 'container.style.setProperty("--timeline-track-min-width"' in compact
 
 
 def test_asr_timeline_details_use_scoped_rank_and_score_provenance():
@@ -517,7 +533,10 @@ def test_asr_timeline_details_use_scoped_rank_and_score_provenance():
     assert "candidate.score" in tokens
     assert "token.score" in tokens
     assert "rank_denominator: denominator" in tokens
-    assert 'rank_tie_policy: token.rank_tie_policy || "1_plus_count_strictly_greater"' in tokens
+    assert (
+        'rank_tie_policy: token.rank_tie_policy || "1_plus_count_strictly_greater"'
+        in tokens
+    )
 
     rank_start = script.index("function timelineRankDetails(")
     rank_end = script.index("function timelineRankLabel(", rank_start)
@@ -653,18 +672,21 @@ def test_asr_compact_timeline_shares_selection_and_native_keyboard_navigation():
     encoder_filter_end = script.index(
         "function updateDecoderTokenLengthFilter(", encoder_filter_start
     )
-    assert 'refreshCompactStream("encoder")' in script[
-        encoder_filter_start:encoder_filter_end
-    ]
+    assert (
+        'refreshCompactStream("encoder")'
+        in script[encoder_filter_start:encoder_filter_end]
+    )
     decoder_filter_end = script.index("function bindEvents(", encoder_filter_end)
-    assert 'refreshCompactStream("decoder")' in script[
-        encoder_filter_end:decoder_filter_end
-    ]
+    assert (
+        'refreshCompactStream("decoder")'
+        in script[encoder_filter_end:decoder_filter_end]
+    )
 
 
-def test_asr_compact_timeline_fits_the_viewport_without_horizontal_scrolling():
+def test_asr_compact_timeline_keeps_readable_cells_in_horizontal_scrollers():
     web_dir = Path(__file__).resolve().parents[1] / "web"
     styles = (web_dir / "styles.css").read_text(encoding="utf-8")
+    script = (web_dir / "app.js").read_text(encoding="utf-8")
 
     assert re.search(
         r'body\[data-workspace="asr"\]\s*\{[^}]*overflow-x:\s*(?:clip|hidden)',
@@ -680,7 +702,10 @@ def test_asr_compact_timeline_fits_the_viewport_without_horizontal_scrolling():
     assert ".lens-timeline-row" in timeline
     assert ".lens-timeline-track" in timeline
     assert ".lens-timeline-cell" in timeline
-    assert "grid-template-columns: 42px minmax(0, 1fr)" in timeline
+    assert ".lens-timeline-scroll" in timeline
+    assert "overflow-x: auto" in timeline
+    assert "grid-template-columns: 42px minmax(var(--timeline-track-min-width, 0px), 1fr)" in timeline
+    assert "position: sticky" in timeline
     assert re.search(
         r"\.lens-timeline-track\s*\{[^}]*position:\s*relative",
         timeline,
@@ -691,17 +716,32 @@ def test_asr_compact_timeline_fits_the_viewport_without_horizontal_scrolling():
         timeline,
         re.DOTALL,
     )
-    assert "overflow-x: auto" not in timeline
+    assert ".lens-timeline-cell.candidate-label-cell" in timeline
+    assert ".lens-timeline-cell-label" in timeline
+    assert ".lens-timeline-cell-rank" in timeline
     assert ".lens-timeline-cell:hover" in timeline
     assert ".lens-timeline-cell:focus-visible" in timeline
     assert ".lens-timeline-cell.selected-column" in timeline
     assert ".lens-timeline-cell.selected-coordinate" in timeline
 
+    reveal_start = script.index("function revealTimelineColumn(")
+    reveal_end = script.index("function selectTimelineCoordinate(", reveal_start)
+    reveal = script[reveal_start:reveal_end]
+    assert 'closest(".lens-timeline-scroll")' in reveal
+    assert "target.offsetLeft" in reveal
+    assert "scroller.clientWidth" in reveal
+    assert "scroller.scrollLeft = destination" in reveal
+    assert "scroller.scrollTo({ left: destination, behavior })" in reveal
+    assert "window.setTimeout(reveal, 32)" in reveal
+    show_start = script.index("function showStreamPosition(")
+    show_end = script.index("function renderLayerComparison(", show_start)
+    assert "revealTimelineColumn(view, safeIndex)" in script[show_start:show_end]
+
     mobile_start = styles.index("@media (max-width: 760px)")
     mobile_end = styles.index("@media (max-width: 470px)", mobile_start)
     mobile = styles[mobile_start:mobile_end]
     assert ".lens-timeline-row" in mobile
-    assert "minmax(0, 1fr)" in mobile
+    assert "minmax(var(--timeline-track-min-width, 0px), 1fr)" in mobile
     assert ".lens-timeline-track { height:" in mobile
 
 
@@ -716,7 +756,7 @@ def test_asr_compact_timeline_exposes_an_accessible_responsive_tooltip():
         r'(?=[^>]*\bclass="[^"]*\blens-timeline-tooltip\b[^"]*")'
         r'(?=[^>]*\brole="tooltip")'
         r'(?=[^>]*\bdata-visible="false")'
-        r'(?=[^>]*\bhidden\b)[^>]*>',
+        r"(?=[^>]*\bhidden\b)[^>]*>",
         response.text,
     )
     for class_name in (
@@ -742,7 +782,7 @@ def test_asr_compact_timeline_exposes_an_accessible_responsive_tooltip():
     assert "position: relative" in styles[timeline_start:timeline_end]
 
 
-def test_asr_timeline_tooltip_shows_three_candidates_with_exact_provenance():
+def test_asr_timeline_tooltip_shows_five_candidates_with_exact_provenance():
     web_dir = Path(__file__).resolve().parents[1] / "web"
     script = (web_dir / "app.js").read_text(encoding="utf-8")
 
@@ -751,7 +791,7 @@ def test_asr_timeline_tooltip_shows_three_candidates_with_exact_provenance():
     details = script[details_start:details_end]
     assert "tokensForCell(" in details
     assert "top_tokens" in details
-    assert ".slice(0, 3)" in details
+    assert details.count(".slice(0, 5)") >= 3
     assert "timelineRankDetails(" in details
     assert "rank.denominator" in details
     assert "rank.scope" in details
@@ -816,7 +856,9 @@ def test_asr_timeline_tooltip_pointer_and_keyboard_lifecycle_stays_unpinned():
     assert 'setAttribute("aria-describedby", "lens-timeline-tooltip")' in show
     assert "timelineTooltip.hidden = false" in show
     assert 'timelineTooltip.dataset.visible = "true"' in show
-    assert re.search(r"chart\.(?:append|appendChild)\(elements\.timelineTooltip\)", show)
+    assert re.search(
+        r"chart\.(?:append|appendChild)\(elements\.timelineTooltip\)", show
+    )
 
     hide_start = show_end
     hide_end = script.index("function renderTimelineRow(", hide_start)
@@ -987,9 +1029,7 @@ def test_chatterbox_api_reports_demo_mode_without_backend(tmp_path):
 
 def test_chatterbox_api_delegates_generation_and_trace(tmp_path):
     backend = _FakeChatterboxBackend()
-    client = TestClient(
-        create_app(None, web_dir=tmp_path, chatterbox_backend=backend)
-    )
+    client = TestClient(create_app(None, web_dir=tmp_path, chatterbox_backend=backend))
 
     status = client.get("/api/chatterbox/status")
     generation = client.post(

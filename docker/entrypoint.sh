@@ -124,6 +124,12 @@ fi
 if [ -n "${JLENS_TIME_BIN_OVERLAP_SECONDS:-}" ]; then
     set -- "$@" --time-bin-overlap-seconds "$JLENS_TIME_BIN_OVERLAP_SECONDS"
 fi
+if [ -n "${JLENS_ANALYSIS_QUEUE_CAPACITY:-}" ]; then
+    set -- "$@" --analysis-queue-capacity "$JLENS_ANALYSIS_QUEUE_CAPACITY"
+fi
+if [ -n "${JLENS_ANALYSIS_QUEUE_INITIAL_SECONDS:-}" ]; then
+    set -- "$@" --analysis-queue-initial-seconds "$JLENS_ANALYSIS_QUEUE_INITIAL_SECONDS"
+fi
 if [ -n "${JLENS_WEB_DIR:-}" ]; then
     set -- "$@" --web-dir "$JLENS_WEB_DIR"
 fi
