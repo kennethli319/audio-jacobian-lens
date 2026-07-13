@@ -59,6 +59,12 @@ def _build_route_fixture(site_root: Path) -> None:
             + (f'<script src="{script}?v={validator.EXPLORER_ASSET_VERSION}"></script>')
             + 'aria-label="Audio Jacobian Lens home"'
             + 'class="site-nav" aria-label="Model explorers"'
+            + (
+                f'<a class="repo-link" href="{validator.SOURCE_REPOSITORY_URL}" '
+                'target="_blank" rel="noreferrer" '
+                'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy">'
+                "GitHub · self-host ↗</a>"
+            )
             + '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
             + "".join(links),
         )
@@ -92,6 +98,10 @@ def _build_route_fixture(site_root: Path) -> None:
                 f'?v={validator.EXPLORER_ASSET_VERSION}"></script>'
                 'aria-label="Audio Jacobian Lens home" '
                 'class="site-nav" aria-label="Model explorers" '
+                f'<a class="repo-link" href="{validator.SOURCE_REPOSITORY_URL}" '
+                'target="_blank" rel="noreferrer" '
+                'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy">'
+                "GitHub · self-host ↗</a>"
                 '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
                 'href="../../" href="../../speech/"'
             ),
@@ -185,6 +195,31 @@ def test_route_contract_rejects_retired_steering_in_explorer_header(
     page.write_text(html, encoding="utf-8")
 
     with pytest.raises(ValueError, match="retired standalone steering"):
+        validator._validate_route_contract(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "index.html",
+        "speech/index.html",
+        "explorer/asr/index.html",
+        "explorer/speech/index.html",
+    ),
+)
+def test_route_contract_requires_source_repository_link(
+    tmp_path: Path, relative_path: str
+) -> None:
+    _build_route_fixture(tmp_path)
+    page = tmp_path / relative_path
+    html = page.read_text(encoding="utf-8").replace(
+        validator.SOURCE_REPOSITORY_URL,
+        "https://example.invalid/missing-source",
+        1,
+    )
+    page.write_text(html, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="explorer"):
         validator._validate_route_contract(tmp_path)
 
 

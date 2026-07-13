@@ -2154,3 +2154,6 @@ the article and primary explorers now carry the relevant interpretation.
   a noindex compatibility redirect that preserves Yanny/Laurel target links.
   The bounded checkpoint assets remain hash-pinned but unlinked for research
   reproducibility.
+- Added the source repository to every public explorer header as a visible
+  `GitHub · self-host` link, so visitors can inspect the implementation and run
+  their own copy without hunting through the article or page source.

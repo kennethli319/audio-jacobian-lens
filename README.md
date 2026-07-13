@@ -45,7 +45,8 @@ phone-signature overlays, cached interventions, labels, and controls are this
 project's additions.
 
 The public review opens directly into the detailed ASR explorer. One consistent
-top menu links ASR and Speech, including on narrow screens. The ASR
+top menu links ASR and Speech, including on narrow screens, and an adjacent
+GitHub link points to the code and self-hosting instructions. The ASR
 and Speech `/explorer/{family}/` aliases and findings URLs remain functional for
 saved links, but findings are no longer promoted in the primary header. Public
 TTS routes and caches are deliberately absent while the local Chatterbox pilot

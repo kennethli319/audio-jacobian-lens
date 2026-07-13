@@ -17,6 +17,7 @@ PUBLIC_CATALOG_URL = (
     "https://github.com/kennethli319/audio-jacobian-lens/blob/main/"
     "data/static_explorer_catalog_v2.json"
 )
+SOURCE_REPOSITORY_URL = "https://github.com/kennethli319/audio-jacobian-lens"
 FAMILIES = ("asr", "speech")
 EXPECTED_REPORT_COUNT = 10
 EXPLORER_ASSET_VERSION = "20260713-23"
@@ -1533,6 +1534,11 @@ def _validate_route_contract(site_root: Path) -> None:
                 f'<link rel="canonical" href="{PUBLIC_BASE}{CANONICAL_DETAILED_ROUTES[family].removeprefix(SITE_PREFIX)}">',
                 'aria-label="Audio Jacobian Lens home"',
                 'class="site-nav" aria-label="Model explorers"',
+                'class="repo-link"',
+                f'href="{SOURCE_REPOSITORY_URL}"',
+                'target="_blank" rel="noreferrer"',
+                'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy"',
+                "GitHub · self-host ↗",
                 '<span class="static-badge">PREVIEW · STATIC REPLAY</span>',
                 *nav_links,
             ),
@@ -1586,6 +1592,11 @@ def _validate_route_contract(site_root: Path) -> None:
                 f'<link rel="canonical" href="{PUBLIC_BASE}{canonical_suffix}">',
                 'aria-label="Audio Jacobian Lens home"',
                 'class="site-nav" aria-label="Model explorers"',
+                'class="repo-link"',
+                f'href="{SOURCE_REPOSITORY_URL}"',
+                'target="_blank" rel="noreferrer"',
+                'aria-label="Open Audio Jacobian Lens on GitHub to run or host your own copy"',
+                "GitHub · self-host ↗",
                 '<span class="static-badge">PREVIEW · STATIC REPLAY</span>',
                 *canonical_alias_nav,
             ),
