@@ -27,21 +27,36 @@ def _build_route_fixture(site_root: Path) -> None:
             "./assets/explorer.js",
             "./explorer/data/asr/manifest.json",
             validator.PUBLIC_BASE,
-            ('href="./"', 'href="./speech/"', 'href="./tts/"'),
+            (
+                'href="./"',
+                'href="./speech/"',
+                'href="./tts/"',
+                'href="./steering/"',
+            ),
         ),
         "speech": (
             "speech/index.html",
             "../assets/explorer.js",
             "../explorer/data/speech/manifest.json",
             f"{validator.PUBLIC_BASE}speech/",
-            ('href="../"', 'href="./"', 'href="../tts/"'),
+            (
+                'href="../"',
+                'href="./"',
+                'href="../tts/"',
+                'href="../steering/"',
+            ),
         ),
         "tts": (
             "tts/index.html",
             "../assets/explorer.js",
             "../explorer/data/tts/manifest.json",
             f"{validator.PUBLIC_BASE}tts/",
-            ('href="../"', 'href="../speech/"', 'href="./"'),
+            (
+                'href="../"',
+                'href="../speech/"',
+                'href="./"',
+                'href="../steering/"',
+            ),
         ),
     }
     for family, (path, script, manifest, canonical_url, links) in canonical.items():
@@ -58,6 +73,9 @@ def _build_route_fixture(site_root: Path) -> None:
                 f'?v={validator.EXPLORER_ASSET_VERSION}">'
             )
             + (f'<script src="{script}?v={validator.EXPLORER_ASSET_VERSION}"></script>')
+            + 'aria-label="Audio Jacobian Lens home"'
+            + 'class="site-nav" aria-label="Model explorers"'
+            + '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
             + "".join(links),
         )
 
@@ -89,7 +107,11 @@ def _build_route_fixture(site_root: Path) -> None:
                 f'?v={validator.EXPLORER_ASSET_VERSION}">'
                 '<script src="../../assets/explorer.js'
                 f'?v={validator.EXPLORER_ASSET_VERSION}"></script>'
-                'href="../../" href="../../speech/" href="../../tts/"'
+                'aria-label="Audio Jacobian Lens home" '
+                'class="site-nav" aria-label="Model explorers" '
+                '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
+                'href="../../" href="../../speech/" href="../../tts/" '
+                'href="../../steering/"'
             ),
         )
 
@@ -102,6 +124,9 @@ def _build_route_fixture(site_root: Path) -> None:
             f'?v={validator.STEERING_ASSET_VERSION}">'
             '<script src="../assets/steering.js'
             f'?v={validator.STEERING_ASSET_VERSION}"></script>'
+            'aria-label="Audio Jacobian Lens home" '
+            'class="site-nav" aria-label="Model explorers" '
+            '<span class="static-badge">PREVIEW · STATIC REPLAY</span>'
             'data-target="yanny" data-target="laurel" '
             'id="checkpoint-range" type="range" '
             'href="../" href="../speech/" href="../tts/"'
@@ -136,6 +161,56 @@ def test_route_contract_rejects_alias_navigation_to_legacy_routes(
     alias.write_text(html, encoding="utf-8")
 
     with pytest.raises(ValueError, match="legacy speech explorer alias"):
+        validator._validate_route_contract(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "steering_link"),
+    (
+        ("index.html", 'href="./steering/"'),
+        ("speech/index.html", 'href="../steering/"'),
+        ("tts/index.html", 'href="../steering/"'),
+        ("explorer/asr/index.html", 'href="../../steering/"'),
+        ("explorer/speech/index.html", 'href="../../steering/"'),
+        ("explorer/tts/index.html", 'href="../../steering/"'),
+    ),
+)
+def test_route_contract_requires_steering_in_every_explorer_header(
+    tmp_path: Path, relative_path: str, steering_link: str
+) -> None:
+    _build_route_fixture(tmp_path)
+    page = tmp_path / relative_path
+    html = page.read_text(encoding="utf-8").replace(steering_link, "", 1)
+    page.write_text(html, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="explorer"):
+        validator._validate_route_contract(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "index.html",
+        "speech/index.html",
+        "tts/index.html",
+        "explorer/asr/index.html",
+        "explorer/speech/index.html",
+        "explorer/tts/index.html",
+    ),
+)
+def test_route_contract_rejects_removed_findings_link_in_explorer_header(
+    tmp_path: Path, relative_path: str
+) -> None:
+    _build_route_fixture(tmp_path)
+    page = tmp_path / relative_path
+    html = page.read_text(encoding="utf-8").replace(
+        "</body>",
+        '<a class="summary-link" href="/findings/">Experiment findings</a></body>',
+        1,
+    )
+    page.write_text(html, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="removed findings header link"):
         validator._validate_route_contract(tmp_path)
 
 

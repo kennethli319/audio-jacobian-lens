@@ -30,7 +30,7 @@ LEGACY_EXPLORER_ROUTES = {
     family: f"{SITE_PREFIX}explorer/{family}/" for family in FAMILIES
 }
 STEERING_ROUTE = f"{SITE_PREFIX}steering/"
-STEERING_ASSET_VERSION = "20260713-1"
+STEERING_ASSET_VERSION = "20260713-2"
 FORBIDDEN_KEYS = {
     "analysis_id",
     "parent_analysis_id",
@@ -111,6 +111,10 @@ STEERING_SCRIPT_MARKERS = (
     "fetch(resultsUrl",
 )
 STEERING_CSS_MARKERS = (
+    ".site-header { width: min(1180px, calc(100% - 48px));",
+    ".site-nav { display: flex;",
+    "@media (max-width: 740px)",
+    ".site-nav { order: 3; width: 100%; }",
     ".coefficient-heatmap",
     ".heatmap-cell",
     ".decision-grid",
@@ -934,19 +938,34 @@ def _validate_route_contract(site_root: Path) -> None:
             "index.html",
             "./assets/explorer.js",
             "./explorer/data/asr/manifest.json",
-            ('href="./"', 'href="./speech/"', 'href="./tts/"'),
+            (
+                'href="./"',
+                'href="./speech/"',
+                'href="./tts/"',
+                'href="./steering/"',
+            ),
         ),
         "speech": (
             "speech/index.html",
             "../assets/explorer.js",
             "../explorer/data/speech/manifest.json",
-            ('href="../"', 'href="./"', 'href="../tts/"'),
+            (
+                'href="../"',
+                'href="./"',
+                'href="../tts/"',
+                'href="../steering/"',
+            ),
         ),
         "tts": (
             "tts/index.html",
             "../assets/explorer.js",
             "../explorer/data/tts/manifest.json",
-            ('href="../"', 'href="../speech/"', 'href="./"'),
+            (
+                'href="../"',
+                'href="../speech/"',
+                'href="./"',
+                'href="../steering/"',
+            ),
         ),
     }
     findings_pages = {
@@ -990,12 +1009,17 @@ def _validate_route_contract(site_root: Path) -> None:
                     f'?v={EXPLORER_ASSET_VERSION}"'
                 ),
                 f'<link rel="canonical" href="{PUBLIC_BASE}{CANONICAL_DETAILED_ROUTES[family].removeprefix(SITE_PREFIX)}">',
+                'aria-label="Audio Jacobian Lens home"',
+                'class="site-nav" aria-label="Model explorers"',
+                '<span class="static-badge">PREVIEW · STATIC REPLAY</span>',
                 *nav_links,
             ),
             label=label,
         )
         if "assets/app.js" in html:
             raise ValueError(f"{label} uses the findings renderer")
+        if 'class="summary-link"' in html or ">Experiment findings</a>" in html:
+            raise ValueError(f"{label} retains the removed findings header link")
 
     for family, (path, script, data_url) in findings_pages.items():
         label = f"{family} findings"
@@ -1016,6 +1040,7 @@ def _validate_route_contract(site_root: Path) -> None:
         'href="../../"',
         'href="../../speech/"',
         'href="../../tts/"',
+        'href="../../steering/"',
     )
     for family, (path, script, manifest) in alias_pages.items():
         label = f"legacy {family} explorer alias"
@@ -1033,12 +1058,17 @@ def _validate_route_contract(site_root: Path) -> None:
                     f'?v={EXPLORER_ASSET_VERSION}"'
                 ),
                 f'<link rel="canonical" href="{PUBLIC_BASE}{canonical_suffix}">',
+                'aria-label="Audio Jacobian Lens home"',
+                'class="site-nav" aria-label="Model explorers"',
+                '<span class="static-badge">PREVIEW · STATIC REPLAY</span>',
                 *canonical_alias_nav,
             ),
             label=label,
         )
         if "assets/app.js" in html:
             raise ValueError(f"{label} uses the findings renderer")
+        if 'class="summary-link"' in html or ">Experiment findings</a>" in html:
+            raise ValueError(f"{label} retains the removed findings header link")
 
     steering_html = _require_page(
         site_root, "steering/index.html", label="recorded phone steering replay"
@@ -1050,6 +1080,9 @@ def _validate_route_contract(site_root: Path) -> None:
             f'src="../assets/steering.js?v={STEERING_ASSET_VERSION}"',
             f'href="../assets/steering.css?v={STEERING_ASSET_VERSION}"',
             f'<link rel="canonical" href="{PUBLIC_BASE}steering/"',
+            'aria-label="Audio Jacobian Lens home"',
+            'class="site-nav" aria-label="Model explorers"',
+            '<span class="static-badge">PREVIEW · STATIC REPLAY</span>',
             'data-target="yanny"',
             'data-target="laurel"',
             'id="checkpoint-range" type="range"',

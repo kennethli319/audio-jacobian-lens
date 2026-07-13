@@ -33,8 +33,13 @@ def test_publish_static_phone_steering_builds_safe_public_route(tmp_path: Path) 
     assert f'../assets/steering.js?v={ASSET_VERSION}' in page
     assert f'../assets/steering.css?v={ASSET_VERSION}' in page
     assert 'data-results-url="../data/phone-steering-results.json"' in page
+    assert '<nav class="site-nav" aria-label="Model explorers">' in page
+    assert "PREVIEW · STATIC REPLAY" in page
+    assert 'href="../">ASR</a>' in page
     assert 'href="../speech/"' in page
     assert 'href="../tts/"' in page
+    assert 'class="active" href="./" aria-current="page">Steering</a>' in page
+    assert "Showcase</a>" not in page
     assert "<audio" not in page
 
     data = json.loads(

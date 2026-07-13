@@ -31,13 +31,13 @@ This repository currently contains five connected workspaces:
 | **Whisper ASR** | Paper-style decoder J-lens, experimental encoder-to-decoder lens, raw output diagnostics, audio upload/samples/recording, synchronized waveform and token timelines | A small synthetic decoder pilot recovers some early lexical directions; the current cross-stream encoder result is negative and must not be treated as a phoneme or streaming-belief detector | [`:8000/`](http://127.0.0.1:8000/) |
 | **LFM2.5 speech-to-speech** | Apple-silicon MLX generation, generated-speech playback, fitted readouts over the 16-layer language backbone | The retained lens is a one-clip integration pilot. It does not explain the FastConformer, audio adapter, acoustic codebooks, or played waveform | [`:8001/`](http://127.0.0.1:8001/) |
 | **Chatterbox TTS** | Corpus-fitted T3 acoustic-code readouts, per-run text sensitivity and attention, forced-code branches, and residual steering with suffix regeneration | The ten-prompt rank-128 pilot is encouraging but incomplete; acoustic-code IDs are not words or phonemes, and the current work does not attribute S3Gen or waveform samples | [`:8002/chatterbox`](http://127.0.0.1:8002/chatterbox) |
-| **Static review** | Primary full cached ASR, speech-to-speech, and TTS explorers with every saved layer/position cell, plus secondary curated findings pages that explain the experiments | Backend-free and safe to serve as static files. Each detailed explorer has ten reports; ten CC BY 4.0 LibriSpeech inputs are packaged, while generated LFM/Chatterbox audio and live steering remain excluded | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
+| **Static review** | Primary full cached ASR, speech-to-speech, and TTS explorers with every saved layer/position cell | Backend-free and safe to serve as static files. Each detailed explorer has ten reports; ten CC BY 4.0 LibriSpeech inputs are packaged, while generated LFM/Chatterbox audio and live steering remain excluded | [Public review](https://kennethli319.github.io/audio-jacobian-lens/) |
 | **Phonetic steering replay** | A static, checkpoint-only replay of fitted phone-prototype encoder interventions on the Laurel/Yanny clip, including phone timing, per-layer coefficients, raw output ranks, free generation, and controls | The equal-strength Yanny recipe is the stronger one-clip result and reproduces with a second fitted lens; the Laurel route is target-conditioned and does not transfer exactly. Neither is a universal word-control axis | [Public replay](https://kennethli319.github.io/audio-jacobian-lens/steering/) |
 
-The public review opens directly into the detailed ASR explorer. Speech and TTS
-use the canonical `/speech/` and `/tts/` routes. The shorter experimental
-stories live under `/findings/`, and the earlier `/explorer/{family}/` URLs
-remain functional aliases for saved links, including `?sample=...` selections.
+The public review opens directly into the detailed ASR explorer. One consistent
+top menu links ASR, Speech, TTS, and Steering, including on narrow screens. The
+earlier `/explorer/{family}/` and findings URLs remain functional for saved
+links, but findings are no longer promoted in the primary header.
 
 The older BPE/prefix Laurel/Yanny steering study is retained as a historical
 baseline in [`web/causal.html`](web/causal.html). The fitted-phone follow-up is
@@ -76,10 +76,10 @@ changes the state of the project.
   unquantized-model, finite-difference, and S3-stage controls remain open.
 - The LFM language-backbone path works end to end, but its one-clip fitted lens
   is integration evidence rather than a scientific result.
-- The local explorers and backend-free cached explorers are usable now, with
-  curated findings available as a secondary interpretation layer. Public
-  fitted-artifact and generated-audio distribution remain gated by the
-  provenance reviews recorded in the plan.
+- The local explorers and backend-free cached explorers are usable now; older
+  curated findings remain archived while the article carries the public
+  interpretation. Public fitted-artifact and generated-audio distribution
+  remain gated by the provenance reviews recorded in the plan.
 - On one development Laurel/Yanny clip, an equal-strength fitted-phone schedule
   changes ordinary Whisper generation from `Lily!` to tokenizer-faithful
   `Yanny!`, reproduces with a second fitted phone lens, and is not matched by ten
@@ -657,10 +657,10 @@ repeatable `--example-id` with `--resume-valid`. Either way, the resulting
 manifest is still required to contain the full ordered ten-report family.
 
 The canonical static pages are the detailed explorers at the site root,
-`/speech/`, and `/tts/`. Their curated experimental interpretations are under
-`/findings/`, `/findings/speech/`, and `/findings/tts/`. Functional copies at
-`/explorer/asr/`, `/explorer/speech/`, and `/explorer/tts/` preserve older
-links and query-selected samples. The speech-to-speech explorer keeps every
+`/speech/`, `/tts/`, and the recorded `/steering/` replay. All four use the same
+header dimensions and four-item navigation. The older findings and
+`/explorer/{family}/` routes remain functional for saved links but are omitted
+from the primary menu. The speech-to-speech explorer keeps every
 saved top-token cell in one continuous, horizontally scrollable matrix with
 fixed readable token columns. Its large cell label is the layer's top
 candidate; the smaller `realized #N` label is the generated token's exact

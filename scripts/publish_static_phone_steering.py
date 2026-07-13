@@ -12,7 +12,7 @@ from typing import Any
 
 PUBLIC_ROUTE = "/audio-jacobian-lens/steering/"
 PUBLIC_CANONICAL = "https://kennethli319.github.io/audio-jacobian-lens/steering/"
-ASSET_VERSION = "20260713-1"
+ASSET_VERSION = "20260713-2"
 PUBLISHED_FILES = {
     "web/steering.css": "assets/steering.css",
     "web/steering.js": "assets/steering.js",
@@ -73,18 +73,19 @@ def _public_html(source: str) -> str:
     body = _replace_once(
         body,
         (
-            '<nav aria-label="Project pages">\n'
+            '<nav class="site-nav" aria-label="Model explorers">\n'
             '        <a href="./">ASR</a>\n'
-            '        <a href="./showcase.html">Showcase</a>\n'
-            '        <a href="./steering.html" aria-current="page">Steering</a>\n'
+            '        <a href="./">Speech</a>\n'
+            '        <a href="./chatterbox">TTS</a>\n'
+            '        <a class="active" href="./steering.html" aria-current="page">Steering</a>\n'
             '      </nav>'
         ),
         (
-            '<nav aria-label="Project pages">\n'
+            '<nav class="site-nav" aria-label="Model explorers">\n'
             '        <a href="../">ASR</a>\n'
             '        <a href="../speech/">Speech</a>\n'
             '        <a href="../tts/">TTS</a>\n'
-            '        <a href="./" aria-current="page">Steering</a>\n'
+            '        <a class="active" href="./" aria-current="page">Steering</a>\n'
             '      </nav>'
         ),
     )
@@ -133,8 +134,8 @@ def publish(*, source_root: Path, site_root: Path, published_on: str) -> None:
     manifest["published_on"] = published_on
     manifest["publication_mode"] = "public_linked_noindex_review"
     manifest["description"] = (
-        "Public static Audio Jacobian Lens explorers, findings, and a recorded "
-        "phone-steering replay with asymmetric Yanny and Laurel evidence."
+        "Public static ASR, speech-to-speech, TTS, and recorded phone-steering "
+        "Audio Jacobian Lens explorers."
     )
     interaction = str(manifest.get("interaction_boundary") or "").rstrip()
     addition = (

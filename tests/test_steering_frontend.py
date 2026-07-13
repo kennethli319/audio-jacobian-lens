@@ -21,6 +21,13 @@ def test_phone_steering_page_is_static_accessible_and_has_no_audio_embed() -> No
     assert 'aria-live="polite" aria-atomic="true"' in html
     assert 'role="table" aria-label="Steering coefficients' in html
     assert 'href="#steering-main"' in html
+    assert '<span class="brand-copy">' in html
+    assert '<nav class="site-nav" aria-label="Model explorers">' in html
+    assert "PREVIEW · STATIC REPLAY" in html
+    assert html.count(">ASR</a>") == 1
+    assert html.count(">Speech</a>") == 1
+    assert html.count(">TTS</a>") == 1
+    assert html.count(">Steering</a>") == 1
     assert "No LM-head bias" in html
     assert "no browser interpolation" not in html.lower()  # supplied dynamically
     assert "<audio" not in html
@@ -57,6 +64,13 @@ def test_phone_steering_styles_are_isolated_responsive_and_keyboard_visible() ->
     assert ".candidate-row.target" in css
     assert ".evidence-badge.strong" in css
     assert ".evidence-badge.limited" in css
+    assert "width: min(1180px, calc(100% - 48px))" in css
+    assert ".site-nav" in css
+    assert ".brand-mark { width: 34px; height: 34px;" in css
+    assert "@media (max-width: 740px)" in css
+    assert ".site-header { width: min(100% - 28px, 1180px);" in css
+    assert ".site-nav { order: 3; width: 100%; }" in css
+    assert ".site-header nav { display: none; }" not in css
     assert ":focus-visible" in css
     assert "@media (max-width: 560px)" in css
     assert "@media (prefers-reduced-motion: reduce)" in css

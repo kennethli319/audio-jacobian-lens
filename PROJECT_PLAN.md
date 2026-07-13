@@ -531,6 +531,9 @@ Status: **in progress**
   Yanny/Laurel checkpoints; exact raw-head ranks and probabilities, timing,
   coefficient maps, free generation, and controls; exclude source audio, live
   inference, private prototype tensors, paths, and optimizer artifacts.
+- [x] Standardize the ASR, Speech, TTS, and Steering top bar: one centered
+  header, one four-item menu that remains visible on mobile, normalized active
+  and accessibility states, and no findings shortcut in primary navigation.
 - [ ] Package the Chatterbox bridge baseline/steered pair after completing the
   conversion/S3/derived-output review.
 - [x] Package the three attributed LibriSpeech inputs with immutable hashes and
@@ -552,8 +555,9 @@ Acceptance criteria:
   complete license/attribution record.
 - Visitors can inspect all layer/position cells and neighboring counterexamples,
   not only a preselected hero coordinate.
-- The detailed explorer is the entry point for each model family; curated
-  findings are clearly linked secondary interpretation pages rather than a
+- The detailed explorer is the entry point for each model family. The shared
+  header links only ASR, Speech, TTS, and Steering; older findings pages remain
+  available for saved links but are not a primary navigation destination or a
   substitute for the underlying matrices.
 - Long speech-to-speech responses remain readable without dropping, merging, or
   silently aggregating any saved top-token cell.
@@ -1241,6 +1245,16 @@ does not survive the same cross-fit replacement. Neither route is described as
 a universal word-control axis. The external perception demonstration is linked
 for context but its audio is not redistributed while reuse terms remain
 unreviewed.
+
+### 2026-07-13 — Make the four exploratory workspaces the whole top menu
+
+The canonical ASR, Speech, TTS, and Steering pages use the same centered
+1180-pixel header contract, brand geometry, four-item pill navigation, active
+state, and static-replay badge. At narrow widths the menu wraps into a visible
+full-width row rather than disappearing. The legacy explorer aliases preserve
+the same links. Curated findings routes remain deployed so old URLs do not
+break, but their model-specific shortcuts are removed from the shared header;
+the article and primary explorers now carry the relevant interpretation.
 
 ## Work log
 
@@ -2061,3 +2075,12 @@ unreviewed.
 - Final publication gate: 372 tests passed with three optional skips; full Ruff,
   all JavaScript syntax checks, whitespace checks, steering source/runtime data
   parity, and the strict 10/10/10 static-site validator passed.
+- Unified the public ASR, Speech, TTS, and Steering headers around the existing
+  explorer dimensions and four-link navigation. Steering no longer switches to
+  a smaller sticky header or hides its menu on mobile; all six canonical/legacy
+  explorer shells link the replay. Removed the Experiment Findings shortcut
+  while retaining those archived routes for saved links, and extended the
+  static release contract to reject either navigation regression.
+- Final navigation gate: 384 tests passed with three optional skips; full Ruff,
+  all JavaScript syntax checks, whitespace checks, exact manifest hashes, and
+  the strict 10/10/10 static-site validator passed.

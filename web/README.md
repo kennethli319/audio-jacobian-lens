@@ -41,6 +41,10 @@ source audio, fitted tensor, upload, or inference endpoint is included. The
 equal-strength cross-fit Yanny result and target-conditioned Laurel existence
 result are intentionally presented with different evidence labels.
 
+The published ASR, Speech, TTS, and Steering pages share one four-item header.
+The menu remains visible by wrapping on narrow screens; archived findings pages
+are intentionally absent from that primary navigation.
+
 ## Interaction model
 
 The primary lens views deliberately avoid a horizontally scrolling matrix.
